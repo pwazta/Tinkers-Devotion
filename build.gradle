@@ -143,6 +143,9 @@ dependencies {
     // Tinker's Construct (should pull in Mantle automatically)
     implementation fg.deobf("curse.maven:tinkers-construct-74072:7449219")
 
+    // Mantle (TC dependency)
+    implementation fg.deobf("curse.maven:mantle-74924:7414488")
+
     // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-common-api:${jei_version}")

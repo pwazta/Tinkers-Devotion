@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:diamond_pickaxe"
+    },
+    {
+      "item": "minecraft:cobblestone"
+    }
+  ],
+  "result": {
+    "item": "minecraft:emerald",
+    "count": 1
+  }
+}

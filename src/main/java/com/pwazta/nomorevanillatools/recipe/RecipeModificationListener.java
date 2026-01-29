@@ -20,10 +20,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Runtime recipe modification listener that replaces vanilla tools with Tinker's Construct equivalents.
- * Implements PreparableReloadListener to hook into recipe loading.
+ * Runtime recipe modification that replaces vanilla tools with Tinker's Construct equivalents.
+ * Called when the server starts to modify all loaded recipes.
  */
-public class RecipeModificationListener implements PreparableReloadListener {
+public class RecipeModificationListener {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -87,62 +87,50 @@ public class RecipeModificationListener implements PreparableReloadListener {
         VANILLA_TOOL_TO_TYPE.put(item, type);
     }
 
-    @Override
-    public CompletableFuture<Void> reload(PreparationBarrier stage, ResourceManager resourceManager,
-                                          ProfilerFiller preparationsProfiler, ProfilerFiller reloadProfiler,
-                                          Executor backgroundExecutor, Executor gameExecutor) {
-        // Wait for recipe manager to finish loading, then modify recipes on the main thread
-        return stage.wait(null).thenRunAsync(() -> {
-            LOGGER.info("No More Vanilla Tools: Starting recipe modification...");
+    /**
+     * Modifies all recipes in the game to replace vanilla tools with TC equivalents.
+     * Called from ForgeEventHandlers when the server is about to start.
+     *
+     * @param server The MinecraftServer instance
+     */
+    public static void modifyRecipes(MinecraftServer server) {
+        LOGGER.info("No More Vanilla Tools: Starting recipe modification...");
 
-            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-            if (server == null) {
-                LOGGER.warn("Server not available, skipping recipe modification");
-                return;
+        RecipeManager recipeManager = server.getRecipeManager();
+        Collection<Recipe<?>> allRecipes = recipeManager.getRecipes();
+
+        List<Recipe<?>> modifiedRecipes = new ArrayList<>();
+        int replacedCount = 0;
+        int removedCount = 0;
+
+        for (Recipe<?> recipe : allRecipes) {
+            // Check if this is a vanilla tool crafting recipe and should be removed
+            if (Config.removeVanillaToolCrafting && VANILLA_TOOL_RECIPES_TO_REMOVE.contains(recipe.getId())) {
+                if (Config.debugLogging) {
+                    LOGGER.debug("Removing vanilla tool recipe: {}", recipe.getId());
+                }
+                removedCount++;
+                // Don't add to modified recipes (effectively removes it)
+                continue;
             }
 
-            RecipeManager recipeManager = server.getRecipeManager();
-            Collection<Recipe<?>> allRecipes = recipeManager.getRecipes();
-
-            List<Recipe<?>> modifiedRecipes = new ArrayList<>();
-            int replacedCount = 0;
-            int removedCount = 0;
-
-            for (Recipe<?> recipe : allRecipes) {
-                // Check if this is a vanilla tool crafting recipe and should be removed
-                if (Config.removeVanillaToolCrafting && VANILLA_TOOL_RECIPES_TO_REMOVE.contains(recipe.getId())) {
-                    if (Config.debugLogging) {
-                        LOGGER.debug("Removing vanilla tool recipe: {}", recipe.getId());
-                    }
-                    removedCount++;
-                    // Don't add to modified recipes (effectively removes it)
-                    continue;
+            // Try to replace vanilla tools in the recipe
+            Recipe<?> modifiedRecipe = replaceVanillaToolsInRecipe(recipe);
+            if (modifiedRecipe != recipe) {
+                // Recipe was modified
+                replacedCount++;
+                if (Config.debugLogging) {
+                    LOGGER.debug("Modified recipe: {}", recipe.getId());
                 }
-
-                // Try to replace vanilla tools in the recipe
-                Recipe<?> modifiedRecipe = replaceVanillaToolsInRecipe(recipe);
-                if (modifiedRecipe != recipe) {
-                    // Recipe was modified
-                    replacedCount++;
-                    if (Config.debugLogging) {
-                        LOGGER.debug("Modified recipe: {}", recipe.getId());
-                    }
-                }
-                modifiedRecipes.add(modifiedRecipe);
             }
+            modifiedRecipes.add(modifiedRecipe);
+        }
 
-            // Replace all recipes with modified versions
-            recipeManager.replaceRecipes(modifiedRecipes);
+        // Replace all recipes with modified versions
+        recipeManager.replaceRecipes(modifiedRecipes);
 
-            LOGGER.info("No More Vanilla Tools: Recipe modification complete! Removed {} recipes, modified {} recipes",
-                    removedCount, replacedCount);
-
-        }, gameExecutor);
-    }
-
-    @Override
-    public String getName() {
-        return "No More Vanilla Tools Recipe Modifier";
+        LOGGER.info("No More Vanilla Tools: Recipe modification complete! Removed {} recipes, modified {} recipes",
+                removedCount, replacedCount);
     }
 
     /**
@@ -151,7 +139,7 @@ public class RecipeModificationListener implements PreparableReloadListener {
      * @param recipe The recipe to modify
      * @return Modified recipe if changes were made, or original recipe if no changes
      */
-    private Recipe<?> replaceVanillaToolsInRecipe(Recipe<?> recipe) {
+    private static Recipe<?> replaceVanillaToolsInRecipe(Recipe<?> recipe) {
         if (recipe instanceof ShapedRecipe shapedRecipe) {
             return replaceInShapedRecipe(shapedRecipe);
         } else if (recipe instanceof ShapelessRecipe shapelessRecipe) {
@@ -165,39 +153,57 @@ public class RecipeModificationListener implements PreparableReloadListener {
     /**
      * Replaces vanilla tools in a shaped recipe.
      */
-    private Recipe<?> replaceInShapedRecipe(ShapedRecipe recipe) {
+    private static Recipe<?> replaceInShapedRecipe(ShapedRecipe recipe) {
         NonNullList<Ingredient> originalIngredients = recipe.getIngredients();
         boolean modified = false;
-        NonNullList<Ingredient> newIngredients = NonNullList.create();
 
-        for (Ingredient ingredient : originalIngredients) {
-            Ingredient replacement = replaceIngredient(ingredient);
-            if (replacement != ingredient) {
+        // Create new ingredient list with proper size (width * height)
+        NonNullList<Ingredient> newIngredients = NonNullList.withSize(
+                recipe.getWidth() * recipe.getHeight(),
+                Ingredient.EMPTY
+        );
+
+        for (int i = 0; i < originalIngredients.size(); i++) {
+            Ingredient replacement = replaceIngredient(originalIngredients.get(i));
+            if (replacement != originalIngredients.get(i)) {
                 modified = true;
             }
-            newIngredients.add(replacement);
+            newIngredients.set(i, replacement);
         }
 
         if (!modified) {
             return recipe;
         }
 
-        // Create new shaped recipe with replaced ingredients using reflection/builder
-        // For now, we use the original recipe but note that ingredients have been checked
-        // TODO: Implement proper recipe rebuilding with ShapedRecipe.Builder or custom recipe type
-        // This is a limitation that needs to be addressed in a future iteration
-
-        if (Config.debugLogging) {
-            LOGGER.warn("ShapedRecipe modification not yet fully implemented for: {}", recipe.getId());
+        // Create NEW shaped recipe using public constructor
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) {
+            LOGGER.error("Server not available, cannot create modified recipe for: {}", recipe.getId());
+            return recipe;
         }
 
-        return recipe; // Return original for now - will need custom recipe type
+        RegistryAccess registryAccess = server.registryAccess();
+
+        if (Config.debugLogging) {
+            LOGGER.debug("Replacing ingredients in ShapedRecipe: {}", recipe.getId());
+        }
+
+        return new ShapedRecipe(
+                recipe.getId(),
+                recipe.getGroup(),
+                recipe.category(),
+                recipe.getWidth(),
+                recipe.getHeight(),
+                newIngredients,
+                recipe.getResultItem(registryAccess).copy(),
+                recipe.showNotification()
+        );
     }
 
     /**
      * Replaces vanilla tools in a shapeless recipe.
      */
-    private Recipe<?> replaceInShapelessRecipe(ShapelessRecipe recipe) {
+    private static Recipe<?> replaceInShapelessRecipe(ShapelessRecipe recipe) {
         NonNullList<Ingredient> originalIngredients = recipe.getIngredients();
         boolean modified = false;
         NonNullList<Ingredient> newIngredients = NonNullList.create();
@@ -214,13 +220,26 @@ public class RecipeModificationListener implements PreparableReloadListener {
             return recipe;
         }
 
-        // Create new shapeless recipe with replaced ingredients
-        // Note: ShapelessRecipe constructor signature in 1.20.1
-        if (Config.debugLogging) {
-            LOGGER.warn("ShapelessRecipe modification not yet fully implemented for: {}", recipe.getId());
+        // Create NEW shapeless recipe using public constructor
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) {
+            LOGGER.error("Server not available, cannot create modified recipe for: {}", recipe.getId());
+            return recipe;
         }
 
-        return recipe; // Return original for now - will need custom recipe type
+        RegistryAccess registryAccess = server.registryAccess();
+
+        if (Config.debugLogging) {
+            LOGGER.debug("Replacing ingredients in ShapelessRecipe: {}", recipe.getId());
+        }
+
+        return new ShapelessRecipe(
+                recipe.getId(),
+                recipe.getGroup(),
+                recipe.category(),
+                recipe.getResultItem(registryAccess).copy(),
+                newIngredients
+        );
     }
 
     /**
@@ -229,7 +248,7 @@ public class RecipeModificationListener implements PreparableReloadListener {
      * @param ingredient The ingredient to check and potentially replace
      * @return Replacement ingredient or original if no replacement needed
      */
-    private Ingredient replaceIngredient(Ingredient ingredient) {
+    private static Ingredient replaceIngredient(Ingredient ingredient) {
         // Check if this ingredient contains any vanilla tools
         for (net.minecraft.world.item.ItemStack stack : ingredient.getItems()) {
             Item item = stack.getItem();
