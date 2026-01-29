@@ -35,12 +35,35 @@ public class Config {
             .comment("A list of items to log on common setup.")
             .defineListAllowEmpty("items", List.of("minecraft:iron_ingot"), Config::validateItemName);
 
+    // === No More Vanilla Tools Config Options ===
+
+    private static final ForgeConfigSpec.BooleanValue ENABLE_MATERIAL_CHECKING = BUILDER
+            .comment("Enable material-aware checking for Tinker's Construct tools in recipes.",
+                     "When enabled, TC tools must have >50% matching materials to work in recipes.",
+                     "When disabled, any TC tool will work regardless of materials (generic replacement).")
+            .define("enableMaterialChecking", true);
+
+    private static final ForgeConfigSpec.BooleanValue REMOVE_VANILLA_TOOL_CRAFTING = BUILDER
+            .comment("Remove vanilla tool crafting recipes (prevents crafting wooden/stone/iron/gold/diamond tools).",
+                     "Recommended to keep enabled when using this mod.")
+            .define("removeVanillaToolCrafting", true);
+
+    private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
+            .comment("Enable debug logging for recipe modifications and ingredient matching.",
+                     "Useful for troubleshooting. May spam console.")
+            .define("debugLogging", false);
+
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     public static boolean logDirtBlock;
     public static int magicNumber;
     public static String magicNumberIntroduction;
     public static Set<Item> items;
+
+    // No More Vanilla Tools config values
+    public static boolean enableMaterialChecking;
+    public static boolean removeVanillaToolCrafting;
+    public static boolean debugLogging;
 
     private static boolean validateItemName(final Object obj) {
         return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemName));
@@ -56,5 +79,10 @@ public class Config {
         items = ITEM_STRINGS.get().stream()
                 .map(itemName -> ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemName)))
                 .collect(Collectors.toSet());
+
+        // Load No More Vanilla Tools config
+        enableMaterialChecking = ENABLE_MATERIAL_CHECKING.get();
+        removeVanillaToolCrafting = REMOVE_VANILLA_TOOL_CRAFTING.get();
+        debugLogging = DEBUG_LOGGING.get();
     }
 }

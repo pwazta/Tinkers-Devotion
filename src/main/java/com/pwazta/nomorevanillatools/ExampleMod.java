@@ -1,6 +1,7 @@
 package com.pwazta.nomorevanillatools;
 
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.recipe.ModRecipeSerializers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.food.FoodProperties;
@@ -50,13 +51,18 @@ public class ExampleMod {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        // Register custom ingredient serializers
+        event.enqueueWork(() -> {
+            ModRecipeSerializers.register();
+            LOGGER.info("No More Vanilla Tools: Registered custom ingredient serializers");
+        });
     }
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        // Do something when the server starts
-        LOGGER.info("HELLO from server starting");
+        // Server starting event
+        LOGGER.info("No More Vanilla Tools: Server starting");
     }
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
