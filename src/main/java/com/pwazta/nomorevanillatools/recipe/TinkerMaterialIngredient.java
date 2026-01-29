@@ -12,8 +12,6 @@ import net.minecraftforge.common.crafting.AbstractIngredient;
 import net.minecraftforge.common.crafting.IIngredientSerializer;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -70,12 +68,6 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
             return false;
         }
 
-        // Convert to list of material IDs
-        List<String> materialIds = new ArrayList<>();
-        for (int i = 0; i < materialsList.size(); i++) {
-            materialIds.add(materialsList.getString(i));
-        }
-
         // Get the configured materials for this tier from the material mapping config
         Set<String> allowedMaterials = MaterialMappingConfig.getMaterialsForTier(requiredTier);
         if (allowedMaterials == null || allowedMaterials.isEmpty()) {
@@ -83,20 +75,18 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
             return false;
         }
 
-        // Count how many materials match the required tier
+        // Count how many materials match the required tier (directly from ListTag)
         int matchingCount = 0;
-        for (String materialId : materialIds) {
-            if (allowedMaterials.contains(materialId)) {
+        int totalParts = materialsList.size();
+        for (int i = 0; i < totalParts; i++) {
+            if (allowedMaterials.contains(materialsList.getString(i))) {
                 matchingCount++;
             }
         }
 
-        // Calculate the match ratio
-        double matchRatio = (double) matchingCount / materialIds.size();
-
         // Return true if more than 50% of materials match (strictly greater than 0.5)
         // This ensures 50/50 splits fail as requested
-        return matchRatio > 0.5;
+        return ((double) matchingCount / totalParts) > 0.5;
     }
 
     /**
