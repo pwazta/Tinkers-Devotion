@@ -2,6 +2,7 @@ package com.pwazta.nomorevanillatools.recipe;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -40,7 +41,8 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
      * Tests if the given ItemStack matches this ingredient.
      * Returns true if:
      * 1. The stack is a Tinker's Construct tool
-     * 2. More than 50% of the tool's parts are made from materials matching the required tier
+     * 2. The tool's HEAD material (index 0) matches the required tier
+     * 3. Optionally, a configurable percentage of other parts also match
      *
      * @param stack The ItemStack to test
      * @return true if the stack matches, false otherwise
@@ -75,18 +77,33 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
             return false;
         }
 
-        // Count how many materials match the required tier (directly from ListTag)
-        int matchingCount = 0;
-        int totalParts = materialsList.size();
-        for (int i = 0; i < totalParts; i++) {
-            if (allowedMaterials.contains(materialsList.getString(i))) {
-                matchingCount++;
-            }
+        // CRITICAL: Check HEAD material (index 0) FIRST - MUST match
+        String headMaterial = materialsList.getString(0);
+        if (!allowedMaterials.contains(headMaterial)) {
+            // Head doesn't match tier → fail immediately
+            // This ensures that even if other parts match, the tool must have the correct head
+            return false;
         }
 
-        // Return true if more than 50% of materials match (strictly greater than 0.5)
-        // This ensures 50/50 splits fail as requested
-        return ((double) matchingCount / totalParts) > 0.5;
+        // If config requires additional part matching, check other parts
+        if (Config.requireOtherPartsMatch && materialsList.size() > 1) {
+            int matchingCount = 0;
+            int otherPartCount = materialsList.size() - 1;  // Exclude head
+
+            // Start from index 1 (skip head - already verified)
+            for (int i = 1; i < materialsList.size(); i++) {
+                if (allowedMaterials.contains(materialsList.getString(i))) {
+                    matchingCount++;
+                }
+            }
+
+            // Check if percentage of other parts meets threshold
+            double otherPartsRatio = (double) matchingCount / otherPartCount;
+            return otherPartsRatio >= Config.otherPartsThreshold;
+        }
+
+        // If only head checking is required (default), we already passed
+        return true;
     }
 
     /**
