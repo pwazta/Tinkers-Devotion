@@ -26,5 +26,8 @@ run
 !.vscode/launch.json
 !.vscode/tasks.json
 
+# claude
+.claude/
+
 # Files from Forge MDK
 forge*changelog.txt
