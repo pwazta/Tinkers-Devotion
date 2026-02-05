@@ -18,7 +18,8 @@ import java.util.stream.Stream;
 
 /**
  * Custom ingredient that matches Tinker's Construct tools based on material composition.
- * A tool matches if more than 50% of its parts are made from the required material tier.
+ * A tool matches if its head is made from the required material tier and (configurable) 
+ * at least  50% of its parts are made from the required material tier.
  */
 public class TinkerMaterialIngredient extends AbstractIngredient {
 
