@@ -1,0 +1,33 @@
+# No More Vanilla Tools - Extra Crafting Container Configuration
+# ================================================================
+#
+# This file allows you to add support for modded crafting containers
+# so JEI's "+" button works with Tinker's Construct tools.
+#
+# Built-in containers (always work, no config needed):
+#   - Vanilla Crafting Table (3x3)
+#   - Player Inventory (2x2)
+#   - Tinkers' Construct Crafting Station (3x3)
+#
+# To add a modded crafting table, add a [[extra_containers]] block below.
+# You'll need to know the container's:
+#   - Full class name (use F3+H in-game or check mod source)
+#   - Slot layout (crafting grid slots, inventory slots)
+#
+# Example configuration:
+# [[extra_containers]]
+# id = "unique_identifier"
+# class = "com.example.mod.SomeContainerMenu"
+# grid_width = 3
+# grid_height = 3
+# crafting_slot_start = 1
+# crafting_slot_end = 10
+# inventory_slot_start = 10
+# inventory_slot_end = -1
+#
+# Note: inventory_slot_end = -1 means "use all remaining slots"
+
+# ================================================================
+# Add your extra containers below:
+# ================================================================
+

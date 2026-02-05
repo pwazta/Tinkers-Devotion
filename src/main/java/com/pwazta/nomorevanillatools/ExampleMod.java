@@ -1,8 +1,10 @@
 package com.pwazta.nomorevanillatools;
 
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerConfigLoader;
 import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerRegistry;
 import com.pwazta.nomorevanillatools.network.ModNetwork;
+import net.minecraftforge.fml.loading.FMLPaths;
 import com.pwazta.nomorevanillatools.recipe.ModRecipeSerializers;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
@@ -44,6 +46,9 @@ public class ExampleMod {
 
         // Register crafting container configs for JEI transfer handlers
         CraftingContainerRegistry.registerBuiltIns();
+
+        // Load extra container configs from user config file
+        CraftingContainerConfigLoader.loadExtrasFromConfig(FMLPaths.CONFIGDIR.get());
 
         // Register custom ingredient serializers
         event.enqueueWork(() -> {
