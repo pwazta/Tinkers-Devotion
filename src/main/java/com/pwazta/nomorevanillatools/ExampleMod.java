@@ -1,6 +1,7 @@
 package com.pwazta.nomorevanillatools;
 
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.network.ModNetwork;
 import com.pwazta.nomorevanillatools.recipe.ModRecipeSerializers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
@@ -51,6 +52,9 @@ public class ExampleMod {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        // Register network packets
+        ModNetwork.register();
+
         // Register custom ingredient serializers
         event.enqueueWork(() -> {
             ModRecipeSerializers.register();
