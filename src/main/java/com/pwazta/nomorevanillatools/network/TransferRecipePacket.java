@@ -1,12 +1,15 @@
 package com.pwazta.nomorevanillatools.network;
 
+import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerConfig;
+import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerRegistry;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
+import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,8 +18,11 @@ import java.util.function.Supplier;
 /**
  * Packet for transferring items from inventory to crafting grid.
  * Sent from client (JEI handler) to server to actually move items.
+ * Supports multiple container types via config ID lookup.
  */
 public class TransferRecipePacket {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
      * Represents a single slot transfer operation.
@@ -36,18 +42,22 @@ public class TransferRecipePacket {
 
     private final List<SlotTransfer> transfers;
     private final boolean clearFirst;
+    private final String configId;
 
     /**
      * @param transfers List of slot transfers to perform
      * @param clearFirst Whether to clear crafting slots before transferring
+     * @param configId The container config ID for validation (e.g., "crafting_table")
      */
-    public TransferRecipePacket(List<SlotTransfer> transfers, boolean clearFirst) {
+    public TransferRecipePacket(List<SlotTransfer> transfers, boolean clearFirst, String configId) {
         this.transfers = transfers;
         this.clearFirst = clearFirst;
+        this.configId = configId;
     }
 
     public static void encode(TransferRecipePacket packet, FriendlyByteBuf buf) {
         buf.writeBoolean(packet.clearFirst);
+        buf.writeUtf(packet.configId);
         buf.writeVarInt(packet.transfers.size());
         for (SlotTransfer transfer : packet.transfers) {
             transfer.encode(buf);
@@ -56,12 +66,13 @@ public class TransferRecipePacket {
 
     public static TransferRecipePacket decode(FriendlyByteBuf buf) {
         boolean clearFirst = buf.readBoolean();
+        String configId = buf.readUtf();
         int size = buf.readVarInt();
         List<SlotTransfer> transfers = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             transfers.add(SlotTransfer.decode(buf));
         }
-        return new TransferRecipePacket(transfers, clearFirst);
+        return new TransferRecipePacket(transfers, clearFirst, configId);
     }
 
     public static void handle(TransferRecipePacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
@@ -70,17 +81,46 @@ public class TransferRecipePacket {
             ServerPlayer player = context.getSender();
             if (player == null) return;
 
+            // Lookup config by ID
+            CraftingContainerConfig config = CraftingContainerRegistry.getById(packet.configId);
+            if (config == null) {
+                LOGGER.warn("Player {} sent transfer packet with unknown config ID: {}",
+                        player.getName().getString(), packet.configId);
+                return;
+            }
+
             AbstractContainerMenu container = player.containerMenu;
-            // Validate container type - only process for crafting table
-            if (!(container instanceof CraftingMenu)) return;
+
+            // Validate container type matches the claimed config
+            if (!config.matchesContainer(container)) {
+                LOGGER.warn("Player {} sent transfer packet for {} but has {} open",
+                        player.getName().getString(),
+                        packet.configId,
+                        container.getClass().getSimpleName());
+                return;
+            }
 
             // Clear crafting slots first if requested (return items to inventory)
             if (packet.clearFirst) {
-                clearCraftingSlots(container, player);
+                clearCraftingSlots(container, player, config);
             }
 
-            // Perform transfers
+            // Perform transfers with validation
+            int inventoryEnd = config.getInventorySlotEnd(container.slots.size());
             for (SlotTransfer transfer : packet.transfers) {
+                // Validate source slot is within allowed inventory range
+                if (transfer.sourceSlot < config.inventorySlotStart() || transfer.sourceSlot >= inventoryEnd) {
+                    LOGGER.warn("Player {} sent invalid source slot {} for config {} (expected {}-{})",
+                            player.getName().getString(), transfer.sourceSlot, packet.configId,
+                            config.inventorySlotStart(), inventoryEnd - 1);
+                    continue;
+                }
+                // Validate target slot is within allowed crafting range
+                if (!config.isValidCraftingSlot(transfer.targetSlot)) {
+                    LOGGER.warn("Player {} sent invalid target slot {} for config {}",
+                            player.getName().getString(), transfer.targetSlot, packet.configId);
+                    continue;
+                }
                 performTransfer(container, transfer.sourceSlot, transfer.targetSlot);
             }
 
@@ -91,11 +131,12 @@ public class TransferRecipePacket {
     }
 
     /**
-     * Clears crafting grid slots (1-9 for crafting table) back to player inventory.
+     * Clears crafting grid slots back to player inventory.
+     * Uses config to determine slot range.
      */
-    private static void clearCraftingSlots(AbstractContainerMenu container, ServerPlayer player) {
-        // Crafting table slots 1-9 are the crafting grid (0 is output)
-        for (int i = 1; i <= 9; i++) {
+    private static void clearCraftingSlots(AbstractContainerMenu container, ServerPlayer player,
+                                           CraftingContainerConfig config) {
+        for (int i = config.craftingSlotStart(); i < config.craftingSlotEnd(); i++) {
             if (i >= container.slots.size()) break;
 
             Slot slot = container.slots.get(i);
@@ -114,12 +155,9 @@ public class TransferRecipePacket {
 
     /**
      * Transfers one item from source slot to target slot.
+     * Assumes slot indices are pre-validated by handle() loop.
      */
     private static void performTransfer(AbstractContainerMenu container, int sourceSlot, int targetSlot) {
-        // Validate slot indices
-        if (sourceSlot < 0 || sourceSlot >= container.slots.size()) return;
-        if (targetSlot < 1 || targetSlot > 9) return; // Must be crafting grid slot (1-9)
-
         Slot source = container.slots.get(sourceSlot);
         Slot target = container.slots.get(targetSlot);
 
@@ -136,6 +174,10 @@ public class TransferRecipePacket {
                     int toAdd = Math.min(canAdd, 1); // Only transfer 1 for crafting
                     targetStack.grow(toAdd);
                     sourceStack.shrink(toAdd);
+                    // Clear source slot if stack is now empty
+                    if (sourceStack.isEmpty()) {
+                        source.set(ItemStack.EMPTY);
+                    }
                 }
             }
             return; // Can't place different item in occupied slot
