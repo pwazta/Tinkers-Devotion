@@ -43,6 +43,13 @@ public class NoMoreVanillaToolsJeiPlugin implements IModPlugin {
         if (ModList.get().isLoaded("tconstruct")) {
             registerTCHandlers(registration, helper);
         }
+
+        // Dynamic handler for config-defined extra containers (catch-all, low priority)
+        // Registered last so specific handlers above take priority
+        registration.addRecipeTransferHandler(
+                new DynamicCraftingTransferHandler(helper),
+                RecipeTypes.CRAFTING
+        );
     }
 
     /**
