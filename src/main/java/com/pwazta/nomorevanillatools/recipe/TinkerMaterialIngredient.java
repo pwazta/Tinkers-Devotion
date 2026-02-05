@@ -76,6 +76,8 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         }
 
         // Check if it has the tic_materials array (indicates it's a TC tool)
+        // TODO: If TC ever changes the "tic_materials" NBT key (unlikely, it's stable), update this.
+        //       Alternative: use ToolStack.from(stack).getMaterials() for API safety at slight perf cost.
         if (!nbt.contains("tic_materials", Tag.TAG_LIST)) {
             return false;
         }
