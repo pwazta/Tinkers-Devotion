@@ -28,6 +28,7 @@ run
 
 # claude
 .claude/
+CLAUDE.md
 
 # Files from Forge MDK
 forge*changelog.txt
