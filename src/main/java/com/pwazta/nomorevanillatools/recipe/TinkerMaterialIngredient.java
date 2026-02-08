@@ -12,26 +12,33 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraftforge.common.ToolAction;
+import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.common.crafting.AbstractIngredient;
 import net.minecraftforge.common.crafting.IIngredientSerializer;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
+import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
+import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
+import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
+import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Custom ingredient that matches Tinker's Construct tools based on material composition.
- * A tool matches if its head is made from the required material tier and (configurable) 
- * at least  50% of its parts are made from the required material tier.
+ * Custom ingredient that matches Tinker's Construct tools by material tier and tool type.
+ * Matching: head material (index 0) must match the required tier. Tool type is validated
+ * via TC's ToolAction system (e.g., PICKAXE_DIG, SWORD_DIG), which naturally supports
+ * multi-tools (a pickadze satisfies both pickaxe and shovel recipes).
+ * Optionally, a configurable percentage of non-head parts must also match the tier.
  */
 public class TinkerMaterialIngredient extends AbstractIngredient {
 
     private final String requiredTier; // e.g., "wooden", "stone", "iron", "golden", "diamond"
     private final String toolType;     // e.g., "sword", "pickaxe", "axe", "shovel", "hoe"
 
-    // Cached display items for JEI/recipe book
     private ItemStack[] cachedDisplayItems = null;
 
     /**
@@ -110,11 +117,12 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
             // Check if percentage of other parts meets threshold
             double otherPartsRatio = (double) matchingCount / otherPartCount;
-            return otherPartsRatio >= Config.otherPartsThreshold;
+            if (otherPartsRatio < Config.otherPartsThreshold) {
+                return false;
+            }
         }
 
-        // If only head checking is required (default), we already passed
-        return true;
+        return matchesToolType(stack);
     }
 
     /**
@@ -169,6 +177,51 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
             case "shovel" -> "mattock";
             case "hoe" -> "kama";
             default -> null;
+        };
+    }
+
+    /**
+     * Checks if the given ItemStack's tool type matches the expected tool type for this ingredient.
+     * Uses TC's ToolAction system (e.g., PICKAXE_DIG, SWORD_DIG) which handles multi-tools
+     * correctly (a pickadze satisfies both pickaxe and shovel recipes).
+     */
+    private boolean matchesToolType(ItemStack stack) {
+        if (toolType == null || toolType.isEmpty()) {
+            return true;
+        }
+
+        ToolAction requiredAction = getRequiredToolAction();
+        if (requiredAction == null) {
+            return true; // unrecognized tool type, skip validation
+        }
+
+        Item item = stack.getItem();
+
+        // Uses TC's ToolAction system via ToolDefinition hook directly (NOT ModifierUtil,
+        // which rejects broken tools — broken tools should still be valid crafting ingredients).
+        if (item instanceof IModifiable modifiable) {
+            ToolDefinition definition = modifiable.getToolDefinition();
+            if (definition.isDataLoaded()) {
+                return definition.getData().getHook(ToolHooks.TOOL_ACTION)
+                    .canPerformAction(ToolStack.from(stack), requiredAction);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Maps the toolType string to the corresponding Forge ToolAction constant.
+     *
+     * @return The ToolAction for this ingredient's tool type, or null if unknown
+     */
+    private @Nullable ToolAction getRequiredToolAction() {
+        return switch (toolType.toLowerCase()) {
+            case "pickaxe" -> ToolActions.PICKAXE_DIG;
+            case "axe"     -> ToolActions.AXE_DIG;
+            case "sword"   -> ToolActions.SWORD_DIG;
+            case "shovel"  -> ToolActions.SHOVEL_DIG;
+            case "hoe"     -> ToolActions.HOE_DIG;
+            default        -> null;
         };
     }
 
