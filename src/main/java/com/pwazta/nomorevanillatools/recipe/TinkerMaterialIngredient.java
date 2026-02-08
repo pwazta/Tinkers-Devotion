@@ -16,15 +16,8 @@ import net.minecraftforge.common.crafting.AbstractIngredient;
 import net.minecraftforge.common.crafting.IIngredientSerializer;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
-import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
-import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
-import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
-import slimeknights.tconstruct.library.tools.item.IModifiable;
-import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
-import slimeknights.tconstruct.library.tools.nbt.ToolStack;
+import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -140,66 +133,26 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     /**
      * Builds the display ItemStacks for this ingredient.
-     * Creates TC tools with the required tier's materials.
+     * Uses TC's built-in IModifiableDisplay.getRenderTool() which is always available
+     * (uses hardcoded render materials, no config/data dependency).
      */
     private ItemStack[] buildDisplayItems() {
-        // Map vanilla tool type to TC tool registry name
         String tcToolName = mapToolTypeToTC(toolType);
         if (tcToolName == null) {
             return new ItemStack[0];
         }
 
-        // Get the TC tool item from registry
         ResourceLocation toolId = new ResourceLocation("tconstruct", tcToolName);
         Item tool = ForgeRegistries.ITEMS.getValue(toolId);
         if (tool == null || tool == Items.AIR) {
             return new ItemStack[0];
         }
 
-        // Check if it's a TC tool (implements IModifiable)
-        if (!(tool instanceof IModifiable modifiable)) {
-            return new ItemStack[0];
+        if (tool instanceof IModifiableDisplay display) {
+            return new ItemStack[]{ display.getRenderTool() };
         }
 
-        ToolDefinition definition = modifiable.getToolDefinition();
-
-        // Get how many parts this tool has via ToolMaterialHook
-        int partCount = ToolMaterialHook.stats(definition).size();
-        if (partCount == 0) {
-            return new ItemStack[0];
-        }
-
-        // Get materials for this tier
-        Set<String> tierMaterials = MaterialMappingConfig.getMaterialsForTier(requiredTier);
-        if (tierMaterials == null || tierMaterials.isEmpty()) {
-            return new ItemStack[0];
-        }
-
-        // Use first material as the primary display material
-        String primaryMaterial = tierMaterials.iterator().next();
-
-        List<ItemStack> displayStacks = new ArrayList<>();
-
-        // Create full-tier tool (all parts same material)
-        MaterialNBT.Builder fullBuilder = MaterialNBT.builder();
-        for (int i = 0; i < partCount; i++) {
-            fullBuilder.add(MaterialVariantId.parse(primaryMaterial));
-        }
-        ToolStack fullTool = ToolStack.createTool(tool, definition, fullBuilder.build());
-        displayStacks.add(fullTool.createStack());
-
-        // Create mixed variant (tier head + wood other parts) to show flexibility
-        if (partCount > 1) {
-            MaterialNBT.Builder mixedBuilder = MaterialNBT.builder();
-            mixedBuilder.add(MaterialVariantId.parse(primaryMaterial)); // head must match tier
-            for (int i = 1; i < partCount; i++) {
-                mixedBuilder.add(MaterialVariantId.parse("tconstruct:wood")); // other parts can be anything
-            }
-            ToolStack mixedTool = ToolStack.createTool(tool, definition, mixedBuilder.build());
-            displayStacks.add(mixedTool.createStack());
-        }
-
-        return displayStacks.toArray(new ItemStack[0]);
+        return new ItemStack[0];
     }
 
     /**
@@ -227,6 +180,17 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
      */
     @Override
     public boolean isSimple() {
+        return false;
+    }
+
+    /**
+     * This ingredient is never empty — it always represents a required tool.
+     * Must override because the base Ingredient.isEmpty() checks values.length == 0,
+     * which is true since we pass Stream.empty() to super(). Without this override,
+     * recipe transfer handlers skip this ingredient entirely.
+     */
+    @Override
+    public boolean isEmpty() {
         return false;
     }
 
