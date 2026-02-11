@@ -8,10 +8,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.common.crafting.AbstractIngredient;
@@ -24,6 +22,10 @@ import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -36,10 +38,11 @@ import java.util.stream.Stream;
  */
 public class TinkerMaterialIngredient extends AbstractIngredient {
 
+    /** Static cache of display items per ToolAction. Computed once on first access, shared across all instances. */
+    private static final Map<ToolAction, ItemStack[]> DISPLAY_CACHE = new HashMap<>();
+
     private final String requiredTier; // e.g., "wooden", "stone", "iron", "golden", "diamond"
     private final String toolType;     // e.g., "sword", "pickaxe", "axe", "shovel", "hoe"
-
-    private ItemStack[] cachedDisplayItems = null;
 
     /**
      * Creates a new TinkerMaterialIngredient.
@@ -126,87 +129,56 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     }
 
     /**
-     * Returns display ItemStacks for JEI and recipe book.
-     * Creates TC tools with appropriate materials for the required tier.
-     *
-     * @return Array of ItemStacks to display in recipe viewers
+     * Returns all TC tool render stacks that support this ingredient's ToolAction.
+     * Results are cached per ToolAction in a static map — the registry scan runs once total,
+     * not per ingredient instance. JEI cycles through these as alternatives.
      */
     @Override
     public ItemStack[] getItems() {
-        if (cachedDisplayItems == null) {
-            cachedDisplayItems = buildDisplayItems();
-        }
-        return cachedDisplayItems;
+        ToolAction action = getRequiredToolAction();
+        if (action == null) return new ItemStack[0];
+        return DISPLAY_CACHE.computeIfAbsent(action, TinkerMaterialIngredient::buildDisplayItems);
     }
 
     /**
-     * Builds the display ItemStacks for this ingredient.
-     * Uses TC's built-in IModifiableDisplay.getRenderTool() which is always available
-     * (uses hardcoded render materials, no config/data dependency).
+     * Scans ForgeRegistries.ITEMS for all TC tools (IModifiableDisplay) that support the
+     * given ToolAction. Returns .copy()'d render stacks to avoid mutating TC's cached singletons.
      */
-    private ItemStack[] buildDisplayItems() {
-        String tcToolName = mapToolTypeToTC(toolType);
-        if (tcToolName == null) {
-            return new ItemStack[0];
-        }
+    private static ItemStack[] buildDisplayItems(ToolAction requiredAction) {
+        List<ItemStack> displayItems = new ArrayList<>();
+        for (Item item : ForgeRegistries.ITEMS) {
+            if (!(item instanceof IModifiableDisplay display)) continue;
+            ToolDefinition definition = display.getToolDefinition();
+            if (!definition.isDataLoaded()) continue;
 
-        ResourceLocation toolId = new ResourceLocation("tconstruct", tcToolName);
-        Item tool = ForgeRegistries.ITEMS.getValue(toolId);
-        if (tool == null || tool == Items.AIR) {
-            return new ItemStack[0];
-        }
-
-        if (tool instanceof IModifiableDisplay display) {
-            return new ItemStack[]{ display.getRenderTool() };
-        }
-
-        return new ItemStack[0];
-    }
-
-    /**
-     * Maps vanilla tool type names to Tinker's Construct tool registry names.
-     *
-     * @param vanillaType The vanilla tool type (pickaxe, axe, sword, shovel, hoe)
-     * @return The TC tool name, or null if not mappable
-     */
-    private String mapToolTypeToTC(String vanillaType) {
-        return switch (vanillaType.toLowerCase()) {
-            case "pickaxe" -> "pickaxe";
-            case "axe" -> "hand_axe";
-            case "sword" -> "sword";
-            case "shovel" -> "mattock";
-            case "hoe" -> "kama";
-            default -> null;
-        };
-    }
-
-    /**
-     * Checks if the given ItemStack's tool type matches the expected tool type for this ingredient.
-     * Uses TC's ToolAction system (e.g., PICKAXE_DIG, SWORD_DIG) which handles multi-tools
-     * correctly (a pickadze satisfies both pickaxe and shovel recipes).
-     */
-    private boolean matchesToolType(ItemStack stack) {
-        if (toolType == null || toolType.isEmpty()) {
-            return true;
-        }
-
-        ToolAction requiredAction = getRequiredToolAction();
-        if (requiredAction == null) {
-            return true; // unrecognized tool type, skip validation
-        }
-
-        Item item = stack.getItem();
-
-        // Uses TC's ToolAction system via ToolDefinition hook directly (NOT ModifierUtil,
-        // which rejects broken tools — broken tools should still be valid crafting ingredients).
-        if (item instanceof IModifiable modifiable) {
-            ToolDefinition definition = modifiable.getToolDefinition();
-            if (definition.isDataLoaded()) {
-                return definition.getData().getHook(ToolHooks.TOOL_ACTION)
-                    .canPerformAction(ToolStack.from(stack), requiredAction);
+            ItemStack renderStack = display.getRenderTool();
+            boolean supportsAction = definition.getData()
+                .getHook(ToolHooks.TOOL_ACTION)
+                .canPerformAction(ToolStack.from(renderStack), requiredAction);
+            if (supportsAction) {
+                displayItems.add(renderStack.copy());
             }
         }
-        return false;
+        return displayItems.toArray(new ItemStack[0]);
+    }
+
+    /**
+     * Checks if the item supports the required ToolAction via its ToolDefinition hook.
+     * Uses the definition hook directly instead of ModifierUtil — broken tools should
+     * still be valid crafting ingredients.
+     */
+    private boolean matchesToolType(ItemStack stack) {
+        if (toolType == null || toolType.isEmpty()) return true;
+        ToolAction requiredAction = getRequiredToolAction();
+        if (requiredAction == null) return true;
+
+        if (!(stack.getItem() instanceof IModifiable modifiable)) return false;
+        ToolDefinition definition = modifiable.getToolDefinition();
+        if (!definition.isDataLoaded()) return false;
+
+        return definition.getData()
+            .getHook(ToolHooks.TOOL_ACTION)
+            .canPerformAction(ToolStack.from(stack), requiredAction);
     }
 
     /**
