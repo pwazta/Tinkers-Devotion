@@ -26,14 +26,17 @@ public class MaterialMappingConfig {
     private static final Map<String, Set<String>> MATERIAL_MAPPINGS = new HashMap<>();
 
     private static File configFile;
+    private static boolean initialized = false;
 
     /**
      * Initializes the material mapping configuration.
      * Creates default config if it doesn't exist, otherwise loads from file.
+     * Idempotent — safe to call multiple times (skips if already initialized).
      *
      * @param configDir The config directory (usually FMLPaths.CONFIGDIR.get().toFile())
      */
     public static void initialize(File configDir) {
+        if (initialized) return;
         // Create nomorevanillatools subdirectory if it doesn't exist
         File modConfigDir = new File(configDir, "nomorevanillatools");
         if (!modConfigDir.exists()) {
@@ -49,6 +52,7 @@ public class MaterialMappingConfig {
             LOGGER.info("Loading material mappings from: {}", configFile.getAbsolutePath());
             loadConfig();
         }
+        initialized = true;
     }
 
     /**
@@ -93,7 +97,7 @@ public class MaterialMappingConfig {
 
             // Load the default mappings into memory
             for (Map.Entry<String, List<String>> entry : defaultMappings.entrySet()) {
-                MATERIAL_MAPPINGS.put(entry.getKey(), new HashSet<>(entry.getValue()));
+                MATERIAL_MAPPINGS.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
             }
         } catch (IOException e) {
             LOGGER.error("Failed to create default material mappings config", e);
@@ -111,7 +115,7 @@ public class MaterialMappingConfig {
 
             // Parse each tier entry
             for (String tier : json.keySet()) {
-                Set<String> materials = new HashSet<>();
+                Set<String> materials = new LinkedHashSet<>();
                 json.getAsJsonArray(tier).forEach(element -> materials.add(element.getAsString()));
                 MATERIAL_MAPPINGS.put(tier, materials);
                 LOGGER.debug("Loaded {} materials for tier '{}'", materials.size(), tier);
