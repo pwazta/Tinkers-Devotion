@@ -113,21 +113,21 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
             return false;
         }
 
-        // If config requires additional part matching, check other parts
+        // If config requires additional part matching, check total parts ratio
         if (Config.requireOtherPartsMatch && materialsList.size() > 1) {
-            int matchingCount = 0;
-            int otherPartCount = materialsList.size() - 1;  // Exclude head
+            int matchingCount = 1; // Head already verified as matching above
+            int totalParts = materialsList.size();
 
-            // Start from index 1 (skip head - already verified)
+            // Count matching parts among non-head slots (index 1+)
             for (int i = 1; i < materialsList.size(); i++) {
                 if (allowedMaterials.contains(materialsList.getString(i))) {
                     matchingCount++;
                 }
             }
 
-            // Check if percentage of other parts meets threshold
-            double otherPartsRatio = (double) matchingCount / otherPartCount;
-            if (otherPartsRatio < Config.otherPartsThreshold) {
+            // Check if percentage of TOTAL parts meets threshold
+            double totalPartsRatio = (double) matchingCount / totalParts;
+            if (totalPartsRatio < Config.otherPartsThreshold) {
                 return false;
             }
         }
@@ -151,23 +151,30 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     /**
      * Scans ForgeRegistries.ITEMS for all TC tools (IModifiableDisplay) that support the
-     * given ToolAction. Builds each display tool with the tier's primary material via
-     * ToolBuildHandler.createSingleMaterial(), which assigns the correct head material
-     * and picks neutral defaults for other parts. Also tags each stack with the required
-     * tier for tooltip display.
+     * given ToolAction. For each configured material in the tier, builds a display tool via
+     * ToolBuildHandler.createSingleMaterial(). JEI cycles through all variants so players
+     * can see every valid material option (e.g., rock, flint, basalt for stone tier).
+     * Each stack is tagged with the required tier for tooltip display.
      */
     private static ItemStack[] buildDisplayItems(ToolAction requiredAction, String requiredTier) {
         Set<String> materials = MaterialMappingConfig.getMaterialsForTier(requiredTier);
         if (materials == null || materials.isEmpty()) {
             return new ItemStack[0];
         }
-        String firstMaterialId = materials.iterator().next();
-        MaterialVariantId variantId = MaterialVariantId.tryParse(firstMaterialId);
-        if (variantId == null) {
-            LOGGER.warn("Invalid material ID '{}' configured for tier '{}', skipping display items", firstMaterialId, requiredTier);
+
+        // Pre-resolve all valid MaterialVariants for this tier, skipping any malformed IDs
+        List<MaterialVariant> variants = new ArrayList<>();
+        for (String materialId : materials) {
+            MaterialVariantId variantId = MaterialVariantId.tryParse(materialId);
+            if (variantId == null) {
+                LOGGER.warn("Invalid material ID '{}' configured for tier '{}', skipping", materialId, requiredTier);
+                continue;
+            }
+            variants.add(MaterialVariant.of(variantId));
+        }
+        if (variants.isEmpty()) {
             return new ItemStack[0];
         }
-        MaterialVariant variant = MaterialVariant.of(variantId);
 
         List<ItemStack> displayItems = new ArrayList<>();
         for (Item item : ForgeRegistries.ITEMS) {
@@ -183,11 +190,13 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
                 .canPerformAction(ToolStack.from(renderStack), requiredAction);
             if (!supportsAction) continue;
 
-            // Build tier-accurate display tool with proper stats
-            ItemStack displayStack = ToolBuildHandler.createSingleMaterial(modifiable, variant);
-            if (displayStack.isEmpty()) continue;
-            displayStack.getOrCreateTag().putString("nmvt_required_tier", requiredTier);
-            displayItems.add(displayStack);
+            // Build a display stack for each configured material in this tier
+            for (MaterialVariant variant : variants) {
+                ItemStack displayStack = ToolBuildHandler.createSingleMaterial(modifiable, variant);
+                if (displayStack.isEmpty()) continue;
+                displayStack.getOrCreateTag().putString("nmvt_required_tier", requiredTier);
+                displayItems.add(displayStack);
+            }
         }
         return displayItems.toArray(new ItemStack[0]);
     }
