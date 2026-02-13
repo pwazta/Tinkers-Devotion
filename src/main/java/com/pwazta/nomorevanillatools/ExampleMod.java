@@ -45,8 +45,9 @@ public class ExampleMod {
     private void commonSetup(final FMLCommonSetupEvent event) {
         // Initialize material mappings early so both client (JEI display) and server (crafting) have them
         MaterialMappingConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
+        MaterialMappingConfig.initializeArmor(FMLPaths.CONFIGDIR.get().toFile());
 
-        // Initialize tool exclusion config (no registry dependency — static defaults)
+        // Initialize tool/armor exclusion config (no registry dependency — static defaults)
         ToolExclusionConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
 
         // Register network packets
