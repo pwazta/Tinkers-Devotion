@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerConfigLoader;
 import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerRegistry;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.network.ModNetwork;
 import net.minecraftforge.fml.loading.FMLPaths;
 import com.pwazta.nomorevanillatools.recipe.ModRecipeSerializers;
@@ -44,6 +45,9 @@ public class ExampleMod {
     private void commonSetup(final FMLCommonSetupEvent event) {
         // Initialize material mappings early so both client (JEI display) and server (crafting) have them
         MaterialMappingConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
+
+        // Initialize tool exclusion config (no registry dependency — static defaults)
+        ToolExclusionConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
 
         // Register network packets
         ModNetwork.register();

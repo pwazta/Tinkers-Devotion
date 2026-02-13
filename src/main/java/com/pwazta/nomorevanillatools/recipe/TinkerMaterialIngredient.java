@@ -4,6 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -45,8 +47,27 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Static cache of display items per (ToolAction, tier). Computed once on first access, shared across all instances. */
+    /** Cache of valid tools per toolType. Scanned once per action from ForgeRegistries.ITEMS. */
+    private static final Map<String, List<IModifiable>> TOOL_CACHE = new HashMap<>();
+
+    /** Cache of display ItemStacks per toolType:tier. Built from TOOL_CACHE + canonical material. */
     private static final Map<String, ItemStack[]> DISPLAY_CACHE = new HashMap<>();
+
+    /** Preferred display material per tier — the material shown in JEI for each tier's recipe slot. */
+    private static final Map<String, String> CANONICAL_DISPLAY_MATERIAL = Map.of(
+        "wooden",   "tconstruct:wood",
+        "stone",    "tconstruct:rock",
+        "iron",     "tconstruct:iron",
+        "golden",   "tconstruct:gold",
+        "diamond",  "tconstruct:cobalt",
+        "netherite", "tconstruct:hepatizon"
+    );
+
+    /** Clears both caches. Called when exclusions or material mappings change. */
+    public static void clearDisplayCache() {
+        TOOL_CACHE.clear();
+        DISPLAY_CACHE.clear();
+    }
 
     private final String requiredTier; // e.g., "wooden", "stone", "iron", "golden", "diamond"
     private final String toolType;     // e.g., "sword", "pickaxe", "axe", "shovel", "hoe"
@@ -136,64 +157,73 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     }
 
     /**
-     * Returns all TC tool display stacks that support this ingredient's ToolAction,
-     * built with the tier-accurate head material. Results are cached per (ToolAction, tier)
-     * in a static map — the registry scan runs once per combo, shared across all instances.
-     * JEI cycles through these as alternatives.
+     * Returns display stacks for JEI. Uses two-tier cache:
+     * 1. TOOL_CACHE: registry scan per toolType (5 scans total, shared across tiers)
+     * 2. DISPLAY_CACHE: applies canonical material per toolType:tier combo
      */
     @Override
     public ItemStack[] getItems() {
         ToolAction action = getRequiredToolAction();
         if (action == null) return new ItemStack[0];
-        String cacheKey = action.name() + ":" + requiredTier;
-        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(action, requiredTier));
+        String cacheKey = toolType + ":" + requiredTier;
+        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(action, requiredTier, toolType));
     }
 
     /**
-     * Scans ForgeRegistries.ITEMS for all TC tools (IModifiableDisplay) that support the
-     * given ToolAction. For each configured material in the tier, builds a display tool via
-     * ToolBuildHandler.createSingleMaterial(). JEI cycles through all variants so players
-     * can see every valid material option (e.g., rock, flint, basalt for stone tier).
-     * Each stack is tagged with the required tier for tooltip display.
+     * Scans ForgeRegistries.ITEMS once per toolType for all TC tools that support the
+     * ToolAction and aren't excluded. Result is cached in TOOL_CACHE.
      */
-    private static ItemStack[] buildDisplayItems(ToolAction requiredAction, String requiredTier) {
+    private static List<IModifiable> getToolsForAction(ToolAction requiredAction, String actionName) {
+        return TOOL_CACHE.computeIfAbsent(actionName, k -> {
+            List<IModifiable> tools = new ArrayList<>();
+            for (Item item : ForgeRegistries.ITEMS) {
+                if (!(item instanceof IModifiableDisplay display)) continue;
+                if (!(item instanceof IModifiable modifiable)) continue;
+                ToolDefinition definition = display.getToolDefinition();
+                if (!definition.isDataLoaded()) continue;
+
+                ItemStack renderStack = display.getRenderTool();
+                boolean supportsAction = definition.getData()
+                    .getHook(ToolHooks.TOOL_ACTION)
+                    .canPerformAction(ToolStack.from(renderStack), requiredAction);
+                if (!supportsAction) continue;
+
+                ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(item);
+                if (toolId != null && ToolExclusionConfig.isExcluded(actionName, toolId.toString())) {
+                    continue;
+                }
+
+                tools.add(modifiable);
+            }
+            return tools;
+        });
+    }
+
+    /**
+     * Builds display stacks by applying the canonical material to each cached tool.
+     * Registry scan is handled by getToolsForAction() — this just applies the material.
+     */
+    private static ItemStack[] buildDisplayItems(ToolAction requiredAction, String requiredTier, String actionName) {
         Set<String> materials = MaterialMappingConfig.getMaterialsForTier(requiredTier);
         if (materials == null || materials.isEmpty()) {
             return new ItemStack[0];
         }
 
-        // Pre-resolve all valid MaterialVariants for this tier, skipping any malformed IDs
-        List<MaterialVariant> variants = new ArrayList<>();
-        for (String materialId : materials) {
-            MaterialVariantId variantId = MaterialVariantId.tryParse(materialId);
-            if (variantId == null) {
-                LOGGER.warn("Invalid material ID '{}' configured for tier '{}', skipping", materialId, requiredTier);
-                continue;
-            }
-            variants.add(MaterialVariant.of(variantId));
+        String canonicalId = CANONICAL_DISPLAY_MATERIAL.get(requiredTier);
+        if (canonicalId == null || !materials.contains(canonicalId)) {
+            canonicalId = materials.iterator().next();
         }
-        if (variants.isEmpty()) {
+        MaterialVariantId variantId = MaterialVariantId.tryParse(canonicalId);
+        if (variantId == null) {
             return new ItemStack[0];
         }
+        MaterialVariant displayVariant = MaterialVariant.of(variantId);
 
+        List<IModifiable> tools = getToolsForAction(requiredAction, actionName);
         List<ItemStack> displayItems = new ArrayList<>();
-        for (Item item : ForgeRegistries.ITEMS) {
-            if (!(item instanceof IModifiableDisplay display)) continue;
-            if (!(item instanceof IModifiable modifiable)) continue;
-            ToolDefinition definition = display.getToolDefinition();
-            if (!definition.isDataLoaded()) continue;
-
-            // Check action support using the render stack (cheap — TC caches it)
-            ItemStack renderStack = display.getRenderTool();
-            boolean supportsAction = definition.getData()
-                .getHook(ToolHooks.TOOL_ACTION)
-                .canPerformAction(ToolStack.from(renderStack), requiredAction);
-            if (!supportsAction) continue;
-
-            // Build a display stack for each configured material in this tier
-            for (MaterialVariant variant : variants) {
-                ItemStack displayStack = ToolBuildHandler.createSingleMaterial(modifiable, variant);
-                if (displayStack.isEmpty()) continue;
+        for (IModifiable tool : tools) {
+            ItemStack displayStack = ToolBuildHandler.createSingleMaterial(tool, displayVariant);
+            if (!displayStack.isEmpty()) {
                 displayStack.getOrCreateTag().putString("nmvt_required_tier", requiredTier);
                 displayItems.add(displayStack);
             }
@@ -215,9 +245,18 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         ToolDefinition definition = modifiable.getToolDefinition();
         if (!definition.isDataLoaded()) return false;
 
-        return definition.getData()
+        boolean supportsAction = definition.getData()
             .getHook(ToolHooks.TOOL_ACTION)
             .canPerformAction(ToolStack.from(stack), requiredAction);
+        if (!supportsAction) return false;
+
+        // Check exclusion config — tool supports the action but may be excluded by user config
+        ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (toolId != null && ToolExclusionConfig.isExcluded(toolType, toolId.toString())) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

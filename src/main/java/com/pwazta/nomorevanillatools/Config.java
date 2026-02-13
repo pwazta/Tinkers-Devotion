@@ -44,6 +44,13 @@ public class Config {
                      "Useful for troubleshooting. May spam console.")
             .define("debugLogging", false);
 
+    private static final ForgeConfigSpec.BooleanValue FORCE_REGENERATE_CONFIG = BUILDER
+            .comment("Force regenerate material mappings from TC registry on next server start.",
+                     "Uses merge strategy: auto-detected materials are added, existing user entries preserved.",
+                     "Useful after installing new mods that add TC materials.",
+                     "Merge is idempotent — safe to leave enabled, but costs a small registry scan each boot.")
+            .define("forceRegenerateMaterialConfig", false);
+
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // Config values
@@ -52,6 +59,7 @@ public class Config {
     public static boolean requireOtherPartsMatch;
     public static double otherPartsThreshold;
     public static boolean debugLogging;
+    public static boolean forceRegenerateMaterialConfig;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
@@ -60,5 +68,6 @@ public class Config {
         requireOtherPartsMatch = REQUIRE_OTHER_PARTS_MATCH.get();
         otherPartsThreshold = OTHER_PARTS_THRESHOLD.get();
         debugLogging = DEBUG_LOGGING.get();
+        forceRegenerateMaterialConfig = FORCE_REGENERATE_CONFIG.get();
     }
 }
