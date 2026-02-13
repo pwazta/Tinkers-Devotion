@@ -33,7 +33,10 @@ public class ToolExclusionConfig {
     private static final Map<String, Set<String>> EXCLUSIONS = new HashMap<>();
 
     /** Consistent action ordering for config file output. */
-    private static final List<String> ACTION_ORDER = List.of("sword", "pickaxe", "axe", "shovel", "hoe");
+    private static final List<String> ACTION_ORDER = List.of(
+        "sword", "pickaxe", "axe", "shovel", "hoe",
+        "helmet", "chestplate", "leggings", "boots"
+    );
 
     private static File configFile;
     private static boolean initialized = false;
@@ -64,8 +67,8 @@ public class ToolExclusionConfig {
         initialized = true;
     }
 
-    /** Tools excluded from all actions by default. Dagger is too cheap; ancient tools are uncraftable loot-only. */
-    private static final List<String> DEFAULT_EXCLUDED = List.of(
+    /** Tools excluded from all tool actions by default. Dagger is too cheap; ancient tools are uncraftable loot-only. */
+    private static final List<String> DEFAULT_EXCLUDED_TOOLS = List.of(
         "tconstruct:dagger",
         "tconstruct:swasher",
         "tconstruct:war_pick",
@@ -74,13 +77,27 @@ public class ToolExclusionConfig {
         "tconstruct:minotaur_axe"
     );
 
+    /** Armor excluded from all armor slots by default. Slimesuit uses fixed stats, not material-based plating. */
+    private static final List<String> DEFAULT_EXCLUDED_ARMOR = List.of(
+        "tconstruct:slime_helmet",
+        "tconstruct:slime_chestplate",
+        "tconstruct:slime_leggings",
+        "tconstruct:slime_boots"
+    );
+
+    private static final List<String> TOOL_ACTIONS = List.of("sword", "pickaxe", "axe", "shovel", "hoe");
+    private static final List<String> ARMOR_SLOTS = List.of("helmet", "chestplate", "leggings", "boots");
+
     /**
-     * Creates the default exclusion set: dagger and all ancient tools excluded from all actions.
+     * Creates the default exclusion set: tools excluded from tool actions, slimesuit from armor slots.
      */
     private static void createDefaults() {
         EXCLUSIONS.clear();
-        for (String action : ACTION_ORDER) {
-            EXCLUSIONS.put(action, new LinkedHashSet<>(DEFAULT_EXCLUDED));
+        for (String action : TOOL_ACTIONS) {
+            EXCLUSIONS.put(action, new LinkedHashSet<>(DEFAULT_EXCLUDED_TOOLS));
+        }
+        for (String slot : ARMOR_SLOTS) {
+            EXCLUSIONS.put(slot, new LinkedHashSet<>(DEFAULT_EXCLUDED_ARMOR));
         }
     }
 

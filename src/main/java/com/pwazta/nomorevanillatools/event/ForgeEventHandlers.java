@@ -34,6 +34,7 @@ public class ForgeEventHandlers {
     @SubscribeEvent
     public static void onMaterialsLoaded(MaterialsLoadedEvent event) {
         MaterialMappingConfig.generateIfNeeded(Config.forceRegenerateMaterialConfig);
+        MaterialMappingConfig.generateArmorIfNeeded(Config.forceRegenerateMaterialConfig);
     }
 
     /**
