@@ -27,60 +27,111 @@ import org.slf4j.Logger;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Command to generate datapack recipes replacing vanilla tools with TC material checking.
+ * Detects new materials from TC registry, updates configs, cleans stale recipes, and provides feedback.
  */
 public class GenerateRecipesCommand {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // Vanilla tool tiers
+    // Vanilla tool tiers (no netherite — netherite uses SmithingRecipe, not CraftingRecipe)
     private static final String[] TIERS = {"wooden", "stone", "iron", "golden", "diamond"};
-    // Vanilla tool types
     private static final String[] TOOLS = {"sword", "pickaxe", "axe", "shovel", "hoe"};
 
     // Map vanilla items to their tier and type
     private static final Map<String, ToolInfo> VANILLA_TOOLS = new HashMap<>();
 
     static {
-        // Initialize vanilla tool mappings
         for (String tier : TIERS) {
             for (String tool : TOOLS) {
-                String itemName = tier + "_" + tool;
-                VANILLA_TOOLS.put("minecraft:" + itemName, new ToolInfo(tier, tool));
+                VANILLA_TOOLS.put("minecraft:" + tier + "_" + tool, new ToolInfo(tier, tool));
             }
         }
     }
 
+    // ── Inner types ───────────────────────────────────────────────────────────
+
+    /** Tracks everything that happened during generation for player feedback. */
+    private static class GenerationResult {
+        int recipesGenerated = 0;
+        int vanillaRecipesRemoved = 0;
+        int staleRecipesCleaned = 0;
+        int materialsAdded = 0;
+        int materialsSkippedOverrides = 0;
+        List<String> skippedTiers = List.of();
+        final List<String> errors = new ArrayList<>();
+    }
+
+    private record ToolInfo(String tier, String toolType) {}
+    private record ReplacementInfo(int index, String tier, String toolType) {}
+
+    // ── Command entry point ───────────────────────────────────────────────────
+
     /**
-     * Executes the generate command.
-     *
-     * @param context The command context
-     * @return Command result
-     * @throws CommandSyntaxException If command execution fails
+     * Executes the generate command. Full flow:
+     * 1. Detect & merge new materials from TC registry
+     * 2. Reload tool exclusions from disk
+     * 3. Collect existing generated files (for stale detection)
+     * 4. Generate replacement recipes
+     * 5. Clean stale recipes from uninstalled mods
+     * 6. Send detailed feedback
+     * 7. Reload datapacks
      */
     public static int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         MinecraftServer server = context.getSource().getServer();
         CommandSourceStack source = context.getSource();
 
         try {
-            // Reload configs from disk before generating so edits take effect
-            MaterialMappingConfig.reload();
+            GenerationResult result = new GenerationResult();
+
+            // Step 1: Refresh materials (reload disk + merge with TC registry)
+            MaterialMappingConfig.MergeResult mergeResult = MaterialMappingConfig.refreshFromRegistry();
+            if (mergeResult != null) {
+                result.materialsAdded = mergeResult.addedCount;
+                result.materialsSkippedOverrides = mergeResult.skippedOverrides;
+                result.skippedTiers = mergeResult.skippedTiers;
+            } else {
+                // Registry not loaded (shouldn't happen during command) — fall back to disk-only
+                MaterialMappingConfig.reload();
+            }
+
+            // Step 2: Reload tool exclusions from disk
             ToolExclusionConfig.reload();
 
-            int count = generate(server);
-            source.sendSuccess(() -> Component.literal("Successfully generated " + count + " replacement recipes!"), true);
+            // Step 3: Collect existing generated files before regenerating
+            Set<Path> existingFiles = DatapackHelper.listGeneratedRecipeFiles(server);
+
+            // Step 4: Generate all replacement recipes
+            Set<Path> writtenFiles = doGenerate(server, result);
+
+            // Step 5: Clean stale recipes (files that exist but weren't regenerated)
+            for (Path existing : existingFiles) {
+                if (!writtenFiles.contains(existing)) {
+                    if (DatapackHelper.deleteRecipeFile(existing)) {
+                        result.staleRecipesCleaned++;
+                    }
+                }
+            }
+
+            // Step 6: Send detailed feedback
+            sendFeedback(source, result);
+
+            // Step 7: Reload datapacks
             source.sendSuccess(() -> Component.literal("Reloading datapacks..."), false);
-            server.reloadResources(server.getPackRepository().getSelectedIds()).exceptionally(e2 -> {
-                LOGGER.error("Failed to reload datapacks after recipe generation", e2);
+            server.reloadResources(server.getPackRepository().getSelectedIds()).exceptionally(e -> {
+                LOGGER.error("Failed to reload datapacks after recipe generation", e);
                 source.sendFailure(Component.literal("Recipes generated but datapack reload failed. Run /reload manually."));
                 return null;
             }).thenRun(() -> {
                 source.sendSuccess(() -> Component.literal("Datapack reload complete! Recipes are now active."), true);
             });
+
             return Command.SINGLE_SUCCESS;
         } catch (Exception e) {
             LOGGER.error("Failed to generate recipes", e);
@@ -89,97 +140,90 @@ public class GenerateRecipesCommand {
         }
     }
 
+    // ── Auto-boot entry point (backward compat for ForgeEventHandlers) ────────
+
     /**
-     * Generates replacement recipes for all recipes using vanilla tools.
+     * Generates replacement recipes. Called from ForgeEventHandlers on first server start.
      *
-     * @param server The MinecraftServer instance
-     * @return Number of recipes generated
-     * @throws Exception If generation fails
+     * @return Total number of recipe files written (replacements + vanilla overrides)
      */
     public static int generate(MinecraftServer server) throws Exception {
+        GenerationResult result = new GenerationResult();
+        doGenerate(server, result);
+        return result.recipesGenerated + result.vanillaRecipesRemoved;
+    }
+
+    // ── Core generation logic ─────────────────────────────────────────────────
+
+    /**
+     * Scans all loaded recipes, finds vanilla tool ingredients, and writes replacement recipes.
+     *
+     * @return Set of file paths written (for stale recipe detection)
+     */
+    private static Set<Path> doGenerate(MinecraftServer server, GenerationResult result) throws Exception {
+        Set<Path> writtenFiles = new HashSet<>();
         RecipeManager recipeManager = server.getRecipeManager();
         Path datapackPath = DatapackHelper.getDatapackPath(server);
         Path dataPath = datapackPath.resolve("data");
 
-        // Create pack.mcmeta
         DatapackHelper.saveMcmeta(datapackPath);
-
-        int count = 0;
 
         // Remove vanilla tool crafting recipes if configured
         if (Config.removeVanillaToolCrafting) {
             removeVanillaToolRecipes(dataPath);
-            count += TIERS.length * TOOLS.length; // 25 recipes
+            result.vanillaRecipesRemoved = TIERS.length * TOOLS.length;
         }
 
         // Scan all recipes and generate replacements
         for (Recipe<?> recipe : recipeManager.getRecipes()) {
-            if (!(recipe instanceof CraftingRecipe)) {
-                continue; // Only process crafting recipes
-            }
+            if (!(recipe instanceof CraftingRecipe)) continue;
 
-            // Check if recipe uses vanilla tools
             List<ReplacementInfo> replacements = findVanillaTools(recipe);
-            if (replacements.isEmpty()) {
-                continue; // No vanilla tools found
-            }
+            if (replacements.isEmpty()) continue;
 
-            // Generate replacement recipe
-            JsonObject replacementRecipe = buildReplacementRecipe(recipe, replacements);
-            if (replacementRecipe != null) {
-                ResourceLocation recipeId = recipe.getId();
-                String recipeName = recipeId.getPath() + "_tinker_replacement";
-                DatapackHelper.saveRecipeJson(replacementRecipe, dataPath, recipeId.getNamespace(), recipeName);
-                count++;
+            try {
+                JsonObject replacementRecipe = buildReplacementRecipe(recipe, replacements, server);
+                if (replacementRecipe != null) {
+                    ResourceLocation recipeId = recipe.getId();
+                    String recipeName = recipeId.getPath() + "_tinker_replacement";
+                    Path written = DatapackHelper.saveRecipeJson(
+                        replacementRecipe, dataPath, recipeId.getNamespace(), recipeName);
+                    writtenFiles.add(written);
+                    result.recipesGenerated++;
+                }
+            } catch (Exception e) {
+                ResourceLocation id = recipe.getId();
+                LOGGER.warn("Skipping recipe '{}': {}", id, e.getMessage());
+                result.errors.add("Skipped " + id + ": " + e.getMessage());
             }
         }
 
-        // Mark as generated
         DatapackHelper.markGenerated(server);
-
-        LOGGER.info("Generated {} replacement recipes", count);
-        return count;
+        LOGGER.info("Generated {} replacement recipes", result.recipesGenerated);
+        return writtenFiles;
     }
 
-    /**
-     * Removes vanilla tool crafting recipes by creating empty overrides.
-     *
-     * @param dataPath The data folder path
-     * @throws Exception If removal fails
-     */
+    // ── Vanilla tool detection ────────────────────────────────────────────────
+
     private static void removeVanillaToolRecipes(Path dataPath) throws Exception {
         for (String tier : TIERS) {
             for (String tool : TOOLS) {
-                String recipeName = tier + "_" + tool;
-                DatapackHelper.removeRecipe(dataPath, "minecraft", recipeName);
+                DatapackHelper.removeRecipe(dataPath, "minecraft", tier + "_" + tool);
             }
         }
     }
 
-    /**
-     * Finds vanilla tools in a recipe's ingredients.
-     *
-     * @param recipe The recipe to check
-     * @return List of replacement information for vanilla tools found
-     */
     private static List<ReplacementInfo> findVanillaTools(Recipe<?> recipe) {
         List<ReplacementInfo> replacements = new ArrayList<>();
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
 
         for (int i = 0; i < ingredients.size(); i++) {
-            Ingredient ingredient = ingredients.get(i);
-
-            // Check each item in the ingredient
-            for (var stack : ingredient.getItems()) {
-                // Get the registry name of the item (e.g., "minecraft:iron_sword")
+            for (var stack : ingredients.get(i).getItems()) {
                 ResourceLocation itemKey = ForgeRegistries.ITEMS.getKey(stack.getItem());
                 if (itemKey == null) continue;
 
-                String itemId = itemKey.toString();
-
-                // Check if it's a vanilla tool
-                if (VANILLA_TOOLS.containsKey(itemId)) {
-                    ToolInfo toolInfo = VANILLA_TOOLS.get(itemId);
+                ToolInfo toolInfo = VANILLA_TOOLS.get(itemKey.toString());
+                if (toolInfo != null) {
                     replacements.add(new ReplacementInfo(i, toolInfo.tier, toolInfo.toolType));
                     break; // Only need one match per ingredient
                 }
@@ -189,47 +233,30 @@ public class GenerateRecipesCommand {
         return replacements;
     }
 
-    /**
-     * Builds a replacement recipe JSON with TinkerMaterialIngredient.
-     *
-     * @param recipe The original recipe
-     * @param replacements The vanilla tools to replace
-     * @return The replacement recipe JSON
-     */
-    private static JsonObject buildReplacementRecipe(Recipe<?> recipe, List<ReplacementInfo> replacements) {
+    // ── Recipe building ───────────────────────────────────────────────────────
+
+    private static JsonObject buildReplacementRecipe(Recipe<?> recipe, List<ReplacementInfo> replacements, MinecraftServer server) {
         if (recipe instanceof ShapedRecipe shaped) {
-            return buildShapedReplacement(shaped, replacements);
+            return buildShapedReplacement(shaped, replacements, server);
         } else if (recipe instanceof ShapelessRecipe shapeless) {
-            return buildShapelessReplacement(shapeless, replacements);
+            return buildShapelessReplacement(shapeless, replacements, server);
         }
         return null;
     }
 
-    /**
-     * Creates a TinkerMaterialIngredient JSON object.
-     *
-     * @param tier The material tier
-     * @param toolType The tool type
-     * @return The ingredient JSON
-     */
     private static JsonObject createTinkerIngredientJson(String tier, String toolType) {
-        JsonObject ingredientJson = new JsonObject();
-        ingredientJson.addProperty("type", "nomorevanillatools:tinker_material");
-        ingredientJson.addProperty("tier", tier);
-        ingredientJson.addProperty("tool_type", toolType);
-        return ingredientJson;
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "nomorevanillatools:tinker_material");
+        json.addProperty("tier", tier);
+        json.addProperty("tool_type", toolType);
+        return json;
     }
 
-    /**
-     * Creates a result JSON object from a recipe.
-     *
-     * @param recipe The recipe
-     * @return The result JSON
-     */
-    private static JsonObject createResultJson(Recipe<?> recipe) {
+    private static JsonObject createResultJson(Recipe<?> recipe, MinecraftServer server) {
         JsonObject result = new JsonObject();
-        var resultItem = recipe.getResultItem(null);
-        result.addProperty("item", resultItem.getItem().toString());
+        var resultItem = recipe.getResultItem(server.registryAccess());
+        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(resultItem.getItem());
+        result.addProperty("item", itemId != null ? itemId.toString() : "minecraft:air");
         int count = resultItem.getCount();
         if (count > 1) {
             result.addProperty("count", count);
@@ -237,32 +264,21 @@ public class GenerateRecipesCommand {
         return result;
     }
 
-    /**
-     * Builds a shaped recipe replacement.
-     *
-     * @param recipe The original shaped recipe
-     * @param replacements The vanilla tools to replace
-     * @return The replacement recipe JSON
-     */
-    private static JsonObject buildShapedReplacement(ShapedRecipe recipe, List<ReplacementInfo> replacements) {
+    private static JsonObject buildShapedReplacement(ShapedRecipe recipe, List<ReplacementInfo> replacements, MinecraftServer server) {
         JsonObject recipeJson = new JsonObject();
         recipeJson.addProperty("type", "minecraft:crafting_shaped");
 
-        // Add group if present
         if (!recipe.getGroup().isEmpty()) {
             recipeJson.addProperty("group", recipe.getGroup());
         }
-
-        // Add category
         recipeJson.addProperty("category", recipe.category().getSerializedName());
 
-        // Build pattern
+        // Build pattern and key mapping
         JsonArray pattern = new JsonArray();
         int width = recipe.getWidth();
         int height = recipe.getHeight();
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
 
-        // Create pattern and key mapping
         Map<Integer, String> keyMap = new HashMap<>();
         char currentKey = 'A';
 
@@ -271,8 +287,7 @@ public class GenerateRecipesCommand {
             for (int col = 0; col < width; col++) {
                 int index = row * width + col;
                 if (index < ingredients.size() && !ingredients.get(index).isEmpty()) {
-                    String key = String.valueOf(currentKey);
-                    keyMap.put(index, key);
+                    keyMap.put(index, String.valueOf(currentKey));
                     rowPattern.append(currentKey);
                     currentKey++;
                 } else {
@@ -283,106 +298,96 @@ public class GenerateRecipesCommand {
         }
         recipeJson.add("pattern", pattern);
 
-        // Build key
+        // Build key with replacements
         JsonObject key = new JsonObject();
         for (Map.Entry<Integer, String> entry : keyMap.entrySet()) {
             int index = entry.getKey();
             String keyChar = entry.getValue();
 
-            // Check if this ingredient should be replaced
-            ReplacementInfo replacement = replacements.stream()
-                .filter(r -> r.index == index)
-                .findFirst()
-                .orElse(null);
-
+            ReplacementInfo replacement = findReplacementForIndex(replacements, index);
             if (replacement != null) {
-                // Use TinkerMaterialIngredient
                 key.add(keyChar, createTinkerIngredientJson(replacement.tier, replacement.toolType));
             } else {
-                // Use original ingredient
                 key.add(keyChar, ingredients.get(index).toJson());
             }
         }
         recipeJson.add("key", key);
 
-        // Add result
-        recipeJson.add("result", createResultJson(recipe));
-
+        recipeJson.add("result", createResultJson(recipe, server));
         return recipeJson;
     }
 
-    /**
-     * Builds a shapeless recipe replacement.
-     *
-     * @param recipe The original shapeless recipe
-     * @param replacements The vanilla tools to replace
-     * @return The replacement recipe JSON
-     */
-    private static JsonObject buildShapelessReplacement(ShapelessRecipe recipe, List<ReplacementInfo> replacements) {
+    private static JsonObject buildShapelessReplacement(ShapelessRecipe recipe, List<ReplacementInfo> replacements, MinecraftServer server) {
         JsonObject recipeJson = new JsonObject();
         recipeJson.addProperty("type", "minecraft:crafting_shapeless");
 
-        // Add group if present
         if (!recipe.getGroup().isEmpty()) {
             recipeJson.addProperty("group", recipe.getGroup());
         }
-
-        // Add category
         recipeJson.addProperty("category", recipe.category().getSerializedName());
 
-        // Build ingredients
         JsonArray ingredientsArray = new JsonArray();
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
 
         for (int i = 0; i < ingredients.size(); i++) {
-            // Check if this ingredient should be replaced
-            int finalI = i;
-            ReplacementInfo replacement = replacements.stream()
-                .filter(r -> r.index == finalI)
-                .findFirst()
-                .orElse(null);
-
+            ReplacementInfo replacement = findReplacementForIndex(replacements, i);
             if (replacement != null) {
-                // Use TinkerMaterialIngredient
                 ingredientsArray.add(createTinkerIngredientJson(replacement.tier, replacement.toolType));
             } else {
-                // Use original ingredient
                 ingredientsArray.add(ingredients.get(i).toJson());
             }
         }
         recipeJson.add("ingredients", ingredientsArray);
 
-        // Add result
-        recipeJson.add("result", createResultJson(recipe));
-
+        recipeJson.add("result", createResultJson(recipe, server));
         return recipeJson;
     }
 
-    /**
-     * Helper class to store tool tier and type information.
-     */
-    private static class ToolInfo {
-        final String tier;
-        final String toolType;
-
-        ToolInfo(String tier, String toolType) {
-            this.tier = tier;
-            this.toolType = toolType;
+    /** Finds the replacement for a given ingredient index, or null. */
+    private static ReplacementInfo findReplacementForIndex(List<ReplacementInfo> replacements, int index) {
+        for (ReplacementInfo r : replacements) {
+            if (r.index == index) return r;
         }
+        return null;
     }
 
-    /**
-     * Helper class to store replacement information.
-     */
-    private static class ReplacementInfo {
-        final int index;
-        final String tier;
-        final String toolType;
+    // ── Player feedback ───────────────────────────────────────────────────────
 
-        ReplacementInfo(int index, String tier, String toolType) {
-            this.index = index;
-            this.tier = tier;
-            this.toolType = toolType;
+    private static void sendFeedback(CommandSourceStack source, GenerationResult result) {
+        source.sendSuccess(() -> Component.literal("=== Recipe Generation Complete ==="), true);
+
+        if (result.materialsAdded > 0) {
+            source.sendSuccess(() -> Component.literal(
+                "  Materials: " + result.materialsAdded + " new materials detected and added"), false);
+        }
+        if (result.materialsSkippedOverrides > 0) {
+            source.sendSuccess(() -> Component.literal(
+                "  Materials: " + result.materialsSkippedOverrides + " kept in user-assigned tiers"), false);
+        }
+
+        if (!result.skippedTiers.isEmpty()) {
+            source.sendSuccess(() -> Component.literal(
+                "  Warning: " + result.skippedTiers.size() + " materials have unsupported modded tiers (skipped)"), false);
+            for (String skipped : result.skippedTiers) {
+                source.sendSuccess(() -> Component.literal("    - " + skipped), false);
+            }
+        }
+
+        source.sendSuccess(() -> Component.literal(
+            "  Recipes: " + result.recipesGenerated + " replacement recipes generated"), false);
+
+        if (result.vanillaRecipesRemoved > 0) {
+            source.sendSuccess(() -> Component.literal(
+                "  Recipes: " + result.vanillaRecipesRemoved + " vanilla tool recipes disabled"), false);
+        }
+
+        if (result.staleRecipesCleaned > 0) {
+            source.sendSuccess(() -> Component.literal(
+                "  Cleanup: " + result.staleRecipesCleaned + " stale recipes removed (from uninstalled mods)"), false);
+        }
+
+        for (String error : result.errors) {
+            source.sendFailure(Component.literal("  Error: " + error));
         }
     }
 }

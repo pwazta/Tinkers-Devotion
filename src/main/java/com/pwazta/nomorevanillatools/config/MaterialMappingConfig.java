@@ -30,6 +30,8 @@ import java.util.*;
  * Two-phase initialization:
  *   Phase 1 (commonSetup): load existing config file if present
  *   Phase 2 (MaterialsLoadedEvent): generate from registry if config is missing, or merge if force-regenerate
+ *
+ * The generate command uses {@link #refreshFromRegistry()} which combines disk reload + registry merge.
  */
 public class MaterialMappingConfig {
 
@@ -53,6 +55,34 @@ public class MaterialMappingConfig {
 
     private static File configFile;
     private static boolean initialized = false;
+
+    // ── Result types ──────────────────────────────────────────────────────────
+
+    /** Result of a registry scan: mapped tiers + materials that couldn't be mapped. */
+    private static class RegistryScanResult {
+        final Map<String, Set<String>> tiers;
+        final List<String> skippedMaterials;
+
+        RegistryScanResult(Map<String, Set<String>> tiers, List<String> skippedMaterials) {
+            this.tiers = tiers;
+            this.skippedMaterials = skippedMaterials;
+        }
+    }
+
+    /** Result of a material merge operation, returned to the command for player feedback. */
+    public static class MergeResult {
+        public final int addedCount;
+        public final int skippedOverrides;
+        public final List<String> skippedTiers;
+
+        MergeResult(int addedCount, int skippedOverrides, List<String> skippedTiers) {
+            this.addedCount = addedCount;
+            this.skippedOverrides = skippedOverrides;
+            this.skippedTiers = skippedTiers;
+        }
+    }
+
+    // ── Phase 1: Early init (commonSetup) ─────────────────────────────────────
 
     /**
      * Phase 1: Sets up config path and loads existing config if present.
@@ -79,6 +109,8 @@ public class MaterialMappingConfig {
         initialized = true;
     }
 
+    // ── Phase 2: Registry-based generation (MaterialsLoadedEvent) ─────────────
+
     /**
      * Phase 2: Generates config from TC MaterialRegistry if needed.
      * Called when TC materials are loaded (MaterialsLoadedEvent) — fires on both client and server.
@@ -100,32 +132,72 @@ public class MaterialMappingConfig {
         if (MATERIAL_MAPPINGS.isEmpty()) {
             generateFromRegistry();
         } else if (forceRegenerate) {
-            mergeWithRegistry();
+            doMerge(); // discard result — boot path only logs
         }
     }
 
+    // ── Command entry point ───────────────────────────────────────────────────
+
     /**
-     * Scans TC MaterialRegistry for all visible materials with HeadMaterialStats,
-     * groups them by harvest tier, writes the config, and loads into memory.
+     * Reloads config from disk, then merges with TC registry to detect new materials.
+     * This is the generate command's entry point: reload user edits + detect new materials in one call.
+     *
+     * @return MergeResult with counts of what changed, or null if registry not loaded
+     */
+    public static MergeResult refreshFromRegistry() {
+        if (!MaterialRegistry.isFullyLoaded()) {
+            LOGGER.warn("TC MaterialRegistry not fully loaded, cannot refresh");
+            return null;
+        }
+
+        // Reload from disk first (picks up manual user edits)
+        loadConfig();
+
+        // If empty after load (first boot, corrupt file, or deleted): generate fresh
+        if (MATERIAL_MAPPINGS.isEmpty()) {
+            RegistryScanResult scan = scanRegistry();
+            if (scan.tiers.isEmpty()) {
+                LOGGER.warn("No materials with HeadMaterialStats found in TC registry");
+                return new MergeResult(0, 0, scan.skippedMaterials);
+            }
+
+            MATERIAL_MAPPINGS.putAll(scan.tiers);
+            saveConfig();
+            TinkerMaterialIngredient.clearDisplayCache();
+
+            int total = scan.tiers.values().stream().mapToInt(Set::size).sum();
+            LOGGER.info("Generated material mappings: {} tiers, {} total materials", scan.tiers.size(), total);
+            return new MergeResult(total, 0, scan.skippedMaterials);
+        }
+
+        // Otherwise merge: add new materials, preserve user overrides
+        return doMerge();
+    }
+
+    // ── Internal generation/merge logic ───────────────────────────────────────
+
+    /**
+     * Scans TC MaterialRegistry, generates fresh config, and loads into memory.
+     * Used by the boot-path ({@link #generateIfNeeded}).
      */
     private static void generateFromRegistry() {
         LOGGER.info("Auto-generating material mappings from TC registry...");
 
-        Map<String, Set<String>> generated = scanRegistryForTiers();
+        RegistryScanResult scan = scanRegistry();
 
-        if (generated.isEmpty()) {
+        if (scan.tiers.isEmpty()) {
             LOGGER.warn("No materials with HeadMaterialStats found in TC registry — config not generated");
             return;
         }
 
         MATERIAL_MAPPINGS.clear();
-        MATERIAL_MAPPINGS.putAll(generated);
+        MATERIAL_MAPPINGS.putAll(scan.tiers);
         saveConfig();
         TinkerMaterialIngredient.clearDisplayCache();
 
-        int totalMaterials = generated.values().stream().mapToInt(Set::size).sum();
-        LOGGER.info("Generated material mappings: {} tiers, {} total materials", generated.size(), totalMaterials);
-        for (Map.Entry<String, Set<String>> entry : generated.entrySet()) {
+        int totalMaterials = scan.tiers.values().stream().mapToInt(Set::size).sum();
+        LOGGER.info("Generated material mappings: {} tiers, {} total materials", scan.tiers.size(), totalMaterials);
+        for (Map.Entry<String, Set<String>> entry : scan.tiers.entrySet()) {
             LOGGER.info("  {}: {} materials", entry.getKey(), entry.getValue().size());
         }
     }
@@ -133,21 +205,21 @@ public class MaterialMappingConfig {
     /**
      * Merges auto-detected materials from TC registry with existing config entries.
      * User additions are never removed — only new materials are added.
+     * Returns a MergeResult for command feedback.
      */
-    private static void mergeWithRegistry() {
+    private static MergeResult doMerge() {
         LOGGER.info("Merging material mappings with TC registry (preserving user additions)...");
 
-        Map<String, Set<String>> fromRegistry = scanRegistryForTiers();
+        RegistryScanResult scan = scanRegistry();
 
         int addedCount = 0;
         int skippedOverrides = 0;
-        for (Map.Entry<String, Set<String>> entry : fromRegistry.entrySet()) {
+        for (Map.Entry<String, Set<String>> entry : scan.tiers.entrySet()) {
             String tier = entry.getKey();
             Set<String> registryMaterials = entry.getValue();
             Set<String> existing = MATERIAL_MAPPINGS.computeIfAbsent(tier, k -> new LinkedHashSet<>());
 
             for (String material : registryMaterials) {
-                // Skip if user already placed this material in a different tier (respect user override)
                 if (isInDifferentTier(material, tier)) {
                     skippedOverrides++;
                     continue;
@@ -169,6 +241,8 @@ public class MaterialMappingConfig {
         } else {
             LOGGER.info("Merge complete: no new materials found (config is up to date)");
         }
+
+        return new MergeResult(addedCount, skippedOverrides, scan.skippedMaterials);
     }
 
     /** Returns true if the material already exists in a tier other than the given one (user override). */
@@ -181,13 +255,16 @@ public class MaterialMappingConfig {
         return false;
     }
 
+    // ── Registry scanning ─────────────────────────────────────────────────────
+
     /**
      * Scans TC MaterialRegistry for all visible materials with HeadMaterialStats.
      * Maps each material's harvest tier to a config tier name via TierSortingRegistry.
-     * Materials with unknown/modded tiers are skipped with a warning.
+     * Materials with unknown/modded tiers are collected in {@code skippedMaterials} for feedback.
      */
-    private static Map<String, Set<String>> scanRegistryForTiers() {
-        Map<String, Set<String>> result = new LinkedHashMap<>();
+    private static RegistryScanResult scanRegistry() {
+        Map<String, Set<String>> tiers = new LinkedHashMap<>();
+        List<String> skipped = new ArrayList<>();
         IMaterialRegistry registry = MaterialRegistry.getInstance();
 
         for (IMaterial material : registry.getVisibleMaterials()) {
@@ -201,20 +278,24 @@ public class MaterialMappingConfig {
 
             if (tierId == null) {
                 LOGGER.warn("Could not resolve tier name for material '{}', skipping", materialId);
+                skipped.add(materialId + " (tier: unknown)");
                 continue;
             }
 
             String configName = TIER_NAME_MAP.get(tierId);
             if (configName == null) {
                 LOGGER.warn("Unknown tier '{}' for material '{}', skipping", tierId, materialId);
+                skipped.add(materialId + " (tier: " + tierId + ")");
                 continue;
             }
 
-            result.computeIfAbsent(configName, k -> new LinkedHashSet<>()).add(materialId.toString());
+            tiers.computeIfAbsent(configName, k -> new LinkedHashSet<>()).add(materialId.toString());
         }
 
-        return result;
+        return new RegistryScanResult(tiers, skipped);
     }
+
+    // ── Config file I/O ───────────────────────────────────────────────────────
 
     /**
      * Saves MATERIAL_MAPPINGS to the config file.
@@ -253,6 +334,8 @@ public class MaterialMappingConfig {
     private static void loadConfig() {
         MATERIAL_MAPPINGS.clear();
 
+        if (configFile == null || !configFile.exists()) return;
+
         try (FileReader reader = new FileReader(configFile)) {
             JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
 
@@ -267,18 +350,21 @@ public class MaterialMappingConfig {
         } catch (IOException e) {
             LOGGER.error("Failed to load material mappings config", e);
         } catch (Exception e) {
-            LOGGER.error("Error parsing material mappings config", e);
+            LOGGER.error("Error parsing material mappings config — will regenerate from registry", e);
         }
     }
 
     /**
-     * Reloads material mappings from the config file.
+     * Reloads material mappings from the config file (disk only, no registry scan).
+     * Used by ToolExclusionConfig-style reload paths that don't need registry detection.
      */
     public static void reload() {
         LOGGER.info("Reloading material mappings...");
         loadConfig();
         TinkerMaterialIngredient.clearDisplayCache();
     }
+
+    // ── Public accessors ──────────────────────────────────────────────────────
 
     /**
      * Gets the set of TC material IDs that count as a specific vanilla tier.
