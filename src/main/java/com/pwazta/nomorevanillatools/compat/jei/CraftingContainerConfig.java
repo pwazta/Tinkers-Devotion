@@ -88,25 +88,11 @@ public record CraftingContainerConfig(
         return recipeWidth <= gridWidth && recipeHeight <= gridHeight;
     }
 
-    /**
-     * Validates that a slot index is within the crafting grid range.
-     *
-     * @param slotIndex Slot index to validate
-     * @return true if valid crafting slot, false otherwise
-     */
-    public boolean isValidCraftingSlot(int slotIndex) {
-        return slotIndex >= craftingSlotStart && slotIndex < craftingSlotEnd;
-    }
+    /** Validates that a slot index is within the crafting grid range. */
+    public boolean isValidCraftingSlot(int slotIndex) { return slotIndex >= craftingSlotStart && slotIndex < craftingSlotEnd; }
 
-    /**
-     * Gets the actual inventory end slot, handling dynamic (-1) case.
-     *
-     * @param containerSize Total number of slots in the container
-     * @return The inventory end slot index
-     */
-    public int getInventorySlotEnd(int containerSize) {
-        return inventorySlotEnd == -1 ? containerSize : inventorySlotEnd;
-    }
+    /** Gets the actual inventory end slot, handling dynamic (-1) case. */
+    public int getInventorySlotEnd(int containerSize) { return inventorySlotEnd == -1 ? containerSize : inventorySlotEnd; }
 
     /**
      * Checks if the given container matches this configuration.
@@ -120,10 +106,5 @@ public record CraftingContainerConfig(
         return container.getClass().getName().equals(containerClassName);
     }
 
-    /**
-     * Returns the number of slots in the crafting grid.
-     */
-    public int getCraftingSlotCount() {
-        return gridWidth * gridHeight;
-    }
+    public int getCraftingSlotCount() { return gridWidth * gridHeight; }
 }

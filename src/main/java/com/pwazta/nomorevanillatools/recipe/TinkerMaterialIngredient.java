@@ -162,8 +162,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         ToolDefinition definition = modifiable.getToolDefinition();
         if (!definition.isDataLoaded()) return false;
 
-        boolean supportsAction = definition.getData()
-            .getHook(ToolHooks.TOOL_ACTION)
+        boolean supportsAction = definition.getData().getHook(ToolHooks.TOOL_ACTION)
             .canPerformAction(ToolStack.from(stack), requiredAction);
         if (!supportsAction) return false;
 
@@ -217,22 +216,18 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         ToolAction action = getRequiredToolAction();
         if (action == null) return new ItemStack[0];
         String cacheKey = toolType + ":" + requiredTier;
-        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k ->
-            buildDisplayItems(
-                MaterialMappingConfig.getMaterialsForTier(requiredTier),
-                CANONICAL_DISPLAY_MATERIAL, requiredTier,
-                scanToolsForAction(action, toolType)));
+        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(
+            MaterialMappingConfig.getMaterialsForTier(requiredTier),
+            CANONICAL_DISPLAY_MATERIAL, requiredTier, scanToolsForAction(action, toolType)));
     }
 
     private ItemStack[] getArmorItems() {
         ArmorItem.Type armorType = getRequiredArmorType();
         if (armorType == null) return new ItemStack[0];
         String cacheKey = "armor:" + toolType + ":" + requiredTier;
-        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k ->
-            buildDisplayItems(
-                MaterialMappingConfig.getArmorMaterialsForTier(requiredTier),
-                ARMOR_CANONICAL_DISPLAY_MATERIAL, requiredTier,
-                scanArmorForSlot(armorType, toolType)));
+        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(
+            MaterialMappingConfig.getArmorMaterialsForTier(requiredTier),
+            ARMOR_CANONICAL_DISPLAY_MATERIAL, requiredTier, scanArmorForSlot(armorType, toolType)));
     }
 
     // ── Item scanning (cached per type) ──────────────────────────────────
@@ -248,8 +243,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
                 if (!definition.isDataLoaded()) continue;
 
                 ItemStack renderStack = display.getRenderTool();
-                boolean supportsAction = definition.getData()
-                    .getHook(ToolHooks.TOOL_ACTION)
+                boolean supportsAction = definition.getData().getHook(ToolHooks.TOOL_ACTION)
                     .canPerformAction(ToolStack.from(renderStack), requiredAction);
                 if (!supportsAction) continue;
 
@@ -285,17 +279,12 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
      * Builds display ItemStacks for JEI from a list of valid items and a material tier.
      * Uses a canonical display material per tier for consistent JEI appearance.
      */
-    private static ItemStack[] buildDisplayItems(
-            Set<String> materials,
-            Map<String, String> canonicalMap,
-            String requiredTier,
-            List<? extends IModifiable> items) {
+    private static ItemStack[] buildDisplayItems(Set<String> materials, Map<String, String> canonicalMap,
+            String requiredTier, List<? extends IModifiable> items) {
         if (materials == null || materials.isEmpty()) return new ItemStack[0];
 
         String canonicalId = canonicalMap.get(requiredTier);
-        if (canonicalId == null || !materials.contains(canonicalId)) {
-            canonicalId = materials.iterator().next();
-        }
+        if (canonicalId == null || !materials.contains(canonicalId)) canonicalId = materials.iterator().next();
         MaterialVariantId variantId = MaterialVariantId.tryParse(canonicalId);
         if (variantId == null) return new ItemStack[0];
         MaterialVariant displayVariant = MaterialVariant.of(variantId);
@@ -313,15 +302,8 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     // ── AbstractIngredient overrides ─────────────────────────────────────
 
-    @Override
-    public boolean isSimple() {
-        return false;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return false;
-    }
+    @Override public boolean isSimple() { return false; }
+    @Override public boolean isEmpty() { return false; }
 
     @Override
     public IIngredientSerializer<? extends TinkerMaterialIngredient> getSerializer() {
@@ -340,17 +322,9 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     // ── Getters ──────────────────────────────────────────────────────────
 
-    public String getRequiredTier() {
-        return requiredTier;
-    }
-
-    public String getToolType() {
-        return toolType;
-    }
-
-    public MatchMode getMatchMode() {
-        return matchMode;
-    }
+    public String getRequiredTier() { return requiredTier; }
+    public String getToolType() { return toolType; }
+    public MatchMode getMatchMode() { return matchMode; }
 
     // ── Serializer ───────────────────────────────────────────────────────
 

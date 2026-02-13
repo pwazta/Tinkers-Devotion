@@ -16,13 +16,6 @@ public class CraftingTableTransferHandler extends AbstractTinkerTransferHandler<
         super(helper, CraftingContainerConfig.CRAFTING_TABLE);
     }
 
-    @Override
-    public Class<CraftingMenu> getContainerClass() {
-        return CraftingMenu.class;
-    }
-
-    @Override
-    public Optional<MenuType<CraftingMenu>> getMenuType() {
-        return Optional.of(MenuType.CRAFTING);
-    }
+    @Override public Class<CraftingMenu> getContainerClass() { return CraftingMenu.class; }
+    @Override public Optional<MenuType<CraftingMenu>> getMenuType() { return Optional.of(MenuType.CRAFTING); }
 }

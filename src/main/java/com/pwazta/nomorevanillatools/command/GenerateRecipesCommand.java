@@ -306,10 +306,7 @@ public class GenerateRecipesCommand {
         var resultItem = recipe.getResultItem(server.registryAccess());
         ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(resultItem.getItem());
         result.addProperty("item", itemId != null ? itemId.toString() : "minecraft:air");
-        int count = resultItem.getCount();
-        if (count > 1) {
-            result.addProperty("count", count);
-        }
+        if (resultItem.getCount() > 1) result.addProperty("count", resultItem.getCount());
         return result;
     }
 
@@ -317,9 +314,7 @@ public class GenerateRecipesCommand {
         JsonObject recipeJson = new JsonObject();
         recipeJson.addProperty("type", "minecraft:crafting_shaped");
 
-        if (!recipe.getGroup().isEmpty()) {
-            recipeJson.addProperty("group", recipe.getGroup());
-        }
+        if (!recipe.getGroup().isEmpty()) recipeJson.addProperty("group", recipe.getGroup());
         recipeJson.addProperty("category", recipe.category().getSerializedName());
 
         // Build pattern and key mapping
@@ -370,9 +365,7 @@ public class GenerateRecipesCommand {
         JsonObject recipeJson = new JsonObject();
         recipeJson.addProperty("type", "minecraft:crafting_shapeless");
 
-        if (!recipe.getGroup().isEmpty()) {
-            recipeJson.addProperty("group", recipe.getGroup());
-        }
+        if (!recipe.getGroup().isEmpty()) recipeJson.addProperty("group", recipe.getGroup());
         recipeJson.addProperty("category", recipe.category().getSerializedName());
 
         JsonArray ingredientsArray = new JsonArray();

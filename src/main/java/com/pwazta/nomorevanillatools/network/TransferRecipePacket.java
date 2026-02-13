@@ -35,9 +35,7 @@ public class TransferRecipePacket {
             buf.writeVarInt(targetSlot);
         }
 
-        public static SlotTransfer decode(FriendlyByteBuf buf) {
-            return new SlotTransfer(buf.readVarInt(), buf.readVarInt());
-        }
+        public static SlotTransfer decode(FriendlyByteBuf buf) { return new SlotTransfer(buf.readVarInt(), buf.readVarInt()); }
     }
 
     private final List<SlotTransfer> transfers;
@@ -134,8 +132,7 @@ public class TransferRecipePacket {
      * Clears crafting grid slots back to player inventory.
      * Uses config to determine slot range.
      */
-    private static void clearCraftingSlots(AbstractContainerMenu container, ServerPlayer player,
-                                           CraftingContainerConfig config) {
+    private static void clearCraftingSlots(AbstractContainerMenu container, ServerPlayer player, CraftingContainerConfig config) {
         for (int i = config.craftingSlotStart(); i < config.craftingSlotEnd(); i++) {
             if (i >= container.slots.size()) break;
 

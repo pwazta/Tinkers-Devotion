@@ -18,10 +18,7 @@ import net.minecraftforge.fml.ModList;
 @JeiPlugin
 public class NoMoreVanillaToolsJeiPlugin implements IModPlugin {
 
-    @Override
-    public ResourceLocation getPluginUid() {
-        return new ResourceLocation(ExampleMod.MODID, "jei_plugin");
-    }
+    @Override public ResourceLocation getPluginUid() { return new ResourceLocation(ExampleMod.MODID, "jei_plugin"); }
 
     @Override
     public void registerRecipeTransferHandlers(IRecipeTransferRegistration registration) {
@@ -52,12 +49,8 @@ public class NoMoreVanillaToolsJeiPlugin implements IModPlugin {
         );
     }
 
-    /**
-     * Registers TC-specific handlers.
-     * Separate method to avoid class loading issues if TC is not present.
-     */
-    private void registerTCHandlers(IRecipeTransferRegistration registration,
-                                    IRecipeTransferHandlerHelper helper) {
+    /** Registers TC-specific handlers. Separate method to avoid class loading issues if TC is not present. */
+    private void registerTCHandlers(IRecipeTransferRegistration registration, IRecipeTransferHandlerHelper helper) {
         registration.addRecipeTransferHandler(
                 new TCCraftingStationTransferHandler(helper),
                 RecipeTypes.CRAFTING
