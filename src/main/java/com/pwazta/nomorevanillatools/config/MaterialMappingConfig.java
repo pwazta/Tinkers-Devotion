@@ -5,7 +5,16 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Tier;
+import net.minecraftforge.common.TierSortingRegistry;
 import org.slf4j.Logger;
+import slimeknights.tconstruct.library.materials.IMaterialRegistry;
+import slimeknights.tconstruct.library.materials.MaterialRegistry;
+import slimeknights.tconstruct.library.materials.definition.IMaterial;
+import slimeknights.tconstruct.library.materials.definition.MaterialId;
+import slimeknights.tconstruct.tools.stats.HeadMaterialStats;
 
 import java.io.File;
 import java.io.FileReader;
@@ -14,30 +23,45 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Configuration system for mapping vanilla material tiers to Tinker's Construct materials.
- * Loads from JSON file and provides lookup functionality.
+ * Maps vanilla material tiers to Tinker's Construct material IDs.
+ * On first boot, auto-generates from TC's MaterialRegistry (HeadMaterialStats.tier()).
+ * On subsequent boots, loads from config file (user edits preserved).
+ *
+ * Two-phase initialization:
+ *   Phase 1 (commonSetup): load existing config file if present
+ *   Phase 2 (MaterialsLoadedEvent): generate from registry if config is missing, or merge if force-regenerate
  */
 public class MaterialMappingConfig {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    // Cached material mappings: tier -> set of material IDs
     private static final Map<String, Set<String>> MATERIAL_MAPPINGS = new HashMap<>();
+
+    /** Maps TierSortingRegistry ResourceLocations to config tier names. Modded tiers not listed here are skipped. */
+    private static final Map<ResourceLocation, String> TIER_NAME_MAP = Map.of(
+        new ResourceLocation("minecraft", "wood"),      "wooden",
+        new ResourceLocation("minecraft", "stone"),     "stone",
+        new ResourceLocation("minecraft", "iron"),      "iron",
+        new ResourceLocation("minecraft", "gold"),      "golden",
+        new ResourceLocation("minecraft", "diamond"),   "diamond",
+        new ResourceLocation("minecraft", "netherite"), "netherite"
+    );
+
+    /** Consistent tier ordering for config file output. */
+    private static final List<String> TIER_ORDER = List.of("wooden", "stone", "iron", "golden", "diamond", "netherite");
 
     private static File configFile;
     private static boolean initialized = false;
 
     /**
-     * Initializes the material mapping configuration.
-     * Creates default config if it doesn't exist, otherwise loads from file.
-     * Idempotent — safe to call multiple times (skips if already initialized).
-     *
-     * @param configDir The config directory (usually FMLPaths.CONFIGDIR.get().toFile())
+     * Phase 1: Sets up config path and loads existing config if present.
+     * If no config file exists, MATERIAL_MAPPINGS stays empty until Phase 2.
+     * Called from commonSetup (registry not available yet).
      */
     public static void initialize(File configDir) {
         if (initialized) return;
-        // Create nomorevanillatools subdirectory if it doesn't exist
+
         File modConfigDir = new File(configDir, "nomorevanillatools");
         if (!modConfigDir.exists()) {
             modConfigDir.mkdirs();
@@ -45,67 +69,186 @@ public class MaterialMappingConfig {
 
         configFile = new File(modConfigDir, "material_mappings.json");
 
-        if (!configFile.exists()) {
-            LOGGER.info("Material mappings config not found, creating default config at: {}", configFile.getAbsolutePath());
-            createDefaultConfig();
-        } else {
+        if (configFile.exists()) {
             LOGGER.info("Loading material mappings from: {}", configFile.getAbsolutePath());
             loadConfig();
+        } else {
+            LOGGER.info("No material mappings config found — will auto-generate from TC registry when materials load");
         }
+
         initialized = true;
     }
 
     /**
-     * Creates the default material mappings configuration file.
+     * Phase 2: Generates config from TC MaterialRegistry if needed.
+     * Called when TC materials are loaded (MaterialsLoadedEvent) — fires on both client and server.
+     *
+     * - If MATERIAL_MAPPINGS is empty (first boot or corrupt config): generates from registry
+     * - If forceRegenerate: merges registry data with existing config (user additions preserved)
      */
-    private static void createDefaultConfig() {
-        Map<String, List<String>> defaultMappings = new LinkedHashMap<>();
+    public static void generateIfNeeded(boolean forceRegenerate) {
+        if (configFile == null) {
+            LOGGER.error("MaterialMappingConfig not initialized, cannot generate");
+            return;
+        }
 
-        // Wooden tier - includes wood and bamboo
-        defaultMappings.put("wooden", Arrays.asList(
-                "tconstruct:wood",
-                "tconstruct:bamboo"
-        ));
+        if (!MaterialRegistry.isFullyLoaded()) {
+            LOGGER.warn("TC MaterialRegistry not fully loaded, skipping material auto-generation");
+            return;
+        }
 
-        // Stone tier - includes rock, flint, and basalt
-        defaultMappings.put("stone", Arrays.asList(
-                "tconstruct:rock",
-                "tconstruct:flint",
-                "tconstruct:basalt"
-        ));
-
-        // Iron tier - includes iron and pig iron
-        defaultMappings.put("iron", Arrays.asList(
-                "tconstruct:iron",
-                "tconstruct:pig_iron"
-        ));
-
-        // Golden tier - includes gold and rose gold
-        defaultMappings.put("golden", Arrays.asList(
-                "tconstruct:gold",
-                "tconstruct:rose_gold"
-        ));
-
-        // Diamond tier - just diamond
-        defaultMappings.put("diamond", Arrays.asList(
-                "tconstruct:diamond"
-        ));
-
-        try (FileWriter writer = new FileWriter(configFile)) {
-            GSON.toJson(defaultMappings, writer);
-            LOGGER.info("Created default material mappings config");
-
-            // Load the default mappings into memory
-            for (Map.Entry<String, List<String>> entry : defaultMappings.entrySet()) {
-                MATERIAL_MAPPINGS.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
-            }
-        } catch (IOException e) {
-            LOGGER.error("Failed to create default material mappings config", e);
+        if (MATERIAL_MAPPINGS.isEmpty()) {
+            generateFromRegistry();
+        } else if (forceRegenerate) {
+            mergeWithRegistry();
         }
     }
 
     /**
-     * Loads the material mappings from the config file.
+     * Scans TC MaterialRegistry for all visible materials with HeadMaterialStats,
+     * groups them by harvest tier, writes the config, and loads into memory.
+     */
+    private static void generateFromRegistry() {
+        LOGGER.info("Auto-generating material mappings from TC registry...");
+
+        Map<String, Set<String>> generated = scanRegistryForTiers();
+
+        if (generated.isEmpty()) {
+            LOGGER.warn("No materials with HeadMaterialStats found in TC registry — config not generated");
+            return;
+        }
+
+        MATERIAL_MAPPINGS.clear();
+        MATERIAL_MAPPINGS.putAll(generated);
+        saveConfig();
+        TinkerMaterialIngredient.clearDisplayCache();
+
+        int totalMaterials = generated.values().stream().mapToInt(Set::size).sum();
+        LOGGER.info("Generated material mappings: {} tiers, {} total materials", generated.size(), totalMaterials);
+        for (Map.Entry<String, Set<String>> entry : generated.entrySet()) {
+            LOGGER.info("  {}: {} materials", entry.getKey(), entry.getValue().size());
+        }
+    }
+
+    /**
+     * Merges auto-detected materials from TC registry with existing config entries.
+     * User additions are never removed — only new materials are added.
+     */
+    private static void mergeWithRegistry() {
+        LOGGER.info("Merging material mappings with TC registry (preserving user additions)...");
+
+        Map<String, Set<String>> fromRegistry = scanRegistryForTiers();
+
+        int addedCount = 0;
+        int skippedOverrides = 0;
+        for (Map.Entry<String, Set<String>> entry : fromRegistry.entrySet()) {
+            String tier = entry.getKey();
+            Set<String> registryMaterials = entry.getValue();
+            Set<String> existing = MATERIAL_MAPPINGS.computeIfAbsent(tier, k -> new LinkedHashSet<>());
+
+            for (String material : registryMaterials) {
+                // Skip if user already placed this material in a different tier (respect user override)
+                if (isInDifferentTier(material, tier)) {
+                    skippedOverrides++;
+                    continue;
+                }
+                if (existing.add(material)) {
+                    addedCount++;
+                }
+            }
+        }
+
+        if (skippedOverrides > 0) {
+            LOGGER.info("Skipped {} materials already assigned to a different tier by user", skippedOverrides);
+        }
+
+        if (addedCount > 0) {
+            saveConfig();
+            TinkerMaterialIngredient.clearDisplayCache();
+            LOGGER.info("Merge complete: added {} new materials", addedCount);
+        } else {
+            LOGGER.info("Merge complete: no new materials found (config is up to date)");
+        }
+    }
+
+    /** Returns true if the material already exists in a tier other than the given one (user override). */
+    private static boolean isInDifferentTier(String material, String tier) {
+        for (Map.Entry<String, Set<String>> entry : MATERIAL_MAPPINGS.entrySet()) {
+            if (!entry.getKey().equals(tier) && entry.getValue().contains(material)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Scans TC MaterialRegistry for all visible materials with HeadMaterialStats.
+     * Maps each material's harvest tier to a config tier name via TierSortingRegistry.
+     * Materials with unknown/modded tiers are skipped with a warning.
+     */
+    private static Map<String, Set<String>> scanRegistryForTiers() {
+        Map<String, Set<String>> result = new LinkedHashMap<>();
+        IMaterialRegistry registry = MaterialRegistry.getInstance();
+
+        for (IMaterial material : registry.getVisibleMaterials()) {
+            MaterialId materialId = material.getIdentifier();
+            Optional<HeadMaterialStats> stats = registry.getMaterialStats(materialId, HeadMaterialStats.ID);
+
+            if (stats.isEmpty()) continue;
+
+            Tier tier = stats.get().tier();
+            ResourceLocation tierId = TierSortingRegistry.getName(tier);
+
+            if (tierId == null) {
+                LOGGER.warn("Could not resolve tier name for material '{}', skipping", materialId);
+                continue;
+            }
+
+            String configName = TIER_NAME_MAP.get(tierId);
+            if (configName == null) {
+                LOGGER.warn("Unknown tier '{}' for material '{}', skipping", tierId, materialId);
+                continue;
+            }
+
+            result.computeIfAbsent(configName, k -> new LinkedHashSet<>()).add(materialId.toString());
+        }
+
+        return result;
+    }
+
+    /**
+     * Saves MATERIAL_MAPPINGS to the config file.
+     * Tiers written in consistent order (wooden, stone, iron, golden, diamond, netherite),
+     * with any user-defined tiers appended at the end.
+     */
+    private static void saveConfig() {
+        Map<String, List<String>> toSave = new LinkedHashMap<>();
+
+        // Write known tiers in consistent order
+        for (String tier : TIER_ORDER) {
+            Set<String> materials = MATERIAL_MAPPINGS.get(tier);
+            if (materials != null && !materials.isEmpty()) {
+                toSave.put(tier, new ArrayList<>(materials));
+            }
+        }
+
+        // Append any user-defined tiers not in TIER_ORDER
+        for (Map.Entry<String, Set<String>> entry : MATERIAL_MAPPINGS.entrySet()) {
+            if (!toSave.containsKey(entry.getKey())) {
+                toSave.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
+        }
+
+        try (FileWriter writer = new FileWriter(configFile)) {
+            GSON.toJson(toSave, writer);
+            LOGGER.debug("Saved material mappings config to: {}", configFile.getAbsolutePath());
+        } catch (IOException e) {
+            LOGGER.error("Failed to save material mappings config", e);
+        }
+    }
+
+    /**
+     * Loads material mappings from the config file into MATERIAL_MAPPINGS.
      */
     private static void loadConfig() {
         MATERIAL_MAPPINGS.clear();
@@ -113,7 +256,6 @@ public class MaterialMappingConfig {
         try (FileReader reader = new FileReader(configFile)) {
             JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
 
-            // Parse each tier entry
             for (String tier : json.keySet()) {
                 Set<String> materials = new LinkedHashSet<>();
                 json.getAsJsonArray(tier).forEach(element -> materials.add(element.getAsString()));
@@ -123,27 +265,25 @@ public class MaterialMappingConfig {
 
             LOGGER.info("Successfully loaded material mappings for {} tiers", MATERIAL_MAPPINGS.size());
         } catch (IOException e) {
-            LOGGER.error("Failed to load material mappings config, using defaults", e);
-            createDefaultConfig();
+            LOGGER.error("Failed to load material mappings config", e);
         } catch (Exception e) {
-            LOGGER.error("Error parsing material mappings config, using defaults", e);
-            createDefaultConfig();
+            LOGGER.error("Error parsing material mappings config", e);
         }
     }
 
     /**
-     * Reloads the material mappings from the config file.
-     * Useful for /reload command support.
+     * Reloads material mappings from the config file.
      */
     public static void reload() {
         LOGGER.info("Reloading material mappings...");
         loadConfig();
+        TinkerMaterialIngredient.clearDisplayCache();
     }
 
     /**
      * Gets the set of TC material IDs that count as a specific vanilla tier.
      *
-     * @param tier The vanilla tier (wooden, stone, iron, golden, diamond)
+     * @param tier The vanilla tier (wooden, stone, iron, golden, diamond, netherite)
      * @return Set of TC material IDs, or null if tier not found
      */
     public static Set<String> getMaterialsForTier(String tier) {
@@ -152,10 +292,6 @@ public class MaterialMappingConfig {
 
     /**
      * Checks if a specific TC material ID matches a vanilla tier.
-     *
-     * @param tier The vanilla tier
-     * @param materialId The TC material ID (e.g., "tconstruct:iron")
-     * @return true if the material is valid for the tier
      */
     public static boolean isMaterialValidForTier(String tier, String materialId) {
         Set<String> materials = getMaterialsForTier(tier);
@@ -164,8 +300,6 @@ public class MaterialMappingConfig {
 
     /**
      * Gets all configured tiers.
-     *
-     * @return Set of tier names
      */
     public static Set<String> getAllTiers() {
         return MATERIAL_MAPPINGS.keySet();
@@ -173,8 +307,6 @@ public class MaterialMappingConfig {
 
     /**
      * Gets the config file location.
-     *
-     * @return The config file
      */
     public static File getConfigFile() {
         return configFile;

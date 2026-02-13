@@ -7,6 +7,8 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.Config;
+import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.NonNullList;
@@ -65,10 +67,20 @@ public class GenerateRecipesCommand {
         CommandSourceStack source = context.getSource();
 
         try {
+            // Reload configs from disk before generating so edits take effect
+            MaterialMappingConfig.reload();
+            ToolExclusionConfig.reload();
+
             int count = generate(server);
             source.sendSuccess(() -> Component.literal("Successfully generated " + count + " replacement recipes!"), true);
-            source.sendSuccess(() -> Component.literal("Recipes saved to: world/datapacks/nomorevanillatools_generated/"), false);
-            source.sendSuccess(() -> Component.literal("Run /reload to apply the changes."), false);
+            source.sendSuccess(() -> Component.literal("Reloading datapacks..."), false);
+            server.reloadResources(server.getPackRepository().getSelectedIds()).exceptionally(e2 -> {
+                LOGGER.error("Failed to reload datapacks after recipe generation", e2);
+                source.sendFailure(Component.literal("Recipes generated but datapack reload failed. Run /reload manually."));
+                return null;
+            }).thenRun(() -> {
+                source.sendSuccess(() -> Component.literal("Datapack reload complete! Recipes are now active."), true);
+            });
             return Command.SINGLE_SUCCESS;
         } catch (Exception e) {
             LOGGER.error("Failed to generate recipes", e);
