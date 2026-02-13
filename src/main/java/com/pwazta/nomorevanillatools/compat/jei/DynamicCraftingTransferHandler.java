@@ -28,8 +28,7 @@ import java.util.*;
  * Uses AbstractContainerMenu as catch-all (lower priority than specific handlers).
  * Looks up container config at runtime from CraftingContainerRegistry.
  */
-public class DynamicCraftingTransferHandler
-        implements IRecipeTransferHandler<AbstractContainerMenu, CraftingRecipe> {
+public class DynamicCraftingTransferHandler implements IRecipeTransferHandler<AbstractContainerMenu, CraftingRecipe> {
 
     private final IRecipeTransferHandlerHelper helper;
 
@@ -37,29 +36,14 @@ public class DynamicCraftingTransferHandler
         this.helper = helper;
     }
 
-    @Override
-    public Class<? extends AbstractContainerMenu> getContainerClass() {
-        return AbstractContainerMenu.class;  // Catch-all, lower priority than specific handlers
-    }
+    // Catch-all (lower priority than specific handlers), match by class only
+    @Override public Class<? extends AbstractContainerMenu> getContainerClass() { return AbstractContainerMenu.class; }
+    @Override public Optional<MenuType<AbstractContainerMenu>> getMenuType() { return Optional.empty(); }
+    @Override public RecipeType<CraftingRecipe> getRecipeType() { return RecipeTypes.CRAFTING; }
 
     @Override
-    public Optional<MenuType<AbstractContainerMenu>> getMenuType() {
-        return Optional.empty();  // Match by class only
-    }
-
-    @Override
-    public RecipeType<CraftingRecipe> getRecipeType() {
-        return RecipeTypes.CRAFTING;
-    }
-
-    @Override
-    public @Nullable IRecipeTransferError transferRecipe(
-            AbstractContainerMenu container,
-            CraftingRecipe recipe,
-            IRecipeSlotsView recipeSlots,
-            Player player,
-            boolean maxTransfer,
-            boolean doTransfer) {
+    public @Nullable IRecipeTransferError transferRecipe(AbstractContainerMenu container, CraftingRecipe recipe,
+            IRecipeSlotsView recipeSlots, Player player, boolean maxTransfer, boolean doTransfer) {
 
         // Look up container config at runtime
         Optional<CraftingContainerConfig> configOpt = CraftingContainerRegistry.findForContainer(container);
@@ -133,12 +117,8 @@ public class DynamicCraftingTransferHandler
      * Finds an inventory slot containing an item matching the ingredient.
      * Uses ingredient.test() for TinkerMaterialIngredient compatibility.
      */
-    private int findMatchingSlot(
-            AbstractContainerMenu container,
-            Ingredient ingredient,
-            int startSlot,
-            int endSlot,
-            Map<Integer, Integer> reservedCounts) {
+    private int findMatchingSlot(AbstractContainerMenu container, Ingredient ingredient,
+            int startSlot, int endSlot, Map<Integer, Integer> reservedCounts) {
 
         for (int i = startSlot; i < endSlot; i++) {
             Slot slot = container.slots.get(i);
@@ -176,8 +156,7 @@ public class DynamicCraftingTransferHandler
         return (int) Math.ceil((double) ingredientCount / config.gridWidth());
     }
 
-    private IRecipeTransferError createMissingItemsError(
-            IRecipeSlotsView recipeSlots, List<Integer> missingIndices) {
+    private IRecipeTransferError createMissingItemsError(IRecipeSlotsView recipeSlots, List<Integer> missingIndices) {
         var inputSlots = recipeSlots.getSlotViews(RecipeIngredientRole.INPUT);
         List<IRecipeSlotView> missingSlots = new ArrayList<>();
         for (int idx : missingIndices) {

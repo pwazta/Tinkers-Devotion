@@ -43,19 +43,11 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
         this.config = config;
     }
 
-    @Override
-    public RecipeType<CraftingRecipe> getRecipeType() {
-        return RecipeTypes.CRAFTING;
-    }
+    @Override public RecipeType<CraftingRecipe> getRecipeType() { return RecipeTypes.CRAFTING; }
 
     @Override
-    public @Nullable IRecipeTransferError transferRecipe(
-            C container,
-            CraftingRecipe recipe,
-            IRecipeSlotsView recipeSlots,
-            Player player,
-            boolean maxTransfer,
-            boolean doTransfer) {
+    public @Nullable IRecipeTransferError transferRecipe(C container, CraftingRecipe recipe,
+            IRecipeSlotsView recipeSlots, Player player, boolean maxTransfer, boolean doTransfer) {
 
         // Get recipe dimensions
         int recipeWidth = getRecipeWidth(recipe);
@@ -120,12 +112,8 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
      * Uses ingredient.test() for TinkerMaterialIngredient compatibility.
      * Tracks reserved counts to allow multiple items from the same stack.
      */
-    protected int findMatchingSlot(
-            C container,
-            Ingredient ingredient,
-            int startSlot,
-            int endSlot,
-            Map<Integer, Integer> reservedCounts) {
+    protected int findMatchingSlot(C container, Ingredient ingredient, int startSlot,
+            int endSlot, Map<Integer, Integer> reservedCounts) {
 
         for (int i = startSlot; i < endSlot; i++) {
             Slot slot = container.slots.get(i);
@@ -174,8 +162,7 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
     /**
      * Creates an error for missing items, highlighting the affected slots.
      */
-    protected IRecipeTransferError createMissingItemsError(
-            IRecipeSlotsView recipeSlots, List<Integer> missingIndices) {
+    protected IRecipeTransferError createMissingItemsError(IRecipeSlotsView recipeSlots, List<Integer> missingIndices) {
         var inputSlots = recipeSlots.getSlotViews(RecipeIngredientRole.INPUT);
         List<IRecipeSlotView> missingSlots = new ArrayList<>();
         for (int idx : missingIndices) {

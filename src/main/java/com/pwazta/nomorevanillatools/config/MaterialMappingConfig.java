@@ -190,9 +190,7 @@ public class MaterialMappingConfig {
             TinkerMaterialIngredient.clearDisplayCache();
         }
 
-        Set<String> getMaterialsForTier(String tier) {
-            return mappings.get(tier.toLowerCase());
-        }
+        Set<String> getMaterialsForTier(String tier) { return mappings.get(tier.toLowerCase()); }
 
         boolean isMaterialValidForTier(String tier, String materialId) {
             Set<String> materials = getMaterialsForTier(tier);

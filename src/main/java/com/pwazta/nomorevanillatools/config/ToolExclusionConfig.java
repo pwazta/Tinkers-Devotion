@@ -49,9 +49,7 @@ public class ToolExclusionConfig {
         if (initialized) return;
 
         File modConfigDir = new File(configDir, "nomorevanillatools");
-        if (!modConfigDir.exists()) {
-            modConfigDir.mkdirs();
-        }
+        if (!modConfigDir.exists()) modConfigDir.mkdirs();
 
         configFile = new File(modConfigDir, "tool_exclusions.json");
 

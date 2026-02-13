@@ -36,15 +36,8 @@ public class CraftingContainerRegistry {
         LOGGER.debug("Registered crafting container config: {} -> {}", config.id(), config.containerClassName());
     }
 
-    /**
-     * Gets a configuration by its ID.
-     *
-     * @param id The configuration ID
-     * @return The configuration, or null if not found
-     */
-    public static CraftingContainerConfig getById(String id) {
-        return BY_ID.get(id);
-    }
+    /** Gets a configuration by its ID, or null if not found. */
+    public static CraftingContainerConfig getById(String id) { return BY_ID.get(id); }
 
     /**
      * Finds the configuration that matches the given container.
@@ -64,24 +57,8 @@ public class CraftingContainerRegistry {
         return Optional.empty();
     }
 
-    /**
-     * Returns all registered configurations.
-     *
-     * @return Unmodifiable list of all configs
-     */
-    public static List<CraftingContainerConfig> getAll() {
-        return Collections.unmodifiableList(ALL);
-    }
-
-    /**
-     * Checks if a configuration with the given ID exists.
-     *
-     * @param id The configuration ID
-     * @return true if exists, false otherwise
-     */
-    public static boolean hasConfig(String id) {
-        return BY_ID.containsKey(id);
-    }
+    public static List<CraftingContainerConfig> getAll() { return Collections.unmodifiableList(ALL); }
+    public static boolean hasConfig(String id) { return BY_ID.containsKey(id); }
 
     /**
      * Registers all built-in container configurations.
@@ -103,14 +80,7 @@ public class CraftingContainerRegistry {
         LOGGER.info("Registered {} built-in crafting container configs", ALL.size());
     }
 
-    /**
-     * Checks if the registry has been initialized.
-     *
-     * @return true if registerBuiltIns() has been called
-     */
-    public static boolean isInitialized() {
-        return initialized;
-    }
+    public static boolean isInitialized() { return initialized; }
 
     // Future: Add method to load additional configs from Forge config file
     // public static void loadFromConfig(ForgeConfigSpec.ConfigValue<List<? extends UnmodifiableConfig>> configList) {

@@ -26,12 +26,8 @@ public class DatapackHelper {
     private static final String DATAPACK_NAME = "nomorevanillatools_generated";
     private static final String REPLACEMENT_SUFFIX = "_tinker_replacement.json";
 
-    /**
-     * Gets the path to the generated datapack folder.
-     */
     public static Path getDatapackPath(MinecraftServer server) {
-        Path worldDir = server.getWorldPath(LevelResource.ROOT);
-        return worldDir.resolve("datapacks").resolve(DATAPACK_NAME);
+        return server.getWorldPath(LevelResource.ROOT).resolve("datapacks").resolve(DATAPACK_NAME);
     }
 
     /**
@@ -108,16 +104,8 @@ public class DatapackHelper {
         }
     }
 
-    /**
-     * Checks if the datapack has already been generated.
-     */
-    public static boolean isGenerated(MinecraftServer server) {
-        return Files.exists(getDatapackPath(server).resolve(".generated"));
-    }
+    public static boolean isGenerated(MinecraftServer server) { return Files.exists(getDatapackPath(server).resolve(".generated")); }
 
-    /**
-     * Creates the .generated flag file.
-     */
     public static void markGenerated(MinecraftServer server) throws IOException {
         Path flagFile = getDatapackPath(server).resolve(".generated");
         Files.createDirectories(flagFile.getParent());

@@ -17,14 +17,8 @@ public class PlayerInventoryTransferHandler extends AbstractTinkerTransferHandle
         super(helper, CraftingContainerConfig.PLAYER_INVENTORY);
     }
 
-    @Override
-    public Class<InventoryMenu> getContainerClass() {
-        return InventoryMenu.class;
-    }
+    @Override public Class<InventoryMenu> getContainerClass() { return InventoryMenu.class; }
 
-    @Override
-    public Optional<MenuType<InventoryMenu>> getMenuType() {
-        // InventoryMenu has no MenuType - it's always container ID 0
-        return Optional.empty();
-    }
+    // InventoryMenu has no MenuType - it's always container ID 0
+    @Override public Optional<MenuType<InventoryMenu>> getMenuType() { return Optional.empty(); }
 }
