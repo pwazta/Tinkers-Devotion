@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
+import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient;
 import org.slf4j.Logger;
 
@@ -32,12 +33,6 @@ public class ToolExclusionConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static final Map<String, Set<String>> EXCLUSIONS = new HashMap<>();
-
-    /** Consistent action ordering for config file output. */
-    private static final List<String> ACTION_ORDER = List.of(
-        "sword", "pickaxe", "axe", "shovel", "hoe",
-        "helmet", "chestplate", "leggings", "boots"
-    );
 
     private static File configFile;
     private static boolean initialized = false;
@@ -84,18 +79,15 @@ public class ToolExclusionConfig {
         "tconstruct:slime_boots"
     );
 
-    private static final List<String> TOOL_ACTIONS = List.of("sword", "pickaxe", "axe", "shovel", "hoe");
-    private static final List<String> ARMOR_SLOTS = List.of("helmet", "chestplate", "leggings", "boots");
-
     /**
      * Creates the default exclusion set: tools excluded from tool actions, slimesuit from armor slots.
      */
     private static void createDefaults() {
         EXCLUSIONS.clear();
-        for (String action : TOOL_ACTIONS) {
+        for (String action : VanillaItemMappings.TOOL_TYPES) {
             EXCLUSIONS.put(action, new LinkedHashSet<>(DEFAULT_EXCLUDED_TOOLS));
         }
-        for (String slot : ARMOR_SLOTS) {
+        for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
             EXCLUSIONS.put(slot, new LinkedHashSet<>(DEFAULT_EXCLUDED_ARMOR));
         }
     }
@@ -116,12 +108,16 @@ public class ToolExclusionConfig {
         Map<String, List<String>> toSave = new LinkedHashMap<>();
 
         // Write known actions in consistent order
-        for (String action : ACTION_ORDER) {
+        for (String action : VanillaItemMappings.TOOL_TYPES) {
             Set<String> excluded = EXCLUSIONS.get(action);
             toSave.put(action, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
         }
+        for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
+            Set<String> excluded = EXCLUSIONS.get(slot);
+            toSave.put(slot, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
+        }
 
-        // Append any user-defined actions not in ACTION_ORDER
+        // Append any user-defined actions not in known types
         for (Map.Entry<String, Set<String>> entry : EXCLUSIONS.entrySet()) {
             if (!toSave.containsKey(entry.getKey())) {
                 toSave.put(entry.getKey(), new ArrayList<>(entry.getValue()));
