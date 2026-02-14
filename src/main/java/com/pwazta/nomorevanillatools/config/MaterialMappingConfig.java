@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
+import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Tier;
@@ -63,10 +64,31 @@ public class MaterialMappingConfig {
         "tconstruct:copper", "leather"  // copper plating defense (1/2/3/1) = vanilla leather
     );
 
+    // ── Canonical materials (shared by loot generation + JEI display) ──
+
+    /** Canonical tool material per vanilla tier — the "representative" TC material for loot (85% weight) and JEI display. */
+    private static final Map<String, String> CANONICAL_TOOL_MATERIALS = Map.of(
+        "wooden",    "tconstruct:wood",
+        "stone",     "tconstruct:rock",
+        "iron",      "tconstruct:iron",
+        "golden",    "tconstruct:rose_gold",
+        "diamond",   "tconstruct:cobalt",
+        "netherite", "tconstruct:hepatizon"
+    );
+
+    /** Canonical armor material per vanilla tier. Separate because armor has leather tier and different golden mapping. */
+    private static final Map<String, String> CANONICAL_ARMOR_MATERIALS = Map.of(
+        "leather",   "tconstruct:copper",
+        "iron",      "tconstruct:iron",
+        "golden",    "tconstruct:gold",
+        "diamond",   "tconstruct:cobalt",
+        "netherite", "tconstruct:hepatizon"
+    );
+
     // ── Store instances ───────────────────────────────────────────────
 
     private static final TierMappingStore TOOL_STORE = new TierMappingStore(
-        List.of("wooden", "stone", "iron", "golden", "diamond", "netherite"),
+        Arrays.asList(VanillaItemMappings.ALL_TOOL_TIERS),
         "tool", MaterialMappingConfig::scanToolRegistry
     );
 
@@ -411,26 +433,7 @@ public class MaterialMappingConfig {
         return new RegistryScanResult(tiers, skipped);
     }
 
-    // ── Canonical materials (shared by loot generation + JEI display) ──
-
-    /** Canonical tool material per vanilla tier — the "representative" TC material for loot (85% weight) and JEI display. */
-    private static final Map<String, String> CANONICAL_TOOL_MATERIALS = Map.of(
-        "wooden",    "tconstruct:wood",
-        "stone",     "tconstruct:rock",
-        "iron",      "tconstruct:iron",
-        "golden",    "tconstruct:rose_gold",
-        "diamond",   "tconstruct:cobalt",
-        "netherite", "tconstruct:hepatizon"
-    );
-
-    /** Canonical armor material per vanilla tier. Separate because armor has leather tier and different golden mapping. */
-    private static final Map<String, String> CANONICAL_ARMOR_MATERIALS = Map.of(
-        "leather",   "tconstruct:copper",
-        "iron",      "tconstruct:iron",
-        "golden",    "tconstruct:gold",
-        "diamond",   "tconstruct:cobalt",
-        "netherite", "tconstruct:hepatizon"
-    );
+    // ── Canonical resolution ─────────────────────────────────────────
 
     /**
      * Returns the canonical tool material for the given tier.

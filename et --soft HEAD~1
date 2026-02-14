@@ -1,0 +1,176 @@
+[33mcommit 00d7fe480c0137a93c1ede7e56b429ca91db7f4d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sun Feb 15 03:03:32 2026 +1100
+
+    bugfixes to mob armour and tools not being assigned properly
+    
+    Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+[33mcommit 08a3997b2f05a63287b6608f9b9786622fc62525[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sun Feb 15 01:35:22 2026 +1100
+
+    added /nomorevanillatools generate reset subcommand which clears all old mappings and regenerates them (normal preserves player changes)
+
+[33mcommit cabc9166c78ea3407ce383f72ca5e427975ced57[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sun Feb 15 01:30:18 2026 +1100
+
+    removed 2 redundant config options (autogen recipes and autoregen)
+
+[33mcommit 9e1061dc64123206ebfeb65a4bbcce22db5904bc[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sun Feb 15 01:24:24 2026 +1100
+
+    MASSIVE!! Replace vanilla tools / armor in loot (chests, fishing) with random TC tools of same or lower tier. Similarly replace all mob spawned equipment with TC same or lower tier.
+
+[33mcommit 3c80e82a4c8c53e20d7dc24e8bdc999bc6a7424f[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sat Feb 14 02:43:48 2026 +1100
+
+    style cleanup + added testing recipes for armour (to be removed later)
+
+[33mcommit 33d3c080171f944c91bced42006c57fe2cd9791c[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sat Feb 14 01:52:30 2026 +1100
+
+    armour recipe implementation pt1: mostly done
+
+[33mcommit 2bbed4cf1e0de0961ea1a9b120abc3917b358e78[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Feb 13 15:59:17 2026 +1100
+
+    /generate command fully reloads all configs and mappings for the mod now. similar pipeline applied on worldfirstload, but can manually load with /command
+
+[33mcommit d0e3078a44e7398bfd630c08bfde41d267bbd110[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Feb 13 14:27:08 2026 +1100
+
+    made tooltypes conversion stricter to include exclusionlist config (e.g no more daggers for sword recipes, no more ancient tools), recipes only show 1 defined material in JEI but recipes remaining accepting all
+
+[33mcommit 9b03f9a0e08d02c9e8b7d941ea31cf1d48f26069[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Feb 13 03:07:06 2026 +1100
+
+    % by totalparts instead of otherpartscount + bugfixes
+
+[33mcommit 6656284dc49a77d31eaccb401c3fe3eca6627f1b[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Thu Feb 12 13:17:20 2026 +1100
+
+    tool recipes now show correct material type and show tooltip describing whats needed to be used as an input
+
+[33mcommit c80b0fa0d76015626e53e5e2d77c901b23280101[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Thu Feb 12 01:39:27 2026 +1100
+
+    jei recipes now display all options for input TC tools based on their TinkerAction
+
+[33mcommit 38da285e57ba86101e97575199507d4e50cc41be[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Mon Feb 9 01:43:23 2026 +1100
+
+    context md update for global sync
+
+[33mcommit 1e4cd0505e928af7834e9b9cbfb625802a3e6405[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Mon Feb 9 00:15:47 2026 +1100
+
+    added tooltype validation to TC tools in recipes: e.g only TC swords & cleavers can be used for sword recipes
+
+[33mcommit 4eab921581e6b6d6aba41648269eefad049724a9[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sun Feb 8 21:08:08 2026 +1100
+
+    fixed tinkermaterialIngredient isEmpty() override bug so JEI + vanilla books properly detect TC tools for item transfer into recipes
+
+[33mcommit 0cd30b445397b6b69036ef8ae6a7582d2ca4d35e[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Sun Feb 8 17:18:09 2026 +1100
+
+    reference file and contextmd update to reference dependecy mod APIS
+
+[33mcommit 83e75a74d22c9df672da769096542d0ebad44a89[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Feb 6 01:28:39 2026 +1100
+
+    attempted config options for adding custom crafting grids for JEI transfer button
+
+[33mcommit fcf57c6335e031672bd744e9540423c34b072a5f[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Thu Feb 5 23:39:44 2026 +1100
+
+    compat for inventory 2x2 and TS crafting station for JEI transfer
+
+[33mcommit 24f3e76ac9540f8f99ff90dbfd362f247fd17d63[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Thu Feb 5 21:32:20 2026 +1100
+
+    JEI compatibility for tinkers tools to show up in recipes + custom IRecipeTransfer implementation for JEi + button
+
+[33mcommit 93abacd53c15eafefc3472e2b6fb1c61fac2b01a[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Thu Feb 5 20:34:09 2026 +1100
+
+    working getStreamEmpty fix for rendering tc items as ingredients through getItems implementation
+
+[33mcommit 1163131c63f7be053b5cac5f070bf9b5307b19d5[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Thu Feb 5 19:29:04 2026 +1100
+
+    context api links for reference
+
+[33mcommit 986a1334f256c6dd5dac696e535d9398e1cc2d78[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Wed Feb 4 02:31:21 2026 +1100
+
+    current mod context md
+
+[33mcommit 92b55f55ce920bb06bcee4a050c8bf834a228883[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Mon Feb 2 23:59:35 2026 +1100
+
+    gitignore file update
+
+[33mcommit be8b75025c85ab5050e2376b000004640d62c907[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Jan 30 17:01:36 2026 +1100
+
+    Refactor recipe system to command-based datapack generation
+    
+    Major changes:
+    - Replace runtime recipe modification with /nomorevanillatools generate command
+    - Generate persistent datapack recipes (world/datapacks/nomorevanillatools_generated/)
+    - Implement HEAD-first material checking for Tinker's Construct tools
+    - Add auto-generation on first world load (configurable via autoGenerateRecipes)
+    - Fix recipe detection bug using proper registry key lookup instead of toString()
+    - Remove vanilla tool crafting recipes (25 recipes)
+    - Add flag file (.generated) to prevent redundant regeneration
+    - Refactor code: eliminate duplication with helper methods, remove template code
+    
+    This approach follows TC creator's recommendation, provides better performance
+    (generates once vs runtime overhead), and allows modpack makers to edit recipes.
+
+[33mcommit 9a45b0223c6a0f366b87aad83aa408297bd47058[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Jan 30 03:26:45 2026 +1100
+
+    optimisation: removed unncessary arraylist materialID copies during tool recipe calc
+
+[33mcommit 5f4c715546f51879d4914913447c4bcde46b6ae2[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Jan 30 03:23:18 2026 +1100
+
+    holy shit guys it works
+
+[33mcommit b45b6d22693f7dcafeb5c79450f5d7063ffeeee9[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Jan 30 02:35:58 2026 +1100
+
+    progress on adding custom tinkerMaterialIngredient and recipe replacement
+
+[33mcommit 497e9782bd0ebcab0588526e6740f9b7b4bcc915[m
+Author: Vincent Xian <vincentxian00@gmail.com>
+Date:   Fri Jan 30 01:25:01 2026 +1100
+
+    Initial forge setup
