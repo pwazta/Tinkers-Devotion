@@ -10,6 +10,7 @@ import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Tier;
 import net.minecraftforge.common.TierSortingRegistry;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import slimeknights.tconstruct.library.materials.IMaterialRegistry;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
@@ -408,6 +409,50 @@ public class MaterialMappingConfig {
         }
 
         return new RegistryScanResult(tiers, skipped);
+    }
+
+    // ── Canonical materials (shared by loot generation + JEI display) ──
+
+    /** Canonical tool material per vanilla tier — the "representative" TC material for loot (85% weight) and JEI display. */
+    private static final Map<String, String> CANONICAL_TOOL_MATERIALS = Map.of(
+        "wooden",    "tconstruct:wood",
+        "stone",     "tconstruct:rock",
+        "iron",      "tconstruct:iron",
+        "golden",    "tconstruct:rose_gold",
+        "diamond",   "tconstruct:cobalt",
+        "netherite", "tconstruct:hepatizon"
+    );
+
+    /** Canonical armor material per vanilla tier. Separate because armor has leather tier and different golden mapping. */
+    private static final Map<String, String> CANONICAL_ARMOR_MATERIALS = Map.of(
+        "leather",   "tconstruct:copper",
+        "iron",      "tconstruct:iron",
+        "golden",    "tconstruct:gold",
+        "diamond",   "tconstruct:cobalt",
+        "netherite", "tconstruct:hepatizon"
+    );
+
+    /**
+     * Returns the canonical tool material for the given tier.
+     * Falls back to the first material in the config if the canonical isn't available.
+     */
+    public static @Nullable String getCanonicalToolMaterial(String tier) {
+        return resolveCanonical(CANONICAL_TOOL_MATERIALS, TOOL_STORE, tier);
+    }
+
+    /**
+     * Returns the canonical armor material for the given tier.
+     * Falls back to the first material in the config if the canonical isn't available.
+     */
+    public static @Nullable String getCanonicalArmorMaterial(String tier) {
+        return resolveCanonical(CANONICAL_ARMOR_MATERIALS, ARMOR_STORE, tier);
+    }
+
+    private static @Nullable String resolveCanonical(Map<String, String> canonicalMap, TierMappingStore store, String tier) {
+        String canonical = canonicalMap.get(tier.toLowerCase());
+        Set<String> materials = store.getMaterialsForTier(tier);
+        if (canonical != null && materials != null && materials.contains(canonical)) return canonical;
+        return (materials != null && !materials.isEmpty()) ? materials.iterator().next() : null;
     }
 
     // ── Public API — Tool ─────────────────────────────────────────────

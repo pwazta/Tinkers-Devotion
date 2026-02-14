@@ -192,7 +192,8 @@ public class TinkerToolBuilder {
 
     /**
      * Selects head/plating material using weighted algorithm:
-     * 85% canonical (first in config list), 15% random from tier pool.
+     * 85% canonical (from MaterialMappingConfig), 15% random from tier pool.
+     * Canonical materials match JEI display — defined in MaterialMappingConfig.
      */
     private static @Nullable MaterialVariantId selectHeadMaterial(String tier, RandomSource random, boolean isArmor) {
         Set<String> materials = isArmor
@@ -202,8 +203,10 @@ public class TinkerToolBuilder {
 
         String selectedId;
         if (random.nextFloat() < HEAD_CANONICAL_WEIGHT) {
-            // Canonical: first in config list (LinkedHashSet preserves insertion order)
-            selectedId = materials.iterator().next();
+            // Canonical material — same as JEI display, with fallback to first in config
+            selectedId = isArmor
+                ? MaterialMappingConfig.getCanonicalArmorMaterial(tier)
+                : MaterialMappingConfig.getCanonicalToolMaterial(tier);
         } else {
             // Random from tier pool
             selectedId = materials.stream().skip(random.nextInt(materials.size())).findFirst().orElse(null);
@@ -224,14 +227,18 @@ public class TinkerToolBuilder {
     private static @Nullable MaterialVariantId selectOtherPartMaterial(MaterialStatsId statType,
             int headTcTier, MaterialVariantId headMaterial, RandomSource random) {
         List<IMaterial> compatible = getCompatibleMaterials(statType);
+        if (compatible.isEmpty()) return null;
+
         List<IMaterial> filtered = compatible.stream()
             .filter(mat -> mat.getTier() <= headTcTier)
             .toList();
-        if (filtered.isEmpty()) return null;
+
+        // Fallback to all compatible materials if tier filtering leaves nothing
+        List<IMaterial> pool = filtered.isEmpty() ? compatible : filtered;
 
         // Find basic (lowest tier) material
-        IMaterial basic = filtered.get(0);
-        for (IMaterial mat : filtered) {
+        IMaterial basic = pool.get(0);
+        for (IMaterial mat : pool) {
             if (mat.getTier() < basic.getTier()) basic = mat;
         }
 
@@ -247,7 +254,7 @@ public class TinkerToolBuilder {
             if (headCompatible) return headMaterial;
             return MaterialVariantId.create(basic.getIdentifier(), "");
         } else {
-            IMaterial selected = filtered.get(random.nextInt(filtered.size()));
+            IMaterial selected = pool.get(random.nextInt(pool.size()));
             return MaterialVariantId.create(selected.getIdentifier(), "");
         }
     }
@@ -258,16 +265,20 @@ public class TinkerToolBuilder {
      * Selects material for armor inner part (maille, shield_core, etc.).
      * Uniform random from compatible materials, filtered to head tier or lower,
      * hard-capped at ARMOR_INNER_MAX_TIER (3 = diamond) to prevent overpowered inner materials.
+     * Falls back to unfiltered compatible materials if tier filtering leaves an empty pool.
      */
     private static @Nullable MaterialVariantId selectArmorInnerMaterial(MaterialStatsId statType, int headTcTier, RandomSource random) {
-        int maxTier = Math.min(headTcTier, ARMOR_INNER_MAX_TIER);
         List<IMaterial> compatible = getCompatibleMaterials(statType);
+        if (compatible.isEmpty()) return null;
+
+        int maxTier = Math.min(headTcTier, ARMOR_INNER_MAX_TIER);
         List<IMaterial> filtered = compatible.stream()
             .filter(mat -> mat.getTier() <= maxTier)
             .toList();
-        if (filtered.isEmpty()) return null;
 
-        IMaterial selected = filtered.get(random.nextInt(filtered.size()));
+        // Fallback to all compatible materials if tier filtering leaves nothing
+        List<IMaterial> pool = filtered.isEmpty() ? compatible : filtered;
+        IMaterial selected = pool.get(random.nextInt(pool.size()));
         return MaterialVariantId.create(selected.getIdentifier(), "");
     }
 

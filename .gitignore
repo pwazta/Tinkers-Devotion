@@ -28,3 +28,7 @@ run
 
 # Files from Forge MDK
 forge*changelog.txt
+
+# Forge/NeoForge reference sources and patches
+net/
+patches/

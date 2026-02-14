@@ -58,25 +58,6 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     /** Cache of display ItemStacks per type:tier key. Built from ITEM_CACHE + canonical material. */
     private static final Map<String, ItemStack[]> DISPLAY_CACHE = new ConcurrentHashMap<>();
 
-    /** Preferred display material per tool tier. */
-    private static final Map<String, String> CANONICAL_DISPLAY_MATERIAL = Map.of(
-        "wooden",    "tconstruct:wood",
-        "stone",     "tconstruct:rock",
-        "iron",      "tconstruct:iron",
-        "golden",    "tconstruct:gold",
-        "diamond",   "tconstruct:cobalt",
-        "netherite", "tconstruct:hepatizon"
-    );
-
-    /** Preferred display material per armor tier. Separate because armor has leather tier. */
-    private static final Map<String, String> ARMOR_CANONICAL_DISPLAY_MATERIAL = Map.of(
-        "leather",   "tconstruct:copper",
-        "iron",      "tconstruct:iron",
-        "golden",    "tconstruct:gold",
-        "diamond",   "tconstruct:cobalt",
-        "netherite", "tconstruct:hepatizon"
-    );
-
     /** Clears all caches. Called when exclusions or material mappings change. */
     public static void clearDisplayCache() {
         ITEM_CACHE.clear();
@@ -217,8 +198,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         if (action == null) return new ItemStack[0];
         String cacheKey = toolType + ":" + requiredTier;
         return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(
-            MaterialMappingConfig.getMaterialsForTier(requiredTier),
-            CANONICAL_DISPLAY_MATERIAL, requiredTier, scanToolsForAction(action, toolType)));
+            MaterialMappingConfig.getCanonicalToolMaterial(requiredTier), requiredTier, scanToolsForAction(action, toolType)));
     }
 
     private ItemStack[] getArmorItems() {
@@ -226,8 +206,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         if (armorType == null) return new ItemStack[0];
         String cacheKey = "armor:" + toolType + ":" + requiredTier;
         return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(
-            MaterialMappingConfig.getArmorMaterialsForTier(requiredTier),
-            ARMOR_CANONICAL_DISPLAY_MATERIAL, requiredTier, scanArmorForSlot(armorType, toolType)));
+            MaterialMappingConfig.getCanonicalArmorMaterial(requiredTier), requiredTier, scanArmorForSlot(armorType, toolType)));
     }
 
     // ── Item scanning (cached per type) ──────────────────────────────────
@@ -276,15 +255,12 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     // ── Shared display building ──────────────────────────────────────────
 
     /**
-     * Builds display ItemStacks for JEI from a list of valid items and a material tier.
-     * Uses a canonical display material per tier for consistent JEI appearance.
+     * Builds display ItemStacks for JEI from a list of valid items and a canonical material.
+     * Canonical material is resolved by MaterialMappingConfig (shared with loot generation).
      */
-    private static ItemStack[] buildDisplayItems(Set<String> materials, Map<String, String> canonicalMap,
-            String requiredTier, List<? extends IModifiable> items) {
-        if (materials == null || materials.isEmpty()) return new ItemStack[0];
+    private static ItemStack[] buildDisplayItems(@Nullable String canonicalId, String requiredTier, List<? extends IModifiable> items) {
+        if (canonicalId == null) return new ItemStack[0];
 
-        String canonicalId = canonicalMap.get(requiredTier);
-        if (canonicalId == null || !materials.contains(canonicalId)) canonicalId = materials.iterator().next();
         MaterialVariantId variantId = MaterialVariantId.tryParse(canonicalId);
         if (variantId == null) return new ItemStack[0];
         MaterialVariant displayVariant = MaterialVariant.of(variantId);
