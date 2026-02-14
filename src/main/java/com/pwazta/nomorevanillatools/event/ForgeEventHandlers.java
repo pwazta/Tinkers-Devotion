@@ -6,6 +6,7 @@ import com.pwazta.nomorevanillatools.ExampleMod;
 import com.pwazta.nomorevanillatools.command.GenerateRecipesCommand;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
+import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
@@ -35,6 +36,7 @@ public class ForgeEventHandlers {
     public static void onMaterialsLoaded(MaterialsLoadedEvent event) {
         MaterialMappingConfig.generateIfNeeded(Config.forceRegenerateMaterialConfig);
         MaterialMappingConfig.generateArmorIfNeeded(Config.forceRegenerateMaterialConfig);
+        TinkerToolBuilder.clearCaches();
     }
 
     /**

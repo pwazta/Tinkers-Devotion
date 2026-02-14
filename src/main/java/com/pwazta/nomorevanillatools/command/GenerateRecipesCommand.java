@@ -10,6 +10,7 @@ import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
+import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient.MatchMode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.NonNullList;
@@ -41,33 +42,6 @@ public class GenerateRecipesCommand {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // Vanilla tool tiers (no netherite — netherite uses SmithingRecipe, not CraftingRecipe)
-    private static final String[] TIERS = {"wooden", "stone", "iron", "golden", "diamond"};
-    private static final String[] TOOLS = {"sword", "pickaxe", "axe", "shovel", "hoe"};
-
-    // Map vanilla items to their tier and type
-    private static final Map<String, ToolInfo> VANILLA_TOOLS = new HashMap<>();
-
-    // Vanilla armor tiers (no netherite — smithing; no chainmail — no recipe; no wood/stone — no vanilla armor)
-    private static final String[] ARMOR_TIERS = {"leather", "iron", "golden", "diamond"};
-    private static final String[] ARMOR_SLOTS = {"helmet", "chestplate", "leggings", "boots"};
-
-    // Map vanilla armor items to their tier and slot
-    private static final Map<String, ArmorInfo> VANILLA_ARMOR = new HashMap<>();
-
-    static {
-        for (String tier : TIERS) {
-            for (String tool : TOOLS) {
-                VANILLA_TOOLS.put("minecraft:" + tier + "_" + tool, new ToolInfo(tier, tool));
-            }
-        }
-        for (String tier : ARMOR_TIERS) {
-            for (String slot : ARMOR_SLOTS) {
-                VANILLA_ARMOR.put("minecraft:" + tier + "_" + slot, new ArmorInfo(tier, slot));
-            }
-        }
-    }
-
     // ── Inner types ───────────────────────────────────────────────────────────
 
     /** Tracks everything that happened during generation for player feedback. */
@@ -85,8 +59,6 @@ public class GenerateRecipesCommand {
         final List<String> errors = new ArrayList<>();
     }
 
-    private record ToolInfo(String tier, String toolType) {}
-    private record ArmorInfo(String tier, String slot) {}
     private record ReplacementInfo(int index, String tier, String toolType, MatchMode mode) {}
 
     // ── Command entry point ───────────────────────────────────────────────────
@@ -198,13 +170,13 @@ public class GenerateRecipesCommand {
         // Remove vanilla tool crafting recipes if configured
         if (Config.removeVanillaToolCrafting) {
             removeVanillaToolRecipes(dataPath);
-            result.vanillaToolRecipesRemoved = TIERS.length * TOOLS.length;
+            result.vanillaToolRecipesRemoved = VanillaItemMappings.RECIPE_TOOL_TIERS.length * VanillaItemMappings.TOOL_TYPES.length;
         }
 
         // Remove vanilla armor crafting recipes if configured
         if (Config.removeVanillaArmorCrafting) {
             removeVanillaArmorRecipes(dataPath);
-            result.vanillaArmorRecipesRemoved = ARMOR_TIERS.length * ARMOR_SLOTS.length;
+            result.vanillaArmorRecipesRemoved = VanillaItemMappings.RECIPE_ARMOR_TIERS.length * VanillaItemMappings.ARMOR_SLOTS.length;
         }
 
         // Scan all recipes and generate replacements
@@ -239,16 +211,16 @@ public class GenerateRecipesCommand {
     // ── Vanilla tool detection ────────────────────────────────────────────────
 
     private static void removeVanillaToolRecipes(Path dataPath) throws Exception {
-        for (String tier : TIERS) {
-            for (String tool : TOOLS) {
+        for (String tier : VanillaItemMappings.RECIPE_TOOL_TIERS) {
+            for (String tool : VanillaItemMappings.TOOL_TYPES) {
                 DatapackHelper.removeRecipe(dataPath, "minecraft", tier + "_" + tool);
             }
         }
     }
 
     private static void removeVanillaArmorRecipes(Path dataPath) throws Exception {
-        for (String tier : ARMOR_TIERS) {
-            for (String slot : ARMOR_SLOTS) {
+        for (String tier : VanillaItemMappings.RECIPE_ARMOR_TIERS) {
+            for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
                 DatapackHelper.removeRecipe(dataPath, "minecraft", tier + "_" + slot);
             }
         }
@@ -264,15 +236,15 @@ public class GenerateRecipesCommand {
                 if (itemKey == null) continue;
                 String key = itemKey.toString();
 
-                ToolInfo toolInfo = VANILLA_TOOLS.get(key);
+                VanillaItemMappings.ToolInfo toolInfo = VanillaItemMappings.getToolInfoById(key);
                 if (toolInfo != null) {
-                    replacements.add(new ReplacementInfo(i, toolInfo.tier, toolInfo.toolType, MatchMode.TOOL_ACTION));
+                    replacements.add(new ReplacementInfo(i, toolInfo.tier(), toolInfo.toolType(), MatchMode.TOOL_ACTION));
                     break;
                 }
 
-                ArmorInfo armorInfo = VANILLA_ARMOR.get(key);
+                VanillaItemMappings.ArmorInfo armorInfo = VanillaItemMappings.getArmorInfoById(key);
                 if (armorInfo != null) {
-                    replacements.add(new ReplacementInfo(i, armorInfo.tier, armorInfo.slot, MatchMode.ARMOR_SLOT));
+                    replacements.add(new ReplacementInfo(i, armorInfo.tier(), armorInfo.slot(), MatchMode.ARMOR_SLOT));
                     break;
                 }
             }
