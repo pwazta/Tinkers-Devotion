@@ -5,6 +5,7 @@ import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerConfigLoader;
 import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerRegistry;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
+import com.pwazta.nomorevanillatools.loot.ModGlobalLootModifiers;
 import com.pwazta.nomorevanillatools.network.ModNetwork;
 import net.minecraftforge.fml.loading.FMLPaths;
 import com.pwazta.nomorevanillatools.recipe.ModRecipeSerializers;
@@ -34,6 +35,9 @@ public class ExampleMod {
 
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
+
+        // Register Global Loot Modifier codecs on the mod event bus
+        ModGlobalLootModifiers.GLM.register(modEventBus);
 
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);

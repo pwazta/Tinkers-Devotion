@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
 import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient;
 import org.slf4j.Logger;
 
@@ -163,5 +164,6 @@ public class ToolExclusionConfig {
         LOGGER.info("Reloading tool exclusions...");
         loadConfig();
         TinkerMaterialIngredient.clearDisplayCache();
+        TinkerToolBuilder.clearCaches();
     }
 }

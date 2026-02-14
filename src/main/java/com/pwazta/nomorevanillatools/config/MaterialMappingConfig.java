@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
 import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Tier;
@@ -174,6 +175,7 @@ public class MaterialMappingConfig {
                 mappings.putAll(scan.tiers);
                 save();
                 TinkerMaterialIngredient.clearDisplayCache();
+                TinkerToolBuilder.clearCaches();
 
                 int total = scan.tiers.values().stream().mapToInt(Set::size).sum();
                 LOGGER.info("Generated {} material mappings: {} tiers, {} total materials", label, scan.tiers.size(), total);
@@ -188,6 +190,7 @@ public class MaterialMappingConfig {
             LOGGER.info("Reloading {} material mappings...", label);
             load();
             TinkerMaterialIngredient.clearDisplayCache();
+            TinkerToolBuilder.clearCaches();
         }
 
         Set<String> getMaterialsForTier(String tier) { return mappings.get(tier.toLowerCase()); }
@@ -212,6 +215,7 @@ public class MaterialMappingConfig {
             mappings.putAll(scan.tiers);
             save();
             TinkerMaterialIngredient.clearDisplayCache();
+            TinkerToolBuilder.clearCaches();
 
             int total = scan.tiers.values().stream().mapToInt(Set::size).sum();
             LOGGER.info("Generated {} material mappings: {} tiers, {} total materials", label, scan.tiers.size(), total);
@@ -247,6 +251,7 @@ public class MaterialMappingConfig {
             if (addedCount > 0) {
                 save();
                 TinkerMaterialIngredient.clearDisplayCache();
+                TinkerToolBuilder.clearCaches();
                 LOGGER.info("Merge complete ({}): added {} new materials", label, addedCount);
             } else {
                 LOGGER.info("Merge complete ({}): config is up to date", label);

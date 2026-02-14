@@ -49,6 +49,17 @@ public class Config {
                      "Useful for troubleshooting. May spam console.")
             .define("debugLogging", false);
 
+    private static final ForgeConfigSpec.BooleanValue REPLACE_LOOT_TABLE_ITEMS = BUILDER
+            .comment("Replace vanilla tools and armor in loot tables (chests, fishing, etc.)",
+                     "with Tinkers' Construct equivalents via Global Loot Modifier.")
+            .define("replaceLootTableItems", true);
+
+    private static final ForgeConfigSpec.BooleanValue REPLACE_MOB_EQUIPMENT = BUILDER
+            .comment("Replace vanilla tools and armor on mobs at spawn time",
+                     "with Tinkers' Construct equivalents.",
+                     "Mobs will visually hold TC tools and drop them naturally on death.")
+            .define("replaceMobEquipment", true);
+
     private static final ForgeConfigSpec.BooleanValue FORCE_REGENERATE_CONFIG = BUILDER
             .comment("Force regenerate material mappings from TC registry on next server start.",
                      "Uses merge strategy: auto-detected materials are added, existing user entries preserved.",
@@ -64,6 +75,8 @@ public class Config {
     public static boolean removeVanillaArmorCrafting;
     public static boolean requireOtherPartsMatch;
     public static double otherPartsThreshold;
+    public static boolean replaceLootTableItems;
+    public static boolean replaceMobEquipment;
     public static boolean debugLogging;
     public static boolean forceRegenerateMaterialConfig;
 
@@ -74,6 +87,8 @@ public class Config {
         removeVanillaArmorCrafting = REMOVE_VANILLA_ARMOR_CRAFTING.get();
         requireOtherPartsMatch = REQUIRE_OTHER_PARTS_MATCH.get();
         otherPartsThreshold = OTHER_PARTS_THRESHOLD.get();
+        replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
+        replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
         debugLogging = DEBUG_LOGGING.get();
         forceRegenerateMaterialConfig = FORCE_REGENERATE_CONFIG.get();
     }
