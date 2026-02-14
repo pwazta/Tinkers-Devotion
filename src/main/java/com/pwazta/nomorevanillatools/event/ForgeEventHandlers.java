@@ -1,7 +1,6 @@
 package com.pwazta.nomorevanillatools.event;
 
 import com.mojang.logging.LogUtils;
-import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.ExampleMod;
 import com.pwazta.nomorevanillatools.command.GenerateRecipesCommand;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
@@ -17,7 +16,7 @@ import slimeknights.tconstruct.library.events.MaterialsLoadedEvent;
 
 /**
  * Forge event handlers for server-side events.
- * Handles material config auto-generation and optional recipe auto-generation.
+ * Handles material config auto-generation and recipe auto-generation on first world load.
  */
 @Mod.EventBusSubscriber(modid = ExampleMod.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ForgeEventHandlers {
@@ -34,32 +33,30 @@ public class ForgeEventHandlers {
      */
     @SubscribeEvent
     public static void onMaterialsLoaded(MaterialsLoadedEvent event) {
-        MaterialMappingConfig.generateIfNeeded(Config.forceRegenerateMaterialConfig);
-        MaterialMappingConfig.generateArmorIfNeeded(Config.forceRegenerateMaterialConfig);
+        MaterialMappingConfig.generateIfNeeded(true);
+        MaterialMappingConfig.generateArmorIfNeeded(true);
         TinkerToolBuilder.clearCaches();
     }
 
     /**
-     * Optionally auto-generates replacement recipes when the server is about to start.
+     * Auto-generates replacement recipes on first world load.
      * Material mappings are already populated by onMaterialsLoaded (fires before this event).
      * Datapacks are already loaded at this point, so generated recipes need a reload to take effect.
      */
     @SubscribeEvent
     public static void onServerAboutToStart(ServerAboutToStartEvent event) {
         needsReloadAfterStart = false;
-        if (Config.autoGenerateRecipes) {
-            MinecraftServer server = event.getServer();
+        MinecraftServer server = event.getServer();
 
-            if (!DatapackHelper.isGenerated(server)) {
-                LOGGER.info("First launch detected - auto-generating recipes...");
-                try {
-                    int count = GenerateRecipesCommand.generate(server);
-                    LOGGER.info("Auto-generation complete! Generated {} recipes.", count);
-                    LOGGER.info("Recipes saved to: world/datapacks/nomorevanillatools_generated/");
-                    needsReloadAfterStart = true;
-                } catch (Exception e) {
-                    LOGGER.error("Failed to auto-generate recipes", e);
-                }
+        if (!DatapackHelper.isGenerated(server)) {
+            LOGGER.info("First launch detected - auto-generating recipes...");
+            try {
+                int count = GenerateRecipesCommand.generate(server);
+                LOGGER.info("Auto-generation complete! Generated {} recipes.", count);
+                LOGGER.info("Recipes saved to: world/datapacks/nomorevanillatools_generated/");
+                needsReloadAfterStart = true;
+            } catch (Exception e) {
+                LOGGER.error("Failed to auto-generate recipes", e);
             }
         }
     }

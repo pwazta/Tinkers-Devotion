@@ -15,12 +15,6 @@ public class Config {
 
     // === No More Vanilla Tools Config Options ===
 
-    private static final ForgeConfigSpec.BooleanValue AUTO_GENERATE_RECIPES = BUILDER
-            .comment("Auto-generate recipes on first world load.",
-                     "Can be disabled for manual control via /nomorevanillatools generate command.",
-                     "Delete world/datapacks/nomorevanillatools_generated/.generated to force regeneration.")
-            .define("autoGenerateRecipes", true);
-
     private static final ForgeConfigSpec.BooleanValue REMOVE_VANILLA_TOOL_CRAFTING = BUILDER
             .comment("Remove vanilla tool crafting recipes (prevents crafting wooden/stone/iron/gold/diamond tools).",
                      "Recommended to keep enabled when using this mod.")
@@ -60,17 +54,9 @@ public class Config {
                      "Mobs will visually hold TC tools and drop them naturally on death.")
             .define("replaceMobEquipment", true);
 
-    private static final ForgeConfigSpec.BooleanValue FORCE_REGENERATE_CONFIG = BUILDER
-            .comment("Force regenerate material mappings from TC registry on next server start.",
-                     "Uses merge strategy: auto-detected materials are added, existing user entries preserved.",
-                     "Useful after installing new mods that add TC materials.",
-                     "Merge is idempotent — safe to leave enabled, but costs a small registry scan each boot.")
-            .define("forceRegenerateMaterialConfig", false);
-
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // Config values
-    public static boolean autoGenerateRecipes;
     public static boolean removeVanillaToolCrafting;
     public static boolean removeVanillaArmorCrafting;
     public static boolean requireOtherPartsMatch;
@@ -78,11 +64,9 @@ public class Config {
     public static boolean replaceLootTableItems;
     public static boolean replaceMobEquipment;
     public static boolean debugLogging;
-    public static boolean forceRegenerateMaterialConfig;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
-        autoGenerateRecipes = AUTO_GENERATE_RECIPES.get();
         removeVanillaToolCrafting = REMOVE_VANILLA_TOOL_CRAFTING.get();
         removeVanillaArmorCrafting = REMOVE_VANILLA_ARMOR_CRAFTING.get();
         requireOtherPartsMatch = REQUIRE_OTHER_PARTS_MATCH.get();
@@ -90,6 +74,5 @@ public class Config {
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
         debugLogging = DEBUG_LOGGING.get();
-        forceRegenerateMaterialConfig = FORCE_REGENERATE_CONFIG.get();
     }
 }
