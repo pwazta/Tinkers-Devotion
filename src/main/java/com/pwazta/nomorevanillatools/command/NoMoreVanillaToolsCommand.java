@@ -29,9 +29,11 @@ public class NoMoreVanillaToolsCommand {
         LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("nomorevanillatools")
             .requires(source -> source.hasPermission(2));  // Requires OP level 2
 
-        // Add generate subcommand
+        // Add generate subcommand (with reset sub-subcommand)
         command.then(Commands.literal("generate")
-            .executes(GenerateRecipesCommand::run));
+            .executes(GenerateRecipesCommand::run)
+            .then(Commands.literal("reset")
+                .executes(GenerateRecipesCommand::runReset)));
 
         // Register the command
         dispatcher.register(command);

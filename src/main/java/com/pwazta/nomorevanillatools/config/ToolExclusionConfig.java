@@ -166,4 +166,17 @@ public class ToolExclusionConfig {
         TinkerMaterialIngredient.clearDisplayCache();
         TinkerToolBuilder.clearCaches();
     }
+
+    /**
+     * Resets exclusions to defaults and saves. Used by the reset command after config files are deleted.
+     */
+    public static void resetToDefaults() {
+        LOGGER.info("Resetting tool exclusions to defaults...");
+        createDefaults();
+        saveConfig();
+        TinkerMaterialIngredient.clearDisplayCache();
+        TinkerToolBuilder.clearCaches();
+    }
+
+    public static File getConfigFile() { return configFile; }
 }

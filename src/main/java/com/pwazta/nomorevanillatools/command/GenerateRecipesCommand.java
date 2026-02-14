@@ -26,6 +26,7 @@ import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -136,6 +137,37 @@ public class GenerateRecipesCommand {
             LOGGER.error("Failed to generate recipes", e);
             source.sendFailure(Component.literal("Failed to generate recipes: " + e.getMessage()));
             return 0;
+        }
+    }
+
+    // ── Reset subcommand ──────────────────────────────────────────────────────
+
+    /**
+     * Resets all configs to defaults and regenerates everything from scratch.
+     * Deletes material mappings, armor mappings, and tool exclusions, then runs full generation.
+     */
+    public static int runReset(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
+        source.sendSuccess(() -> Component.literal("Resetting all configs to defaults..."), true);
+
+        // Delete material mapping configs (refreshFromRegistry in run() will regenerate from TC registry)
+        deleteIfExists(MaterialMappingConfig.getConfigFile());
+        deleteIfExists(MaterialMappingConfig.getArmorConfigFile());
+
+        // Reset tool exclusions to defaults (recreates file with default entries)
+        ToolExclusionConfig.resetToDefaults();
+
+        source.sendSuccess(() -> Component.literal("Configs reset. Regenerating..."), false);
+        return run(context);
+    }
+
+    private static void deleteIfExists(File file) {
+        if (file != null && file.exists()) {
+            if (file.delete()) {
+                LOGGER.info("Deleted config file: {}", file.getAbsolutePath());
+            } else {
+                LOGGER.warn("Failed to delete config file: {}", file.getAbsolutePath());
+            }
         }
     }
 
