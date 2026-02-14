@@ -429,4 +429,5 @@ public class MaterialMappingConfig {
     public static void reloadArmor() { ARMOR_STORE.reload(); }
     public static Set<String> getArmorMaterialsForTier(String tier) { return ARMOR_STORE.getMaterialsForTier(tier); }
     public static boolean isArmorMaterialValidForTier(String tier, String id) { return ARMOR_STORE.isMaterialValidForTier(tier, id); }
+    public static File getArmorConfigFile() { return ARMOR_STORE.configFile; }
 }
