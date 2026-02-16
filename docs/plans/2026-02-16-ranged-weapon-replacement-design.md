@@ -3,6 +3,10 @@
 > Extend the existing loot and mob equipment replacement system to handle bows and crossbows.
 > Two phases: Phase 1 (loot replacement) is a straightforward extension. Phase 2 (mob AI) requires custom goal classes.
 
+## Revisions (auto-updated by /buildthis)
+- 2026-02-16: Both TcBowAttackGoal and TcCrossbowAttackGoal must call `GeneralInteractionModifierHook.startDrawtime(toolStack, mob, 1.0f)` when the mob starts drawing/charging — mobs bypass `Item.use()`, so the `tconstruct:drawtime` persistent data is never initialized otherwise. `getToolCharge()` (bow) would divide by zero and the crossbow charge duration check would read 0. Discovered via bytecode analysis of TC's `startDrawtime()` call chain.
+- 2026-02-16: `TcCrossbowAttackGoal.stop()` must capture `getUseItem()` BEFORE calling `stopUsingItem()` — otherwise the use item is cleared and `clearChargedState()` receives `ItemStack.EMPTY`, failing to clean up TC crossbow ammo data.
+
 ---
 
 ## Background

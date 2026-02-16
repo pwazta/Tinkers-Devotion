@@ -105,8 +105,7 @@ public class TinkerToolBuilder {
 
         // Check ranged weapons
         VanillaItemMappings.RangedInfo rangedInfo = VanillaItemMappings.getRangedInfo(item);
-        if (rangedInfo != null)
-            return buildRandomRanged(rangedInfo.rangedType(), rangedInfo.partTiers(), original, random);
+        if (rangedInfo != null) return buildRandomRanged(rangedInfo.rangedType(), rangedInfo.partTiers(), original, random);
 
         return null;
     }
@@ -183,9 +182,7 @@ public class TinkerToolBuilder {
     }
 
     /** Builds a TC item from pre-selected materials. Transfers damage from the original. */
-    private static ItemStack buildFromMaterials(
-            IModifiable modifiable, ToolDefinition definition,
-            List<MaterialVariantId> materials, ItemStack original) {
+    private static ItemStack buildFromMaterials(IModifiable modifiable, ToolDefinition definition, List<MaterialVariantId> materials, ItemStack original) {
         MaterialNBT.Builder materialsBuilder = MaterialNBT.builder();
         for (MaterialVariantId material : materials) materialsBuilder.add(material);
 
@@ -204,8 +201,7 @@ public class TinkerToolBuilder {
     }
 
     /** Selects materials for a melee tool: head (index 0) + other parts (index 1+). */
-    private static @Nullable List<MaterialVariantId> selectToolMaterials(
-            String tier, List<MaterialStatsId> statTypes, RandomSource random) {
+    private static @Nullable List<MaterialVariantId> selectToolMaterials(String tier, List<MaterialStatsId> statTypes, RandomSource random) {
         List<MaterialVariantId> materials = new ArrayList<>();
 
         MaterialVariantId headMaterial = selectHeadMaterial(tier, random, false);
@@ -224,8 +220,7 @@ public class TinkerToolBuilder {
     }
 
     /** Selects materials for armor: plating (index 0) + inner parts (index 1+). */
-    private static @Nullable List<MaterialVariantId> selectArmorMaterials(
-            String tier, List<MaterialStatsId> statTypes, RandomSource random) {
+    private static @Nullable List<MaterialVariantId> selectArmorMaterials(String tier, List<MaterialStatsId> statTypes, RandomSource random) {
         List<MaterialVariantId> materials = new ArrayList<>();
 
         MaterialVariantId platingMaterial = selectHeadMaterial(tier, random, true);
@@ -245,8 +240,7 @@ public class TinkerToolBuilder {
 
     // ── Ranged weapon building ──────────────────────────────────────────
 
-    private static @Nullable ItemStack buildRandomRanged(String rangedType, List<String> partTiers,
-            ItemStack original, RandomSource random) {
+    private static @Nullable ItemStack buildRandomRanged(String rangedType, List<String> partTiers, ItemStack original, RandomSource random) {
         try {
             List<Item> eligible = getEligibleRanged(rangedType);
             if (eligible.isEmpty()) return null;
@@ -299,8 +293,7 @@ public class TinkerToolBuilder {
      * Each part has its own tier from the partTiers array (matches stat type order).
      * If partTiers is shorter than statTypes, remaining parts use the last tier.
      */
-    private static @Nullable List<MaterialVariantId> selectRangedMaterials(
-            List<String> partTiers, List<MaterialStatsId> statTypes, RandomSource random) {
+    private static @Nullable List<MaterialVariantId> selectRangedMaterials(List<String> partTiers, List<MaterialStatsId> statTypes, RandomSource random) {
         List<MaterialVariantId> materials = new ArrayList<>();
         for (int i = 0; i < statTypes.size(); i++) {
             String tierName = i < partTiers.size() ? partTiers.get(i) : partTiers.get(partTiers.size() - 1);
@@ -316,8 +309,7 @@ public class TinkerToolBuilder {
      * 85% canonical (from MaterialMappingConfig), 15% random from tier-filtered pool.
      * Falls back to lowest-tier material if canonical doesn't have this stat type.
      */
-    private static @Nullable MaterialVariantId selectPartByTier(String tierName,
-            MaterialStatsId statType, RandomSource random) {
+    private static @Nullable MaterialVariantId selectPartByTier(String tierName, MaterialStatsId statType, RandomSource random) {
         Integer maxTcTier = TIER_NAME_TO_INT.get(tierName.toLowerCase());
         if (maxTcTier == null) return null;
 
