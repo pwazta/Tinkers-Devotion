@@ -12,7 +12,7 @@ import net.minecraftforge.fml.common.Mod;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 
 /**
- * Replaces vanilla tools and armor on mobs at spawn time with TC equivalents.
+ * Replaces vanilla tools, armor, and ranged weapons on mobs at spawn time with TC equivalents.
  *
  * Uses EntityJoinLevelEvent instead of FinalizeSpawn because FinalizeSpawn fires BEFORE
  * Mob#finalizeSpawn() runs — meaning populateDefaultEquipmentSlots() hasn't assigned

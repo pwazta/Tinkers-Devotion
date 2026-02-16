@@ -23,6 +23,8 @@ import slimeknights.tconstruct.library.tools.definition.module.material.ToolMate
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
+import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
+import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
 import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
@@ -33,7 +35,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Builds randomized Tinker's Construct tools and armor for loot replacement.
+ * Builds randomized Tinker's Construct tools, armor, and ranged weapons for loot replacement.
  * Selects materials using weighted algorithms per part slot.
  *
  * Shared by VanillaLootReplacer (GLM) and MobEquipmentReplacer (spawn event).
@@ -44,8 +46,8 @@ public class TinkerToolBuilder {
 
     // ── Material selection weights ──────────────────────────────────────
 
-    /** Probability of selecting the canonical (first-in-config) head/plating material. */
-    private static final float HEAD_CANONICAL_WEIGHT = 0.85f;
+    /** Probability of selecting the canonical (first-in-config) material for head/plating/ranged parts. */
+    private static final float CANONICAL_WEIGHT = 0.85f;
 
     /** Probability threshold for selecting the basic (lowest tier) material for other parts. */
     private static final float OTHER_BASIC_WEIGHT = 0.50f;
@@ -56,10 +58,15 @@ public class TinkerToolBuilder {
     /** Maximum IMaterial.getTier() allowed for armor inner parts. Caps at diamond-level to prevent overpowered inner materials. */
     private static final int ARMOR_INNER_MAX_TIER = 3;
 
+    /** Maps vanilla tier name to IMaterial.getTier() int for ranged per-part filtering. */
+    private static final Map<String, Integer> TIER_NAME_TO_INT = Map.of(
+        "wooden", 0, "stone", 1, "iron", 2, "golden", 1, "diamond", 3, "netherite", 4
+    );
+
     // ── Caches (ConcurrentHashMap, consistent with codebase pattern) ─────
 
-    /** Eligible TC tools per action name. Cleared on config reload. */
-    private static final Map<String, List<Item>> TOOL_CACHE = new ConcurrentHashMap<>();
+    /** Eligible TC tools and ranged weapons per action/type name. Cleared on config reload. */
+    private static final Map<String, List<Item>> ELIGIBLE_ITEM_CACHE = new ConcurrentHashMap<>();
 
     /** Eligible TC armor per slot name. Cleared on config reload. */
     private static final Map<String, List<Item>> ARMOR_CACHE = new ConcurrentHashMap<>();
@@ -69,7 +76,7 @@ public class TinkerToolBuilder {
 
     /** Clears all caches. Called from MaterialMappingConfig and ToolExclusionConfig reload paths. */
     public static void clearCaches() {
-        TOOL_CACHE.clear();
+        ELIGIBLE_ITEM_CACHE.clear();
         ARMOR_CACHE.clear();
         MATERIAL_CACHE.clear();
     }
@@ -77,7 +84,7 @@ public class TinkerToolBuilder {
     // ── Main entry point ─────────────────────────────────────────────────
 
     /**
-     * Attempts to replace a vanilla tool/armor ItemStack with a TC equivalent.
+     * Attempts to replace a vanilla tool/armor/ranged ItemStack with a TC equivalent.
      *
      * @param original the original vanilla ItemStack
      * @param random   random source for material selection
@@ -96,96 +103,256 @@ public class TinkerToolBuilder {
         VanillaItemMappings.ArmorInfo armorInfo = VanillaItemMappings.getArmorInfo(item);
         if (armorInfo != null) return buildRandomArmor(armorInfo.slot(), armorInfo.tier(), original, random);
 
+        // Check ranged weapons
+        VanillaItemMappings.RangedInfo rangedInfo = VanillaItemMappings.getRangedInfo(item);
+        if (rangedInfo != null)
+            return buildRandomRanged(rangedInfo.rangedType(), rangedInfo.partTiers(), original, random);
+
         return null;
     }
 
     // ── Tool building ────────────────────────────────────────────────────
 
     private static @Nullable ItemStack buildRandomTool(String toolType, String tier, ItemStack original, RandomSource random) {
-        ToolAction action = VanillaItemMappings.getToolAction(toolType);
-        if (action == null) return null;
+        try {
+            ToolAction action = VanillaItemMappings.getToolAction(toolType);
+            if (action == null) return null;
 
-        List<Item> eligible = getEligibleTools(action, toolType);
-        if (eligible.isEmpty()) return null;
+            List<Item> eligible = getEligibleTools(action, toolType);
+            if (eligible.isEmpty()) return null;
 
-        Item selected = eligible.get(random.nextInt(eligible.size()));
-        if (!(selected instanceof IModifiable modifiable)) return null;
+            Item selected = eligible.get(random.nextInt(eligible.size()));
+            if (!(selected instanceof IModifiable modifiable)) return null;
 
-        return buildWithMaterials(modifiable, tier, original, random, false);
+            ToolDefinition definition = modifiable.getToolDefinition();
+            if (!definition.isDataLoaded()) return null;
+
+            List<MaterialStatsId> statTypes = getStatTypes(modifiable, definition);
+            if (statTypes == null) return null;
+
+            List<MaterialVariantId> materials = selectToolMaterials(tier, statTypes, random);
+            if (materials == null) return null;
+
+            return buildFromMaterials(modifiable, definition, materials, original);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to build TC tool replacement: {}", e.getMessage());
+            return null;
+        }
     }
 
     // ── Armor building ───────────────────────────────────────────────────
 
     private static @Nullable ItemStack buildRandomArmor(String slot, String tier, ItemStack original, RandomSource random) {
-        ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
-        if (armorType == null) return null;
+        try {
+            ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
+            if (armorType == null) return null;
 
-        List<Item> eligible = getEligibleArmor(armorType, slot);
-        if (eligible.isEmpty()) return null;
+            List<Item> eligible = getEligibleArmor(armorType, slot);
+            if (eligible.isEmpty()) return null;
 
-        Item selected = eligible.get(random.nextInt(eligible.size()));
-        if (!(selected instanceof IModifiable modifiable)) return null;
+            Item selected = eligible.get(random.nextInt(eligible.size()));
+            if (!(selected instanceof IModifiable modifiable)) return null;
 
-        return buildWithMaterials(modifiable, tier, original, random, true);
+            ToolDefinition definition = modifiable.getToolDefinition();
+            if (!definition.isDataLoaded()) return null;
+
+            List<MaterialStatsId> statTypes = getStatTypes(modifiable, definition);
+            if (statTypes == null) return null;
+
+            List<MaterialVariantId> materials = selectArmorMaterials(tier, statTypes, random);
+            if (materials == null) return null;
+
+            return buildFromMaterials(modifiable, definition, materials, original);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to build TC armor replacement: {}", e.getMessage());
+            return null;
+        }
     }
 
     // ── Shared build logic ───────────────────────────────────────────────
 
-    private static @Nullable ItemStack buildWithMaterials(IModifiable modifiable, String tier, ItemStack original, RandomSource random, boolean isArmor) {
+    /** Returns stat types for a tool definition, or null with warning if empty. */
+    private static @Nullable List<MaterialStatsId> getStatTypes(IModifiable modifiable, ToolDefinition definition) {
+        List<MaterialStatsId> statTypes = ToolMaterialHook.stats(definition);
+        if (statTypes.isEmpty()) {
+            LOGGER.warn("No material stats for tool definition {}, skipping loot replacement",
+                ForgeRegistries.ITEMS.getKey((Item) modifiable));
+            return null;
+        }
+        return statTypes;
+    }
+
+    /** Builds a TC item from pre-selected materials. Transfers damage from the original. */
+    private static ItemStack buildFromMaterials(
+            IModifiable modifiable, ToolDefinition definition,
+            List<MaterialVariantId> materials, ItemStack original) {
+        MaterialNBT.Builder materialsBuilder = MaterialNBT.builder();
+        for (MaterialVariantId material : materials) materialsBuilder.add(material);
+
+        ToolStack toolStack = ToolStack.createTool((Item) modifiable, definition, materialsBuilder.build());
+        toolStack.rebuildStats();
+
+        ItemStack result = toolStack.createStack();
+        transferDamage(original, result);
+
+        // TODO: Enchantment -> TC modifier conversion (P2)
+        // Currently enchantments on the original vanilla item are dropped.
+        // TC tools use modifiers, not enchantments. Future: map common enchantments
+        // to TC modifier equivalents and apply via ToolStack modifier API.
+
+        return result;
+    }
+
+    /** Selects materials for a melee tool: head (index 0) + other parts (index 1+). */
+    private static @Nullable List<MaterialVariantId> selectToolMaterials(
+            String tier, List<MaterialStatsId> statTypes, RandomSource random) {
+        List<MaterialVariantId> materials = new ArrayList<>();
+
+        MaterialVariantId headMaterial = selectHeadMaterial(tier, random, false);
+        if (headMaterial == null) return null;
+        materials.add(headMaterial);
+
+        IMaterial headMat = MaterialRegistry.getInstance().getMaterial(headMaterial.getId());
+        int headTcTier = headMat.getTier();
+
+        for (int i = 1; i < statTypes.size(); i++) {
+            MaterialVariantId partMaterial = selectOtherPartMaterial(statTypes.get(i), headTcTier, headMaterial, random);
+            if (partMaterial == null) return null;
+            materials.add(partMaterial);
+        }
+        return materials;
+    }
+
+    /** Selects materials for armor: plating (index 0) + inner parts (index 1+). */
+    private static @Nullable List<MaterialVariantId> selectArmorMaterials(
+            String tier, List<MaterialStatsId> statTypes, RandomSource random) {
+        List<MaterialVariantId> materials = new ArrayList<>();
+
+        MaterialVariantId platingMaterial = selectHeadMaterial(tier, random, true);
+        if (platingMaterial == null) return null;
+        materials.add(platingMaterial);
+
+        IMaterial platingMat = MaterialRegistry.getInstance().getMaterial(platingMaterial.getId());
+        int platingTcTier = platingMat.getTier();
+
+        for (int i = 1; i < statTypes.size(); i++) {
+            MaterialVariantId partMaterial = selectArmorInnerMaterial(statTypes.get(i), platingTcTier, random);
+            if (partMaterial == null) return null;
+            materials.add(partMaterial);
+        }
+        return materials;
+    }
+
+    // ── Ranged weapon building ──────────────────────────────────────────
+
+    private static @Nullable ItemStack buildRandomRanged(String rangedType, List<String> partTiers,
+            ItemStack original, RandomSource random) {
         try {
+            List<Item> eligible = getEligibleRanged(rangedType);
+            if (eligible.isEmpty()) return null;
+
+            Item selected = eligible.get(random.nextInt(eligible.size()));
+            if (!(selected instanceof IModifiable modifiable)) return null;
+
             ToolDefinition definition = modifiable.getToolDefinition();
             if (!definition.isDataLoaded()) return null;
 
-            List<MaterialStatsId> statTypes = ToolMaterialHook.stats(definition);
-            if (statTypes.isEmpty()) {
-                LOGGER.warn("No material stats for tool definition {}, skipping loot replacement",
-                    ForgeRegistries.ITEMS.getKey((Item) modifiable));
-                return null;
-            }
+            List<MaterialStatsId> statTypes = getStatTypes(modifiable, definition);
+            if (statTypes == null) return null;
 
-            // Select materials for each part
-            MaterialNBT.Builder materialsBuilder = MaterialNBT.builder();
+            List<MaterialVariantId> materials = selectRangedMaterials(partTiers, statTypes, random);
+            if (materials == null) return null;
 
-            // Select head/plating (index 0) — tier-constrained
-            MaterialVariantId headMaterial = selectHeadMaterial(tier, random, isArmor);
-            if (headMaterial == null) return null;
-            materialsBuilder.add(headMaterial);
-
-            // Get TC tier of head material for other-parts filtering
-            IMaterial headMat = MaterialRegistry.getInstance().getMaterial(headMaterial.getId());
-            int headTcTier = headMat.getTier();
-
-            // Select other parts (index 1+)
-            for (int i = 1; i < statTypes.size(); i++) {
-                MaterialStatsId statType = statTypes.get(i);
-                MaterialVariantId partMaterial;
-
-                if (isArmor) partMaterial = selectArmorInnerMaterial(statType, headTcTier, random);
-                else partMaterial = selectOtherPartMaterial(statType, headTcTier, headMaterial, random);
-                
-                if (partMaterial == null) return null;
-                materialsBuilder.add(partMaterial);
-            }
-
-            // Build the tool
-            ToolStack toolStack = ToolStack.createTool((Item) modifiable, definition, materialsBuilder.build());
-            toolStack.rebuildStats();
-
-            // Transfer damage proportionally
-            ItemStack result = toolStack.createStack();
-            transferDamage(original, result);
-
-            // TODO: Enchantment -> TC modifier conversion (P2)
-            // Currently enchantments on the original vanilla item are dropped.
-            // TC tools use modifiers, not enchantments. Future: map common enchantments
-            // to TC modifier equivalents and apply via ToolStack modifier API.
-            // See docs/plans/2026-02-14-loot-integration-design.md "Future Tasks"
-
-            return result;
+            return buildFromMaterials(modifiable, definition, materials, original);
         } catch (Exception e) {
-            LOGGER.warn("Failed to build TC replacement for loot item: {}", e.getMessage());
+            LOGGER.warn("Failed to build TC ranged replacement: {}", e.getMessage());
             return null;
         }
+    }
+
+    /** Gets eligible TC ranged weapons for a given type, with exclusion filtering. */
+    private static List<Item> getEligibleRanged(String rangedType) {
+        return ELIGIBLE_ITEM_CACHE.computeIfAbsent(rangedType, k -> {
+            Class<?> targetClass = switch (rangedType) {
+                case "bow"      -> ModifiableBowItem.class;
+                case "crossbow" -> ModifiableCrossbowItem.class;
+                default         -> null;
+            };
+            if (targetClass == null) return List.of();
+
+            List<Item> ranged = new ArrayList<>();
+            for (Item item : ForgeRegistries.ITEMS) {
+                if (!targetClass.isInstance(item)) continue;
+                if (!(item instanceof IModifiable)) continue;
+
+                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
+                if (itemId != null && ToolExclusionConfig.isExcluded(rangedType, itemId.toString())) continue;
+
+                ranged.add(item);
+            }
+            return ranged;
+        });
+    }
+
+    /**
+     * Selects materials for a ranged weapon using per-part tier selection.
+     * Each part has its own tier from the partTiers array (matches stat type order).
+     * If partTiers is shorter than statTypes, remaining parts use the last tier.
+     */
+    private static @Nullable List<MaterialVariantId> selectRangedMaterials(
+            List<String> partTiers, List<MaterialStatsId> statTypes, RandomSource random) {
+        List<MaterialVariantId> materials = new ArrayList<>();
+        for (int i = 0; i < statTypes.size(); i++) {
+            String tierName = i < partTiers.size() ? partTiers.get(i) : partTiers.get(partTiers.size() - 1);
+            MaterialVariantId partMaterial = selectPartByTier(tierName, statTypes.get(i), random);
+            if (partMaterial == null) return null;
+            materials.add(partMaterial);
+        }
+        return materials;
+    }
+
+    /**
+     * Selects a material for a single part slot, filtered by tier name.
+     * 85% canonical (from MaterialMappingConfig), 15% random from tier-filtered pool.
+     * Falls back to lowest-tier material if canonical doesn't have this stat type.
+     */
+    private static @Nullable MaterialVariantId selectPartByTier(String tierName,
+            MaterialStatsId statType, RandomSource random) {
+        Integer maxTcTier = TIER_NAME_TO_INT.get(tierName.toLowerCase());
+        if (maxTcTier == null) return null;
+
+        List<IMaterial> compatible = getCompatibleMaterials(statType);
+        if (compatible.isEmpty()) return null;
+
+        List<IMaterial> filtered = compatible.stream()
+            .filter(mat -> mat.getTier() <= maxTcTier)
+            .toList();
+
+        // Fallback to all compatible materials if tier filtering leaves nothing
+        List<IMaterial> pool = filtered.isEmpty() ? compatible : filtered;
+
+        if (random.nextFloat() < CANONICAL_WEIGHT) {
+            // Try canonical material for this tier
+            String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(tierName);
+            if (canonicalId != null) {
+                MaterialVariantId canonicalVariant = MaterialVariantId.tryParse(canonicalId);
+                if (canonicalVariant != null) {
+                    boolean inPool = pool.stream()
+                        .anyMatch(mat -> mat.getIdentifier().equals(canonicalVariant.getId()));
+                    if (inPool) return canonicalVariant;
+                }
+            }
+            // Canonical not compatible with this stat type — use lowest-tier from pool
+            IMaterial lowest = pool.get(0);
+            for (IMaterial mat : pool) {
+                if (mat.getTier() < lowest.getTier()) lowest = mat;
+            }
+            return MaterialVariantId.create(lowest.getIdentifier(), "");
+        }
+
+        // 15% random from pool
+        IMaterial selected = pool.get(random.nextInt(pool.size()));
+        return MaterialVariantId.create(selected.getIdentifier(), "");
     }
 
     // ── Head / Plating selection (index 0) ───────────────────────────────
@@ -202,7 +369,7 @@ public class TinkerToolBuilder {
         if (materials == null || materials.isEmpty()) return null;
 
         String selectedId;
-        if (random.nextFloat() < HEAD_CANONICAL_WEIGHT) {
+        if (random.nextFloat() < CANONICAL_WEIGHT) {
             // Canonical material — same as JEI display, with fallback to first in config
             selectedId = isArmor
                 ? MaterialMappingConfig.getCanonicalArmorMaterial(tier)
@@ -297,7 +464,7 @@ public class TinkerToolBuilder {
 
     /** Gets eligible TC tools for a given ToolAction, with exclusion filtering. */
     private static List<Item> getEligibleTools(ToolAction action, String actionName) {
-        return TOOL_CACHE.computeIfAbsent(actionName, k -> {
+        return ELIGIBLE_ITEM_CACHE.computeIfAbsent(actionName, k -> {
             List<Item> tools = new ArrayList<>();
             for (Item item : ForgeRegistries.ITEMS) {
                 if (!(item instanceof IModifiableDisplay display)) continue;

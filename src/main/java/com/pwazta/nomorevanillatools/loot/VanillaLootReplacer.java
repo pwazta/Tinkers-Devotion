@@ -14,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 
 /**
- * Global Loot Modifier that replaces vanilla tools and armor in chest/fishing loot
+ * Global Loot Modifier that replaces vanilla tools, armor, and ranged weapons in chest/fishing loot
  * with randomized Tinker's Construct equivalents.
  *
  * Intercepts all loot generation (post loot table evaluation, including items
