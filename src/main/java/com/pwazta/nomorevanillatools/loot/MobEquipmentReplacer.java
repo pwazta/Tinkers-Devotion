@@ -2,6 +2,7 @@ package com.pwazta.nomorevanillatools.loot;
 
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.ExampleMod;
+import com.pwazta.nomorevanillatools.loot.ai.RangedGoalHelper;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
@@ -40,5 +41,8 @@ public class MobEquipmentReplacer {
             ItemStack replacement = TinkerToolBuilder.tryReplace(current, random);
             if (replacement != null) mob.setItemSlot(slot, replacement);
         }
+
+        if (Config.replaceMobRangedAI)
+            RangedGoalHelper.ensureGoalsForRangedWeapons(mob);
     }
 }

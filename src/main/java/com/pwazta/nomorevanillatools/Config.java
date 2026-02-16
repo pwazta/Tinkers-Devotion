@@ -54,6 +54,12 @@ public class Config {
                      "Mobs will visually hold TC tools and drop them naturally on death.")
             .define("replaceMobEquipment", true);
 
+    private static final ForgeConfigSpec.BooleanValue REPLACE_MOB_RANGED_AI = BUILDER
+            .comment("Replace mob AI goals when TC ranged weapons are equipped.",
+                     "Required for mobs to actually USE TC bows and crossbows.",
+                     "Can be disabled independently from replaceMobEquipment for debugging.")
+            .define("replaceMobRangedAI", true);
+
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // Config values
@@ -63,6 +69,7 @@ public class Config {
     public static double otherPartsThreshold;
     public static boolean replaceLootTableItems;
     public static boolean replaceMobEquipment;
+    public static boolean replaceMobRangedAI;
     public static boolean debugLogging;
 
     @SubscribeEvent
@@ -73,6 +80,7 @@ public class Config {
         otherPartsThreshold = OTHER_PARTS_THRESHOLD.get();
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
+        replaceMobRangedAI = REPLACE_MOB_RANGED_AI.get();
         debugLogging = DEBUG_LOGGING.get();
     }
 }
