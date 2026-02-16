@@ -17,14 +17,16 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Configures which TC tools are excluded from matching specific recipe tool actions.
+ * Configures which TC items are excluded from matching specific actions/slots/types.
  * Prevents cheap multi-tools (e.g., dagger) from substituting for expensive tools
- * (e.g., cleaver) in recipe slots.
+ * (e.g., cleaver) in recipe slots, and ancient tools (e.g., war_pick) from appearing
+ * as loot replacements.
  *
  * Config file: config/nomorevanillatools/tool_exclusions.json
  * Format: { "action_name": ["modid:tool_id", ...], ... }
  *
- * On first boot, creates defaults (dagger excluded from all actions).
+ * On first boot, creates defaults (ancient tools excluded from tool/ranged actions,
+ * dagger from tool actions, slimesuit from armor slots).
  * On subsequent boots, loads from file (user edits preserved).
  */
 public class ToolExclusionConfig {
@@ -71,6 +73,11 @@ public class ToolExclusionConfig {
         "tconstruct:minotaur_axe"
     );
 
+    /** Ranged weapons excluded from all ranged types by default. War pick is an uncraftable ancient crossbow-hybrid. */
+    private static final List<String> DEFAULT_EXCLUDED_RANGED = List.of(
+        "tconstruct:war_pick"
+    );
+
     /** Armor excluded from all armor slots by default. Slimesuit uses fixed stats, not material-based plating. */
     private static final List<String> DEFAULT_EXCLUDED_ARMOR = List.of(
         "tconstruct:slime_helmet",
@@ -80,7 +87,8 @@ public class ToolExclusionConfig {
     );
 
     /**
-     * Creates the default exclusion set: tools excluded from tool actions, slimesuit from armor slots.
+     * Creates the default exclusion set: tools excluded from tool actions, slimesuit from armor slots,
+     * war_pick from ranged types (it's a ModifiableCrossbowItem but uncraftable ancient loot-only).
      */
     private static void createDefaults() {
         EXCLUSIONS.clear();
@@ -89,6 +97,9 @@ public class ToolExclusionConfig {
         }
         for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
             EXCLUSIONS.put(slot, new LinkedHashSet<>(DEFAULT_EXCLUDED_ARMOR));
+        }
+        for (String ranged : VanillaItemMappings.RANGED_TYPES) {
+            EXCLUSIONS.put(ranged, new LinkedHashSet<>(DEFAULT_EXCLUDED_RANGED));
         }
     }
 
@@ -115,6 +126,10 @@ public class ToolExclusionConfig {
         for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
             Set<String> excluded = EXCLUSIONS.get(slot);
             toSave.put(slot, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
+        }
+        for (String ranged : VanillaItemMappings.RANGED_TYPES) {
+            Set<String> excluded = EXCLUSIONS.get(ranged);
+            toSave.put(ranged, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
         }
 
         // Append any user-defined actions not in known types

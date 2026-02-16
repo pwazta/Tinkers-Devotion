@@ -36,7 +36,7 @@ Not in scope: fishing rod (different use case), javelin/shuriken/throwing axe (n
 
 ---
 
-## Phase 1: Loot Replacement (Chests, Fishing, Bartering)
+## Phase 1: Loot Replacement (Chests, Fishing, Bartering) — COMPLETED
 
 ### 1.1 VanillaItemMappings Changes
 
@@ -45,10 +45,10 @@ Not in scope: fishing rod (different use case), javelin/shuriken/throwing axe (n
 **New record type** alongside existing `ToolInfo` (line 24) and `ArmorInfo` (line 25):
 
 ```java
-public record RangedInfo(String rangedType, String[] partTiers) {}
+public record RangedInfo(String rangedType, List<String> partTiers) {}
 ```
 
-No single `tier` field — replaced by `partTiers` array (one tier per part slot). `rangedType` is `"bow"` or `"crossbow"`.
+No single `tier` field — replaced by `partTiers` list (one tier per part slot, immutable via `List.of()`). `rangedType` is `"bow"` or `"crossbow"`.
 
 **New static map** parallel to `TOOLS_BY_ID` / `ARMOR_BY_ID`:
 
@@ -60,10 +60,10 @@ static {
 
     // Longbow: 4 parts — limb, limb, grip, bowstring
     RANGED_BY_ID.put("minecraft:bow", new RangedInfo("bow",
-        new String[]{"wooden", "wooden", "wooden", "wooden"}));
+        List.of("wooden", "wooden", "wooden", "wooden")));
     // Crossbow: 3 parts — limb, grip, bowstring
     RANGED_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow",
-        new String[]{"wooden", "iron", "wooden"}));
+        List.of("wooden", "iron", "wooden")));
 }
 ```
 
@@ -158,7 +158,7 @@ Parallel to `getEligibleTools()` (lines 299-322). Uses `instanceof` class checki
 
 ```java
 private static List<Item> getEligibleRanged(String rangedType) {
-    return TOOL_CACHE.computeIfAbsent(rangedType, k -> {
+    return ELIGIBLE_ITEM_CACHE.computeIfAbsent(rangedType, k -> {
         Class<?> targetClass = switch (rangedType) {
             case "bow" -> ModifiableBowItem.class;
             case "crossbow" -> ModifiableCrossbowItem.class;
@@ -180,7 +180,7 @@ private static List<Item> getEligibleRanged(String rangedType) {
 }
 ```
 
-Reuses `TOOL_CACHE` (ConcurrentHashMap) — keyed by `"bow"` / `"crossbow"` alongside existing `"sword"`, `"pickaxe"`, etc. Cleared by existing `clearCaches()`.
+Reuses `ELIGIBLE_ITEM_CACHE` (ConcurrentHashMap) — keyed by `"bow"` / `"crossbow"` alongside existing `"sword"`, `"pickaxe"`, etc. Cleared by existing `clearCaches()`.
 
 #### `tryReplace()` third branch
 
@@ -198,16 +198,11 @@ if (rangedInfo != null)
 
 ```java
 private static @Nullable List<MaterialVariantId> selectRangedMaterials(
-        String[] partTiers, List<MaterialStatsId> statTypes, RandomSource random) {
-    if (partTiers.length != statTypes.size()) {
-        LOGGER.warn("Part tier count {} doesn't match stat type count {}, skipping",
-            partTiers.length, statTypes.size());
-        return null;
-    }
-
+        List<String> partTiers, List<MaterialStatsId> statTypes, RandomSource random) {
     List<MaterialVariantId> materials = new ArrayList<>();
     for (int i = 0; i < statTypes.size(); i++) {
-        MaterialVariantId material = selectPartByTier(partTiers[i], statTypes.get(i), random);
+        String tierName = i < partTiers.size() ? partTiers.get(i) : partTiers.get(partTiers.size() - 1);
+        MaterialVariantId material = selectPartByTier(tierName, statTypes.get(i), random);
         if (material == null) return null;
         materials.add(material);
     }
@@ -215,22 +210,33 @@ private static @Nullable List<MaterialVariantId> selectRangedMaterials(
 }
 ```
 
-**`selectPartByTier()`** — reuses existing 85/15 canonical weighting, filtered by stat type compatibility:
+Implementation note: Instead of a strict length mismatch error, uses a fallback to the last tier if `partTiers` is shorter than `statTypes`. This is more robust against TC tool definitions with unexpected part counts.
 
-1. Get materials for assigned tier from `MaterialMappingConfig.getMaterialsForTier(tier)`
-2. Filter to only those that have stats for this part's `MaterialStatsId` (via intersection with `getCompatibleMaterials(statType)`)
-3. Apply 85% canonical / 15% random weighting — canonical material from `MaterialMappingConfig.getCanonicalToolMaterial(tier)` if it passes the stat type filter, otherwise random from filtered pool
-4. Fallback: if no tier-pool materials have this stat type, fall back to `getCompatibleMaterials(statType)` unfiltered (same fallback pattern as `selectOtherPartMaterial()` line 237)
+**`selectPartByTier()`** — stat-type-first selection, bypassing HeadMaterialStats tier pools:
 
-Bowstring handles itself naturally — very few materials have `BowstringMaterialStats` (string, phantom membrane, etc.). The 85% canonical picks string most of the time.
+Ranged parts (limb, grip, bowstring) use different stat types than tools (head, handle, binding). The tool material tier pools from `MaterialMappingConfig` are keyed by `HeadMaterialStats.tier()` — irrelevant for ranged stat types. Using them would produce frequent empty intersections and misleading "canonical" picks.
+
+Instead, query materials that actually have the required stat type, then filter by TC internal tier:
+
+1. Map tier name to TC tier int: `wooden=0, stone=1, iron=2, golden=1, diamond=3, netherite=4`
+2. `getCompatibleMaterials(statType)` — all materials with this stat type (already cached in `MATERIAL_CACHE`, ConcurrentHashMap keyed by `MaterialStatsId` — registry scan happens once per stat type, O(1) lookup after)
+3. Filter to `IMaterial.getTier() <= maxTcTier` → **tier-filtered pool**
+4. Fallback: if tier filtering leaves nothing, tier-filtered pool = full compatible pool
+5. 85/15 weighted selection (both from tier-filtered pool):
+   - **85% canonical pick**:
+     - Try `MaterialMappingConfig.getCanonicalToolMaterial(tierName)` — if it's in the tier-filtered pool, use it (e.g., iron grip → `tconstruct:iron`)
+     - If canonical doesn't have this stat type, use the lowest-tier material from the tier-filtered pool (e.g., bowstring → string, since `tconstruct:wood` has no bowstring stats)
+   - **15% uniform random from the tier-filtered pool**
+
+Result for crossbow (`["wooden", "iron", "wooden"]`): 85% produces wood limb + iron grip + string bowstring. 15% picks randomly from tier-appropriate materials per slot.
 
 ### 1.4 Config, Exclusions, Integration
 
 **Config toggles** — no new toggle needed. Existing `Config.replaceLootTableItems` already guards the GLM pipeline. Ranged flows through the same `VanillaLootReplacer.doApply()` -> `tryReplace()` path.
 
-**ToolExclusionConfig** — add `"bow"` and `"crossbow"` keys with empty default exclusion sets in `createDefaults()`. TC only registers one longbow and one crossbow — nothing to exclude by default. Keys exist for extensibility (addon mods).
+**ToolExclusionConfig** — add `"bow"` and `"crossbow"` keys in `createDefaults()` with `DEFAULT_EXCLUDED_RANGED` containing `tconstruct:war_pick`. The war_pick is a `ModifiableCrossbowItem` (crossbow/pickaxe hybrid) but an uncraftable ancient loot-only tool — it must be excluded from crossbow replacement. The exclusion also applies to bow defensively.
 
-**Cache invalidation** — no changes. `TOOL_CACHE` already cleared by all existing reload paths. Ranged entries keyed by `"bow"` / `"crossbow"` cleared alongside `"sword"` / `"pickaxe"` etc.
+**Cache invalidation** — no changes. `ELIGIBLE_ITEM_CACHE` (renamed from `TOOL_CACHE`) already cleared by all existing reload paths. Ranged entries keyed by `"bow"` / `"crossbow"` cleared alongside `"sword"` / `"pickaxe"` etc.
 
 **VanillaLootReplacer.java** — zero changes. Calls `tryReplace()` which now has the third branch. Transparent.
 
@@ -245,8 +251,20 @@ Bowstring handles itself naturally — very few materials have `BowstringMateria
 | `VanillaItemMappings.java` | New `RangedInfo` record, `RANGED_BY_ID` map, `rangedByItem` lazy map, accessors |
 | `TinkerToolBuilder.java` | Refactor `buildWithMaterials()` into select/build split. New `buildRandomRanged()`, `getEligibleRanged()`, `selectRangedMaterials()`, `selectPartByTier()`. Third `tryReplace()` branch. |
 | `ToolExclusionConfig.java` | Add `"bow"` and `"crossbow"` default keys |
+| `CONTEXT.md` | Update codebase structure (RangedInfo in VanillaItemMappings), app flow (tryReplace third branch, selectPartByTier), and notes (ranged weapon scope) |
 
 No new files. All changes to existing files. Zero changes to VanillaLootReplacer or MobEquipmentReplacer.
+
+### Post-Implementation Refinements (applied during review)
+
+| Change | Rationale |
+|--------|-----------|
+| `RangedInfo.partTiers`: `String[]` → `List<String>` | Records + arrays is a Java pitfall (broken equals/hashCode). `List.of()` is immutable and equals-safe. |
+| `TOOL_CACHE` → `ELIGIBLE_ITEM_CACHE` | Cache now stores both tools and ranged weapons. Name reflects actual scope. |
+| `HEAD_CANONICAL_WEIGHT` + `RANGED_CANONICAL_WEIGHT` → `CANONICAL_WEIGHT` | Both were 0.85f with identical semantics. Single shared constant. |
+| Removed inner try/catch from `buildFromMaterials()` | Outer try/catch in each `buildRandom*` method provides better category-specific logging. Inner catch was dead weight. |
+| `DEFAULT_EXCLUDED_RANGED` with `tconstruct:war_pick` | War_pick is a `ModifiableCrossbowItem` (crossbow/pickaxe hybrid) — passed the instanceof filter and appeared as ~50% of crossbow replacements. Now excluded. |
+| Stale javadocs across 4 files updated | All class/method javadocs now mention ranged weapons alongside tools and armor. |
 
 ---
 
@@ -439,7 +457,7 @@ Guards the `ensureGoalsForRangedWeapons()` call independently from `replaceMobEq
 | Scanning classes | `ModifiableBowItem` + `ModifiableCrossbowItem` specifically | Precise, no false positives. TODO flag for `ModifiableLauncherItem` generalization. |
 | `tryReplace` dispatch | Third branch with `RangedInfo` record | Parallel to existing ToolInfo/ArmorInfo pattern. |
 | `buildWithMaterials` refactor | Split into select + build | Eliminates `isArmor` boolean flag. Each type selects materials independently, shared build core. Single Responsibility. |
-| Material selection | Per-part tier with 85/15 weighting | Vanilla bow/crossbow have no tiers — per-part defaults replace single-tier approach. Same weighting algorithm, applied per slot. |
+| Material selection | Stat-type-first, 85/15 canonical/random, tier-capped | Ranged stat types (limb/grip/bowstring) differ from HeadMaterialStats tier pools. Query `getCompatibleMaterials(statType)` (cached in `MATERIAL_CACHE`), filter by `IMaterial.getTier() <= maxTcTier`. Both 85% canonical and 15% random draw from the tier-filtered pool. Fallback to unfiltered if tier filtering empties the pool. |
 | Per-part tier defaults | Hardcoded constant in VanillaItemMappings | Only 2 weapons, 7 entries total. Not worth a config file. Material pools per tier already configurable via material_mappings.json. |
 | Mob AI for ranged | Custom goal classes (copy + modify vanilla) | Subclassing insufficient — private fields, hardcoded instanceof checks in tick(), vanilla static method calls incompatible with TC. |
 | Bow double-fire fix | Remove `performRangedAttack()` from goal | TC's `releaseUsing()` fires arrows for all LivingEntity (unlike vanilla which gates on `instanceof Player`). Removing mob's own firing prevents duplicate arrows. TC arrows get proper stats/modifiers. |

@@ -9,10 +9,11 @@ import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Single source of truth for vanilla tool/armor -> tier/type mappings.
+ * Single source of truth for vanilla tool/armor/ranged -> tier/type mappings.
  * Used by loot replacement (GLM, mob spawn), recipe generation, and FalseCondition overrides.
  *
  * String-keyed maps for recipe generation (available at any time).
@@ -23,6 +24,8 @@ public class VanillaItemMappings {
     // ── Record types ─────────────────────────────────────────────────────
     public record ToolInfo(String tier, String toolType) {}
     public record ArmorInfo(String tier, String slot) {}
+    /** Per-part tier list matches the tool definition's stat type order (e.g., limb, limb, grip, bowstring). */
+    public record RangedInfo(String rangedType, List<String> partTiers) {}
 
     // ── Tier/type arrays ─────────────────────────────────────────────────
 
@@ -42,10 +45,13 @@ public class VanillaItemMappings {
 
     public static final String[] ARMOR_SLOTS = {"helmet", "chestplate", "leggings", "boots"};
 
+    public static final String[] RANGED_TYPES = {"bow", "crossbow"};
+
     // ── String-keyed maps (populated in static init) ─────────────────────
 
     private static final Map<String, ToolInfo> TOOLS_BY_ID = new HashMap<>();
     private static final Map<String, ArmorInfo> ARMOR_BY_ID = new HashMap<>();
+    private static final Map<String, RangedInfo> RANGED_BY_ID = new HashMap<>();
 
     static {
         for (String tier : ALL_TOOL_TIERS) {
@@ -61,12 +67,21 @@ public class VanillaItemMappings {
         // TODO: Chainmail armor replacement (P3)
         // Chainmail has no crafting recipe but appears in mob drops and some loot tables.
         // Currently excluded — stays as vanilla. Needs tier mapping decision (iron-tier?).
+
+        // Ranged weapons — per-part tiers match TC tool definition stat type order
+        // Bow: 4 parts (limb, limb, grip, bowstring) — all wooden tier
+        RANGED_BY_ID.put("minecraft:bow", new RangedInfo("bow",
+            List.of("wooden", "wooden", "wooden", "wooden")));
+        // Crossbow: 3 parts (limb, grip, bowstring) — iron grip matches vanilla iron ingot ingredient
+        RANGED_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow",
+            List.of("wooden", "iron", "wooden")));
     }
 
     // ── Item-keyed maps (lazy-initialized on first access) ───────────────
 
     private static volatile Map<Item, ToolInfo> toolsByItem;
     private static volatile Map<Item, ArmorInfo> armorByItem;
+    private static volatile Map<Item, RangedInfo> rangedByItem;
 
     private static void ensureItemMaps() {
         if (toolsByItem != null) return;
@@ -74,6 +89,7 @@ public class VanillaItemMappings {
             if (toolsByItem != null) return;
             Map<Item, ToolInfo> tools = new HashMap<>();
             Map<Item, ArmorInfo> armor = new HashMap<>();
+            Map<Item, RangedInfo> ranged = new HashMap<>();
             for (Map.Entry<String, ToolInfo> entry : TOOLS_BY_ID.entrySet()) {
                 Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey()));
                 if (item != null) tools.put(item, entry.getValue());
@@ -82,6 +98,11 @@ public class VanillaItemMappings {
                 Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey()));
                 if (item != null) armor.put(item, entry.getValue());
             }
+            for (Map.Entry<String, RangedInfo> entry : RANGED_BY_ID.entrySet()) {
+                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey()));
+                if (item != null) ranged.put(item, entry.getValue());
+            }
+            rangedByItem = ranged;
             armorByItem = armor;
             toolsByItem = tools;
         }
@@ -101,6 +122,12 @@ public class VanillaItemMappings {
         return armorByItem.get(item);
     }
 
+    /** Look up ranged info by Item reference. Returns null if not a vanilla ranged weapon. */
+    public static @Nullable RangedInfo getRangedInfo(Item item) {
+        ensureItemMaps();
+        return rangedByItem.get(item);
+    }
+
     // ── Recipe gen lookup (String-keyed) ──────────────────────────────────
 
     /** Look up tool info by registry ID string. Returns null if not a vanilla tool. */
@@ -111,6 +138,11 @@ public class VanillaItemMappings {
     /** Look up armor info by registry ID string. Returns null if not a vanilla armor piece. */
     public static @Nullable ArmorInfo getArmorInfoById(String registryId) {
         return ARMOR_BY_ID.get(registryId);
+    }
+
+    /** Look up ranged info by registry ID string. Returns null if not a vanilla ranged weapon. */
+    public static @Nullable RangedInfo getRangedInfoById(String registryId) {
+        return RANGED_BY_ID.get(registryId);
     }
 
     // ── ToolAction / ArmorItem.Type resolution ───────────────────────────
