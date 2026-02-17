@@ -58,6 +58,12 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
     }
 
     @Override
+    public void start() {
+        super.start();
+        this.mob.setAggressive(true);
+    }
+
+    @Override
     public boolean canContinueToUse() {
         return this.isValidTarget() && (this.canUse() || !this.mob.getNavigation().isDone()) && this.isHoldingCrossbow();
     }
