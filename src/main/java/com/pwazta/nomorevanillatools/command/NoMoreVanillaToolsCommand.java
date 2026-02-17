@@ -9,33 +9,22 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-/**
- * Registers the /nomorevanillatools command.
- * This command provides utilities for recipe generation and management.
- */
+/** Registers the /nomorevanillatools command tree. */
 @Mod.EventBusSubscriber(modid = ExampleMod.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class NoMoreVanillaToolsCommand {
 
-    /**
-     * Registers commands when the server starts.
-     *
-     * @param event The RegisterCommandsEvent
-     */
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
 
-        // Build the main command
         LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("nomorevanillatools")
-            .requires(source -> source.hasPermission(2));  // Requires OP level 2
+            .requires(source -> source.hasPermission(2));
 
-        // Add generate subcommand (with reset sub-subcommand)
         command.then(Commands.literal("generate")
             .executes(GenerateRecipesCommand::run)
             .then(Commands.literal("reset")
                 .executes(GenerateRecipesCommand::runReset)));
 
-        // Register the command
         dispatcher.register(command);
     }
 }

@@ -24,11 +24,7 @@ public class TransferRecipePacket {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /**
-     * Represents a single slot transfer operation.
-     * @param sourceSlot The inventory slot to take from
-     * @param targetSlot The crafting slot to place into
-     */
+    /** A single slot transfer: source inventory slot → target crafting slot. */
     public record SlotTransfer(int sourceSlot, int targetSlot) {
         public void encode(FriendlyByteBuf buf) {
             buf.writeVarInt(sourceSlot);
@@ -42,11 +38,6 @@ public class TransferRecipePacket {
     private final boolean clearFirst;
     private final String configId;
 
-    /**
-     * @param transfers List of slot transfers to perform
-     * @param clearFirst Whether to clear crafting slots before transferring
-     * @param configId The container config ID for validation (e.g., "crafting_table")
-     */
     public TransferRecipePacket(List<SlotTransfer> transfers, boolean clearFirst, String configId) {
         this.transfers = transfers;
         this.clearFirst = clearFirst;
@@ -128,10 +119,7 @@ public class TransferRecipePacket {
         context.setPacketHandled(true);
     }
 
-    /**
-     * Clears crafting grid slots back to player inventory.
-     * Uses config to determine slot range.
-     */
+    /** Clears crafting grid slots back to player inventory. */
     private static void clearCraftingSlots(AbstractContainerMenu container, ServerPlayer player, CraftingContainerConfig config) {
         for (int i = config.craftingSlotStart(); i < config.craftingSlotEnd(); i++) {
             if (i >= container.slots.size()) break;

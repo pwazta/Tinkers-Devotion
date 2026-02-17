@@ -63,27 +63,14 @@ public record CraftingContainerConfig(
             10, -1 // inventory starts at 10, -1 = use container.slots.size() (dynamic for side inventory)
     );
 
-    /**
-     * Calculates the crafting grid slot index for a given recipe position.
-     * Maps recipe (row, col) based on recipe width to container slot index.
-     *
-     * @param recipeIndex Index in the recipe's ingredient list
-     * @param recipeWidth Width of the recipe (from ShapedRecipe.getWidth())
-     * @return Container slot index for this recipe position
-     */
+    /** Maps a recipe ingredient index to this container's crafting slot, accounting for grid width. */
     public int getCraftingSlotIndex(int recipeIndex, int recipeWidth) {
         int recipeRow = recipeIndex / recipeWidth;
         int recipeCol = recipeIndex % recipeWidth;
         return craftingSlotStart + (recipeRow * gridWidth) + recipeCol;
     }
 
-    /**
-     * Checks if a recipe can fit in this container's crafting grid.
-     *
-     * @param recipeWidth Width of the recipe
-     * @param recipeHeight Height of the recipe
-     * @return true if the recipe fits, false otherwise
-     */
+    /** Checks if a recipe fits in this container's crafting grid. */
     public boolean canFitRecipe(int recipeWidth, int recipeHeight) {
         return recipeWidth <= gridWidth && recipeHeight <= gridHeight;
     }
@@ -94,13 +81,7 @@ public record CraftingContainerConfig(
     /** Gets the actual inventory end slot, handling dynamic (-1) case. */
     public int getInventorySlotEnd(int containerSize) { return inventorySlotEnd == -1 ? containerSize : inventorySlotEnd; }
 
-    /**
-     * Checks if the given container matches this configuration.
-     * Uses class name comparison for reflection-safe matching.
-     *
-     * @param container The container to check
-     * @return true if container matches, false otherwise
-     */
+    /** Checks if the given container matches this configuration via class name comparison. */
     public boolean matchesContainer(AbstractContainerMenu container) {
         if (container == null) return false;
         return container.getClass().getName().equals(containerClassName);

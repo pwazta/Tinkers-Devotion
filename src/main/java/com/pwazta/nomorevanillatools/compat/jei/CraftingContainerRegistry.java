@@ -81,15 +81,4 @@ public class CraftingContainerRegistry {
     }
 
     public static boolean isInitialized() { return initialized; }
-
-    // Future: Add method to load additional configs from Forge config file
-    // public static void loadFromConfig(ForgeConfigSpec.ConfigValue<List<? extends UnmodifiableConfig>> configList) {
-    //     for (UnmodifiableConfig entry : configList.get()) {
-    //         String id = entry.get("id");
-    //         String className = entry.get("class");
-    //         int gridWidth = entry.get("grid_width");
-    //         // ... etc
-    //         register(new CraftingContainerConfig(id, className, ...));
-    //     }
-    // }
 }

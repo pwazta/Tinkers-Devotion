@@ -49,13 +49,10 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
     public @Nullable IRecipeTransferError transferRecipe(C container, CraftingRecipe recipe,
             IRecipeSlotsView recipeSlots, Player player, boolean maxTransfer, boolean doTransfer) {
 
-        // Get recipe dimensions
-        int recipeWidth = getRecipeWidth(recipe);
-        int recipeHeight = getRecipeHeight(recipe);
+        int recipeWidth = getRecipeWidth(recipe, config);
+        int recipeHeight = getRecipeHeight(recipe, config);
 
-        // Check if recipe fits in this container's grid
         if (!config.canFitRecipe(recipeWidth, recipeHeight)) {
-            // Use appropriate error key based on recipe type
             String errorKey = recipe instanceof ShapedRecipe
                     ? "jei.tooltip.error.recipe.transfer.too.large.shaped"
                     : "jei.tooltip.error.recipe.transfer.too.large.shapeless";
@@ -74,17 +71,9 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
             if (ingredient.isEmpty()) continue;
 
             int craftingSlotIndex = config.getCraftingSlotIndex(i, recipeWidth);
-
-            // Validate crafting slot is within grid bounds
             if (!config.isValidCraftingSlot(craftingSlotIndex)) continue;
 
-            int matchingSlot = findMatchingSlot(
-                    container,
-                    ingredient,
-                    config.inventorySlotStart(),
-                    inventoryEnd,
-                    reservedCounts
-            );
+            int matchingSlot = findMatchingSlot(container, ingredient, config.inventorySlotStart(), inventoryEnd, reservedCounts);
 
             if (matchingSlot >= 0) {
                 transfers.add(new TransferRecipePacket.SlotTransfer(matchingSlot, craftingSlotIndex));
@@ -94,38 +83,27 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
         }
 
         if (!missingSlotIndices.isEmpty()) {
-            return createMissingItemsError(recipeSlots, missingSlotIndices);
+            return createMissingItemsError(helper, recipeSlots, missingSlotIndices);
         }
 
-        if (!doTransfer) {
-            return null; // Success check only
-        }
+        if (!doTransfer) return null;
 
-        // Send packet with config ID for server validation
         ModNetwork.CHANNEL.sendToServer(new TransferRecipePacket(transfers, true, config.id()));
-
-        return null; // Success
+        return null;
     }
 
-    /**
-     * Finds an inventory slot containing an item matching the ingredient.
-     * Uses ingredient.test() for TinkerMaterialIngredient compatibility.
-     * Tracks reserved counts to allow multiple items from the same stack.
-     */
-    protected int findMatchingSlot(C container, Ingredient ingredient, int startSlot,
-            int endSlot, Map<Integer, Integer> reservedCounts) {
+    // ── Shared static helpers (also used by DynamicCraftingTransferHandler) ──
 
+    /** Finds an inventory slot matching the ingredient. Uses ingredient.test() for TinkerMaterialIngredient support. */
+    static int findMatchingSlot(AbstractContainerMenu container, Ingredient ingredient, int startSlot, int endSlot, Map<Integer, Integer> reservedCounts) {
         for (int i = startSlot; i < endSlot; i++) {
             Slot slot = container.slots.get(i);
             ItemStack stack = slot.getItem();
-
             if (stack.isEmpty()) continue;
 
             int reserved = reservedCounts.getOrDefault(i, 0);
-            int available = stack.getCount() - reserved;
-            if (available <= 0) continue;
+            if (stack.getCount() - reserved <= 0) continue;
 
-            // Key: uses ingredient.test() for TinkerMaterialIngredient support
             if (ingredient.test(stack)) {
                 reservedCounts.put(i, reserved + 1);
                 return i;
@@ -134,41 +112,26 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
         return -1;
     }
 
-    /**
-     * Gets the recipe width. Defaults to grid width for shapeless recipes.
-     */
-    protected int getRecipeWidth(CraftingRecipe recipe) {
-        if (recipe instanceof ShapedRecipe shaped) {
-            return shaped.getWidth();
-        }
-        return config.gridWidth(); // Shapeless: use full grid width
+    static int getRecipeWidth(CraftingRecipe recipe, CraftingContainerConfig config) {
+        return recipe instanceof ShapedRecipe shaped ? shaped.getWidth() : config.gridWidth();
     }
 
-    /**
-     * Gets the recipe height. Defaults to 1 row for shapeless (or calculated).
-     */
-    protected int getRecipeHeight(CraftingRecipe recipe) {
-        if (recipe instanceof ShapedRecipe shaped) {
-            return shaped.getHeight();
-        }
-        // For shapeless, calculate rows needed
-        int ingredientCount = 0;
+    /** Calculates rows needed. Shaped: explicit height. Shapeless: ceil(ingredients / gridWidth). */
+    static int getRecipeHeight(CraftingRecipe recipe, CraftingContainerConfig config) {
+        if (recipe instanceof ShapedRecipe shaped) return shaped.getHeight();
+        int count = 0;
         for (Ingredient ing : recipe.getIngredients()) {
-            if (!ing.isEmpty()) ingredientCount++;
+            if (!ing.isEmpty()) count++;
         }
-        return (int) Math.ceil((double) ingredientCount / config.gridWidth());
+        return (int) Math.ceil((double) count / config.gridWidth());
     }
 
-    /**
-     * Creates an error for missing items, highlighting the affected slots.
-     */
-    protected IRecipeTransferError createMissingItemsError(IRecipeSlotsView recipeSlots, List<Integer> missingIndices) {
+    /** Creates a JEI error highlighting missing ingredient slots. */
+    static IRecipeTransferError createMissingItemsError(IRecipeTransferHandlerHelper helper, IRecipeSlotsView recipeSlots, List<Integer> missingIndices) {
         var inputSlots = recipeSlots.getSlotViews(RecipeIngredientRole.INPUT);
         List<IRecipeSlotView> missingSlots = new ArrayList<>();
         for (int idx : missingIndices) {
-            if (idx < inputSlots.size()) {
-                missingSlots.add(inputSlots.get(idx));
-            }
+            if (idx < inputSlots.size()) missingSlots.add(inputSlots.get(idx));
         }
         return helper.createUserErrorForMissingSlots(
                 Component.translatable("jei.tooltip.error.recipe.transfer.missing"),
