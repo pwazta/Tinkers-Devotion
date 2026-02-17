@@ -103,13 +103,7 @@ public class ToolExclusionConfig {
         }
     }
 
-    /**
-     * Checks if a tool is excluded from the given action.
-     *
-     * @param actionName The action name ("sword", "pickaxe", etc.)
-     * @param toolRegistryId The tool's registry ID (e.g., "tconstruct:dagger")
-     * @return true if the tool is excluded for this action
-     */
+    /** Checks if an item is excluded from the given action/slot/type key. */
     public static boolean isExcluded(String actionName, String toolRegistryId) {
         Set<String> excluded = EXCLUSIONS.get(actionName.toLowerCase());
         return excluded != null && excluded.contains(toolRegistryId);

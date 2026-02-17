@@ -8,6 +8,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.BowItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import slimeknights.tconstruct.library.modifiers.hook.interaction.GeneralInteractionModifierHook;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
@@ -53,8 +54,12 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
         return this.mob.getTarget() != null && this.isHoldingBow();
     }
 
+    private static boolean isBow(Item item) {
+        return item instanceof BowItem || item instanceof ModifiableBowItem;
+    }
+
     private boolean isHoldingBow() {
-        return this.mob.isHolding(is -> is.getItem() instanceof BowItem || is.getItem() instanceof ModifiableBowItem);
+        return this.mob.isHolding(is -> isBow(is.getItem()));
     }
 
     @Override
@@ -128,18 +133,14 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
                 int drawTicks = this.mob.getTicksUsingItem();
                 if (drawTicks >= 20) {
                     this.mob.stopUsingItem();
-                    // TC's releaseUsing() requires ammo items — mobs don't carry arrows,
-                    // so releaseUsing() can't handle mob arrow creation. Use vanilla's
-                    // performRangedAttack() which creates arrows from nothing.
+                    // Use vanilla performRangedAttack() — TC's releaseUsing() requires ammo items mobs don't carry
                     this.mob.performRangedAttack(target, BowItem.getPowerForTime(drawTicks));
                     this.attackTime = this.attackIntervalMin;
                 }
             }
         } else if (--this.attackTime <= 0 && this.seeTime >= -60) {
-            this.mob.startUsingItem(ProjectileUtil.getWeaponHoldingHand(this.mob,
-                item -> item instanceof BowItem || item instanceof ModifiableBowItem));
-            // Set drawtime for TC bows — mobs don't go through Item.use(), so startDrawtime() is never called.
-            // Without this, getToolCharge() in releaseUsing() would divide by 0.
+            this.mob.startUsingItem(ProjectileUtil.getWeaponHoldingHand(this.mob, TcBowAttackGoal::isBow));
+            // Mobs bypass Item.use() — init drawtime manually to avoid divide-by-zero in getToolCharge()
             initDrawtimeIfTcBow();
         }
     }
