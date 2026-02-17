@@ -12,6 +12,7 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.CrossbowItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import slimeknights.tconstruct.library.modifiers.hook.interaction.GeneralInteractionModifierHook;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
@@ -53,8 +54,12 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
         return this.isValidTarget() && this.isHoldingCrossbow();
     }
 
+    private static boolean isCrossbow(Item item) {
+        return item instanceof CrossbowItem || item instanceof ModifiableCrossbowItem;
+    }
+
     private boolean isHoldingCrossbow() {
-        return this.mob.isHolding(is -> is.getItem() instanceof CrossbowItem || is.getItem() instanceof ModifiableCrossbowItem);
+        return this.mob.isHolding(is -> isCrossbow(is.getItem()));
     }
 
     @Override
@@ -82,12 +87,10 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
             this.mob.stopUsingItem();
             this.mob.setChargingCrossbow(false);
         }
-        // Unconditionally clear charged state — covers CHARGED and READY_TO_ATTACK states
-        // where isUsingItem() is false but crossbow_ammo may still be loaded.
-        // Vanilla has this same gap (conditional clearing), but stale TC ammo interacts worse
-        // with TC's loading logic (releaseUsing skips reload if crossbow_ammo exists).
-        ItemStack weapon = this.mob.getItemInHand(ProjectileUtil.getWeaponHoldingHand(this.mob,
-            item -> item instanceof CrossbowItem || item instanceof ModifiableCrossbowItem));
+        // Unconditionally clear — covers states where isUsingItem() is false but ammo is loaded.
+        // Stale TC ammo causes releaseUsing() to skip reload on next cycle.
+        ItemStack weapon = this.mob.getItemInHand(
+            ProjectileUtil.getWeaponHoldingHand(this.mob, TcCrossbowAttackGoal::isCrossbow));
         clearChargedState(weapon);
     }
 
@@ -125,10 +128,9 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
 
         if (this.crossbowState == CrossbowState.UNCHARGED) {
             if (!shouldMove) {
-                InteractionHand hand = ProjectileUtil.getWeaponHoldingHand(this.mob,
-                    item -> item instanceof CrossbowItem || item instanceof ModifiableCrossbowItem);
+                InteractionHand hand = ProjectileUtil.getWeaponHoldingHand(this.mob, TcCrossbowAttackGoal::isCrossbow);
                 this.mob.startUsingItem(hand);
-                // Initialize drawtime for TC crossbows — mobs don't go through Item.use()
+                // Mobs bypass Item.use() — init drawtime manually
                 initDrawtimeIfTcCrossbow(hand);
                 this.crossbowState = CrossbowState.CHARGING;
                 this.mob.setChargingCrossbow(true);
@@ -152,13 +154,10 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
                 this.crossbowState = CrossbowState.READY_TO_ATTACK;
             }
         } else if (this.crossbowState == CrossbowState.READY_TO_ATTACK && canSee) {
-            InteractionHand fireHand = ProjectileUtil.getWeaponHoldingHand(this.mob,
-                item -> item instanceof CrossbowItem || item instanceof ModifiableCrossbowItem);
+            InteractionHand fireHand = ProjectileUtil.getWeaponHoldingHand(this.mob, TcCrossbowAttackGoal::isCrossbow);
             ItemStack weapon = this.mob.getItemInHand(fireHand);
             if (weapon.getItem() instanceof ModifiableCrossbowItem) {
-                // Vanilla performCrossbowAttack() fails instanceof CrossbowItem for TC crossbow.
-                // Call TC's fireCrossbow() directly — it accepts any LivingEntity and handles
-                // projectile creation, modifier hooks, ammo cleanup, and tool damage internally.
+                // TC's fireCrossbow() handles projectile creation, modifiers, ammo cleanup, and tool damage
                 ToolStack tool = ToolStack.from(weapon);
                 CompoundTag ammoTag = tool.getPersistentData().getCompound(ModifiableCrossbowItem.KEY_CROSSBOW_AMMO);
                 if (!ammoTag.isEmpty()) {

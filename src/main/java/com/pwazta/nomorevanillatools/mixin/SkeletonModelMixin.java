@@ -41,8 +41,7 @@ public class SkeletonModelMixin<T extends Mob & RangedAttackMob> extends Humanoi
      * set the correct arm pose for TC ranged weapons.
      */
     @Inject(method = "prepareMobModel(Lnet/minecraft/world/entity/Mob;FFF)V", at = @At("RETURN"))
-    private void nmvt_prepareMobModel(T entity, float limbSwing, float limbSwingAmount,
-                                       float partialTick, CallbackInfo ci) {
+    private void nmvt_prepareMobModel(T entity, float limbSwing, float limbSwingAmount, float partialTick, CallbackInfo ci) {
         if (!entity.isAggressive()) return;
 
         Item item = entity.getItemInHand(InteractionHand.MAIN_HAND).getItem();
