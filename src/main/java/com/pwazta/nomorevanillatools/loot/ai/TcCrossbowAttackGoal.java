@@ -12,8 +12,8 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.CrossbowItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import com.pwazta.nomorevanillatools.util.TcRangedItems;
 import slimeknights.tconstruct.library.modifiers.hook.interaction.GeneralInteractionModifierHook;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableLauncherItem;
@@ -54,12 +54,8 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
         return this.isValidTarget() && this.isHoldingCrossbow();
     }
 
-    private static boolean isCrossbow(Item item) {
-        return item instanceof CrossbowItem || item instanceof ModifiableCrossbowItem;
-    }
-
     private boolean isHoldingCrossbow() {
-        return this.mob.isHolding(is -> isCrossbow(is.getItem()));
+        return this.mob.isHolding(is -> TcRangedItems.isCrossbow(is.getItem()));
     }
 
     @Override
@@ -90,7 +86,7 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
         // Unconditionally clear — covers states where isUsingItem() is false but ammo is loaded.
         // Stale TC ammo causes releaseUsing() to skip reload on next cycle.
         ItemStack weapon = this.mob.getItemInHand(
-            ProjectileUtil.getWeaponHoldingHand(this.mob, TcCrossbowAttackGoal::isCrossbow));
+            ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isCrossbow));
         clearChargedState(weapon);
     }
 
@@ -128,7 +124,7 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
 
         if (this.crossbowState == CrossbowState.UNCHARGED) {
             if (!shouldMove) {
-                InteractionHand hand = ProjectileUtil.getWeaponHoldingHand(this.mob, TcCrossbowAttackGoal::isCrossbow);
+                InteractionHand hand = ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isCrossbow);
                 this.mob.startUsingItem(hand);
                 // Mobs bypass Item.use() — init drawtime manually
                 initDrawtimeIfTcCrossbow(hand);
@@ -154,7 +150,7 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
                 this.crossbowState = CrossbowState.READY_TO_ATTACK;
             }
         } else if (this.crossbowState == CrossbowState.READY_TO_ATTACK && canSee) {
-            InteractionHand fireHand = ProjectileUtil.getWeaponHoldingHand(this.mob, TcCrossbowAttackGoal::isCrossbow);
+            InteractionHand fireHand = ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isCrossbow);
             ItemStack weapon = this.mob.getItemInHand(fireHand);
             if (weapon.getItem() instanceof ModifiableCrossbowItem) {
                 // TC's fireCrossbow() handles projectile creation, modifiers, ammo cleanup, and tool damage
