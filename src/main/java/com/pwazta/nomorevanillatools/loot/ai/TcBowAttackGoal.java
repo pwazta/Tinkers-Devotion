@@ -8,8 +8,8 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.BowItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import com.pwazta.nomorevanillatools.util.TcRangedItems;
 import slimeknights.tconstruct.library.modifiers.hook.interaction.GeneralInteractionModifierHook;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
@@ -54,12 +54,8 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
         return this.mob.getTarget() != null && this.isHoldingBow();
     }
 
-    private static boolean isBow(Item item) {
-        return item instanceof BowItem || item instanceof ModifiableBowItem;
-    }
-
     private boolean isHoldingBow() {
-        return this.mob.isHolding(is -> isBow(is.getItem()));
+        return this.mob.isHolding(is -> TcRangedItems.isBow(is.getItem()));
     }
 
     @Override
@@ -139,7 +135,7 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
                 }
             }
         } else if (--this.attackTime <= 0 && this.seeTime >= -60) {
-            this.mob.startUsingItem(ProjectileUtil.getWeaponHoldingHand(this.mob, TcBowAttackGoal::isBow));
+            this.mob.startUsingItem(ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isBow));
             // Mobs bypass Item.use() — init drawtime manually to avoid divide-by-zero in getToolCharge()
             initDrawtimeIfTcBow();
         }

@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
+import com.pwazta.nomorevanillatools.util.TcRangedItems;
 
 /**
  * Client-only mixin for {@link Pillager#getArmPose()}.
@@ -21,7 +21,7 @@ public abstract class PillagerMixin {
     @Inject(method = "getArmPose", at = @At("HEAD"), cancellable = true)
     private void nmvt_getArmPose(CallbackInfoReturnable<AbstractIllager.IllagerArmPose> cir) {
         Pillager self = (Pillager) (Object) this;
-        if (self.isHolding(is -> is.getItem() instanceof ModifiableCrossbowItem)) {
+        if (self.isHolding(is -> TcRangedItems.isCrossbow(is.getItem()))) {
             if (self.isChargingCrossbow()) {
                 cir.setReturnValue(AbstractIllager.IllagerArmPose.CROSSBOW_CHARGE);
             } else {
