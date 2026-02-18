@@ -5,16 +5,16 @@ import com.google.gson.JsonObject;
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
+import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
+import com.pwazta.nomorevanillatools.util.TcItemRegistry;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.ArmorItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.ToolAction;
-import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.common.crafting.AbstractIngredient;
 import net.minecraftforge.common.crafting.IIngredientSerializer;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -25,7 +25,6 @@ import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
 import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
 import slimeknights.tconstruct.library.tools.helper.ToolBuildHandler;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
-import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
@@ -50,17 +49,13 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     /** Matching mode: tool action (pickaxe, sword, etc.) or armor slot (helmet, chestplate, etc.) */
     public enum MatchMode { TOOL_ACTION, ARMOR_SLOT }
 
-    // ── Caches (ConcurrentHashMap for thread safety between client/server threads) ──
+    // ── Caches ──────────────────────────────────────────────────────────
 
-    /** Cache of valid items per type key. Tools keyed by action name, armor by slot name. */
-    private static final Map<String, List<IModifiable>> ITEM_CACHE = new ConcurrentHashMap<>();
-
-    /** Cache of display ItemStacks per type:tier key. Built from ITEM_CACHE + canonical material. */
+    /** Cache of display ItemStacks per type:tier key. Built from TcItemRegistry + canonical material. */
     private static final Map<String, ItemStack[]> DISPLAY_CACHE = new ConcurrentHashMap<>();
 
-    /** Clears all caches. Called when exclusions or material mappings change. */
+    /** Clears display cache. Called when exclusions or material mappings change. */
     public static void clearDisplayCache() {
-        ITEM_CACHE.clear();
         DISPLAY_CACHE.clear();
     }
 
@@ -136,7 +131,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     private boolean matchesToolType(ItemStack stack) {
         if (toolType == null || toolType.isEmpty()) return true;
-        ToolAction requiredAction = getRequiredToolAction();
+        ToolAction requiredAction = VanillaItemMappings.getToolAction(toolType);
         if (requiredAction == null) return true;
 
         if (!(stack.getItem() instanceof IModifiable modifiable)) return false;
@@ -151,36 +146,15 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         return toolId == null || !ToolExclusionConfig.isExcluded(toolType, toolId.toString());
     }
 
-    private @Nullable ToolAction getRequiredToolAction() {
-        return switch (toolType.toLowerCase()) {
-            case "pickaxe" -> ToolActions.PICKAXE_DIG;
-            case "axe"     -> ToolActions.AXE_DIG;
-            case "sword"   -> ToolActions.SWORD_DIG;
-            case "shovel"  -> ToolActions.SHOVEL_DIG;
-            case "hoe"     -> ToolActions.HOE_DIG;
-            default        -> null;
-        };
-    }
-
     // ── Armor slot matching ──────────────────────────────────────────────
 
     private boolean matchesArmorSlot(ItemStack stack) {
         if (!(stack.getItem() instanceof ModifiableArmorItem armorItem)) return false;
-        ArmorItem.Type required = getRequiredArmorType();
+        ArmorItem.Type required = VanillaItemMappings.getArmorType(toolType);
         if (required == null || armorItem.getType() != required) return false;
 
         ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return armorId == null || !ToolExclusionConfig.isExcluded(toolType, armorId.toString());
-    }
-
-    private @Nullable ArmorItem.Type getRequiredArmorType() {
-        return switch (toolType.toLowerCase()) {
-            case "helmet"     -> ArmorItem.Type.HELMET;
-            case "chestplate" -> ArmorItem.Type.CHESTPLATE;
-            case "leggings"   -> ArmorItem.Type.LEGGINGS;
-            case "boots"      -> ArmorItem.Type.BOOTS;
-            default           -> null;
-        };
     }
 
     // ── Display items (JEI) ──────────────────────────────────────────────
@@ -194,62 +168,19 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     }
 
     private ItemStack[] getToolItems() {
-        ToolAction action = getRequiredToolAction();
+        ToolAction action = VanillaItemMappings.getToolAction(toolType);
         if (action == null) return new ItemStack[0];
         String cacheKey = toolType + ":" + requiredTier;
         return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(
-            MaterialMappingConfig.getCanonicalToolMaterial(requiredTier), requiredTier, scanToolsForAction(action, toolType)));
+            MaterialMappingConfig.getCanonicalToolMaterial(requiredTier), requiredTier, TcItemRegistry.getEligibleTools(action, toolType)));
     }
 
     private ItemStack[] getArmorItems() {
-        ArmorItem.Type armorType = getRequiredArmorType();
+        ArmorItem.Type armorType = VanillaItemMappings.getArmorType(toolType);
         if (armorType == null) return new ItemStack[0];
         String cacheKey = "armor:" + toolType + ":" + requiredTier;
         return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(
-            MaterialMappingConfig.getCanonicalArmorMaterial(requiredTier), requiredTier, scanArmorForSlot(armorType, toolType)));
-    }
-
-    // ── Item scanning (cached per type) ──────────────────────────────────
-
-    /** Scans registry for TC tools supporting the given ToolAction. Cached per action name. */
-    private static List<IModifiable> scanToolsForAction(ToolAction requiredAction, String actionName) {
-        return ITEM_CACHE.computeIfAbsent(actionName, k -> {
-            List<IModifiable> tools = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof IModifiableDisplay display)) continue;
-                if (!(item instanceof IModifiable modifiable)) continue;
-                ToolDefinition definition = display.getToolDefinition();
-                if (!definition.isDataLoaded()) continue;
-
-                ItemStack renderStack = display.getRenderTool();
-                boolean supportsAction = definition.getData().getHook(ToolHooks.TOOL_ACTION)
-                    .canPerformAction(ToolStack.from(renderStack), requiredAction);
-                if (!supportsAction) continue;
-
-                ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(item);
-                if (toolId != null && ToolExclusionConfig.isExcluded(actionName, toolId.toString())) continue;
-
-                tools.add(modifiable);
-            }
-            return tools;
-        });
-    }
-
-    /** Scans registry for TC armor matching the given slot. Cached per slot name. */
-    private static List<IModifiable> scanArmorForSlot(ArmorItem.Type requiredType, String slotName) {
-        return ITEM_CACHE.computeIfAbsent(slotName, k -> {
-            List<IModifiable> armor = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof ModifiableArmorItem armorItem)) continue;
-                if (armorItem.getType() != requiredType) continue;
-
-                ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(item);
-                if (armorId != null && ToolExclusionConfig.isExcluded(slotName, armorId.toString())) continue;
-
-                armor.add(armorItem);
-            }
-            return armor;
-        });
+            MaterialMappingConfig.getCanonicalArmorMaterial(requiredTier), requiredTier, TcItemRegistry.getEligibleArmor(armorType, toolType)));
     }
 
     // ── Shared display building ──────────────────────────────────────────

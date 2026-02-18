@@ -2,8 +2,7 @@ package com.pwazta.nomorevanillatools.loot;
 
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
-import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
-import net.minecraft.resources.ResourceLocation;
+import com.pwazta.nomorevanillatools.util.TcItemRegistry;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
@@ -18,13 +17,8 @@ import slimeknights.tconstruct.library.materials.definition.IMaterial;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
 import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
-import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
 import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
-import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
-import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
-import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
-import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
 import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
@@ -65,20 +59,13 @@ public class TinkerToolBuilder {
 
     // ── Caches (ConcurrentHashMap, consistent with codebase pattern) ─────
 
-    /** Eligible TC tools and ranged weapons per action/type name. Cleared on config reload. */
-    private static final Map<String, List<Item>> ELIGIBLE_ITEM_CACHE = new ConcurrentHashMap<>();
-
-    /** Eligible TC armor per slot name. Cleared on config reload. */
-    private static final Map<String, List<Item>> ARMOR_CACHE = new ConcurrentHashMap<>();
-
     /** Compatible materials per stat type. Cleared on materials reload. */
     private static final Map<MaterialStatsId, List<IMaterial>> MATERIAL_CACHE = new ConcurrentHashMap<>();
 
     /** Clears all caches. Called from MaterialMappingConfig and ToolExclusionConfig reload paths. */
     public static void clearCaches() {
-        ELIGIBLE_ITEM_CACHE.clear();
-        ARMOR_CACHE.clear();
         MATERIAL_CACHE.clear();
+        TcItemRegistry.clearCaches();
     }
 
     // ── Main entry point ─────────────────────────────────────────────────
@@ -117,22 +104,21 @@ public class TinkerToolBuilder {
             ToolAction action = VanillaItemMappings.getToolAction(toolType);
             if (action == null) return null;
 
-            List<Item> eligible = getEligibleTools(action, toolType);
+            List<IModifiable> eligible = TcItemRegistry.getEligibleTools(action, toolType);
             if (eligible.isEmpty()) return null;
 
-            Item selected = eligible.get(random.nextInt(eligible.size()));
-            if (!(selected instanceof IModifiable modifiable)) return null;
+            IModifiable selected = eligible.get(random.nextInt(eligible.size()));
 
-            ToolDefinition definition = modifiable.getToolDefinition();
+            ToolDefinition definition = selected.getToolDefinition();
             if (!definition.isDataLoaded()) return null;
 
-            List<MaterialStatsId> statTypes = getStatTypes(modifiable, definition);
+            List<MaterialStatsId> statTypes = getStatTypes(selected, definition);
             if (statTypes == null) return null;
 
             List<MaterialVariantId> materials = selectToolMaterials(tier, statTypes, random);
             if (materials == null) return null;
 
-            return buildFromMaterials(modifiable, definition, materials, original);
+            return buildFromMaterials(selected, definition, materials, original);
         } catch (Exception e) {
             LOGGER.warn("Failed to build TC tool replacement: {}", e.getMessage());
             return null;
@@ -146,22 +132,21 @@ public class TinkerToolBuilder {
             ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
             if (armorType == null) return null;
 
-            List<Item> eligible = getEligibleArmor(armorType, slot);
+            List<IModifiable> eligible = TcItemRegistry.getEligibleArmor(armorType, slot);
             if (eligible.isEmpty()) return null;
 
-            Item selected = eligible.get(random.nextInt(eligible.size()));
-            if (!(selected instanceof IModifiable modifiable)) return null;
+            IModifiable selected = eligible.get(random.nextInt(eligible.size()));
 
-            ToolDefinition definition = modifiable.getToolDefinition();
+            ToolDefinition definition = selected.getToolDefinition();
             if (!definition.isDataLoaded()) return null;
 
-            List<MaterialStatsId> statTypes = getStatTypes(modifiable, definition);
+            List<MaterialStatsId> statTypes = getStatTypes(selected, definition);
             if (statTypes == null) return null;
 
             List<MaterialVariantId> materials = selectArmorMaterials(tier, statTypes, random);
             if (materials == null) return null;
 
-            return buildFromMaterials(modifiable, definition, materials, original);
+            return buildFromMaterials(selected, definition, materials, original);
         } catch (Exception e) {
             LOGGER.warn("Failed to build TC armor replacement: {}", e.getMessage());
             return null;
@@ -242,50 +227,25 @@ public class TinkerToolBuilder {
 
     private static @Nullable ItemStack buildRandomRanged(String rangedType, List<String> partTiers, ItemStack original, RandomSource random) {
         try {
-            List<Item> eligible = getEligibleRanged(rangedType);
+            List<IModifiable> eligible = TcItemRegistry.getEligibleRanged(rangedType);
             if (eligible.isEmpty()) return null;
 
-            Item selected = eligible.get(random.nextInt(eligible.size()));
-            if (!(selected instanceof IModifiable modifiable)) return null;
+            IModifiable selected = eligible.get(random.nextInt(eligible.size()));
 
-            ToolDefinition definition = modifiable.getToolDefinition();
+            ToolDefinition definition = selected.getToolDefinition();
             if (!definition.isDataLoaded()) return null;
 
-            List<MaterialStatsId> statTypes = getStatTypes(modifiable, definition);
+            List<MaterialStatsId> statTypes = getStatTypes(selected, definition);
             if (statTypes == null) return null;
 
             List<MaterialVariantId> materials = selectRangedMaterials(partTiers, statTypes, random);
             if (materials == null) return null;
 
-            return buildFromMaterials(modifiable, definition, materials, original);
+            return buildFromMaterials(selected, definition, materials, original);
         } catch (Exception e) {
             LOGGER.warn("Failed to build TC ranged replacement: {}", e.getMessage());
             return null;
         }
-    }
-
-    /** Gets eligible TC ranged weapons for a given type, with exclusion filtering. */
-    private static List<Item> getEligibleRanged(String rangedType) {
-        return ELIGIBLE_ITEM_CACHE.computeIfAbsent(rangedType, k -> {
-            Class<?> targetClass = switch (rangedType) {
-                case "bow"      -> ModifiableBowItem.class;
-                case "crossbow" -> ModifiableCrossbowItem.class;
-                default         -> null;
-            };
-            if (targetClass == null) return List.of();
-
-            List<Item> ranged = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!targetClass.isInstance(item)) continue;
-                if (!(item instanceof IModifiable)) continue;
-
-                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
-                if (itemId != null && ToolExclusionConfig.isExcluded(rangedType, itemId.toString())) continue;
-
-                ranged.add(item);
-            }
-            return ranged;
-        });
     }
 
     /**
@@ -450,51 +410,6 @@ public class TinkerToolBuilder {
         float ratio = (float) original.getDamageValue() / original.getMaxDamage();
         int newDamage = Math.min((int) (ratio * replacement.getMaxDamage()), replacement.getMaxDamage() - 1);
         replacement.setDamageValue(newDamage);
-    }
-
-    // ── Eligible item scanning (cached) ──────────────────────────────────
-
-    /** Gets eligible TC tools for a given ToolAction, with exclusion filtering. */
-    private static List<Item> getEligibleTools(ToolAction action, String actionName) {
-        return ELIGIBLE_ITEM_CACHE.computeIfAbsent(actionName, k -> {
-            List<Item> tools = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof IModifiableDisplay display)) continue;
-                if (!(item instanceof IModifiable)) continue;
-                ToolDefinition definition = display.getToolDefinition();
-                if (!definition.isDataLoaded()) continue;
-
-                // Check if this tool supports the required action
-                ItemStack renderStack = display.getRenderTool();
-                boolean supportsAction = definition.getData().getHook(ToolHooks.TOOL_ACTION)
-                    .canPerformAction(ToolStack.from(renderStack), action);
-                if (!supportsAction) continue;
-
-                // Check exclusion list
-                ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(item);
-                if (toolId != null && ToolExclusionConfig.isExcluded(actionName, toolId.toString())) continue;
-
-                tools.add(item);
-            }
-            return tools;
-        });
-    }
-
-    /** Gets eligible TC armor for a given slot, with exclusion filtering. */
-    private static List<Item> getEligibleArmor(ArmorItem.Type armorType, String slotName) {
-        return ARMOR_CACHE.computeIfAbsent(slotName, k -> {
-            List<Item> armor = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof ModifiableArmorItem armorItem)) continue;
-                if (armorItem.getType() != armorType) continue;
-
-                ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(item);
-                if (armorId != null && ToolExclusionConfig.isExcluded(slotName, armorId.toString())) continue;
-
-                armor.add(item);
-            }
-            return armor;
-        });
     }
 
     // ── Compatible materials per stat type (cached) ──────────────────────
