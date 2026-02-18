@@ -42,6 +42,12 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
     /**
      * Set the correct arm pose for TC ranged weapons before any rotation logic runs.
      *
+     * <p>Model instances are shared across all entities of the same type, so arm pose fields
+     * persist between render calls. Vanilla's {@code PlayerRenderer} resets arm poses every frame,
+     * but {@code HumanoidMobRenderer} does not. We must reset to EMPTY for mobs first, then set
+     * the correct pose if applicable — otherwise a stale CROSSBOW_HOLD from one mob bleeds into
+     * the next mob rendered with the same model.
+     *
      * <ul>
      *   <li>{@link ModifiableBowItem}: {@code BOW_AND_ARROW} (only when aggressive)</li>
      *   <li>{@link ModifiableCrossbowItem}: {@code CROSSBOW_CHARGE} when using, {@code CROSSBOW_HOLD} otherwise</li>
@@ -52,6 +58,11 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
                                            float ageInTicks, float netHeadYaw, float headPitch,
                                            CallbackInfo ci) {
         if (!(entity instanceof Mob mob)) return;
+
+        // Reset arm poses for mobs — HumanoidMobRenderer doesn't do this (unlike PlayerRenderer),
+        // so values set for one entity persist into the next entity sharing the same model instance.
+        this.rightArmPose = HumanoidModel.ArmPose.EMPTY;
+        this.leftArmPose = HumanoidModel.ArmPose.EMPTY;
 
         ItemStack mainHand = mob.getItemInHand(InteractionHand.MAIN_HAND);
         Item item = mainHand.getItem();
