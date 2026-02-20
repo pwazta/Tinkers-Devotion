@@ -28,28 +28,35 @@ public class ClientEventHandlers {
         if (tag == null || !tag.contains("nmvt_required_tier")) return;
 
         String tier = tag.getString("nmvt_required_tier");
+        boolean isArmor = "armor_slot".equals(tag.getString("nmvt_match_mode"));
 
-        // Line 1: head requirement (always shown)
-        event.getToolTip().add(Component.translatable(
-                "tooltip.nomorevanillatools.required_tier", tier)
-                .withStyle(ChatFormatting.GOLD));
+        if (isArmor) {
+            // Armor: plating requirement only (no "other parts" — armor skips that config)
+            event.getToolTip().add(Component.translatable(
+                    "tooltip.nomorevanillatools.required_plating_tier", tier)
+                    .withStyle(ChatFormatting.GOLD));
+        } else {
+            // Tool: head requirement + other parts clarification
+            event.getToolTip().add(Component.translatable(
+                    "tooltip.nomorevanillatools.required_tier", tier)
+                    .withStyle(ChatFormatting.GOLD));
 
-        // Line 2: other parts clarification
-        if (Config.requireOtherPartsMatch) {
-            int pct = (int) (Config.otherPartsThreshold * 100);
-            if (pct >= 100) {
-                event.getToolTip().add(Component.translatable(
-                        "tooltip.nomorevanillatools.all_parts", tier)
-                        .withStyle(ChatFormatting.GRAY));
+            if (Config.requireOtherPartsMatch) {
+                int pct = (int) (Config.otherPartsThreshold * 100);
+                if (pct >= 100) {
+                    event.getToolTip().add(Component.translatable(
+                            "tooltip.nomorevanillatools.all_parts", tier)
+                            .withStyle(ChatFormatting.GRAY));
+                } else {
+                    event.getToolTip().add(Component.translatable(
+                            "tooltip.nomorevanillatools.pct_other_parts", pct, tier)
+                            .withStyle(ChatFormatting.GRAY));
+                }
             } else {
                 event.getToolTip().add(Component.translatable(
-                        "tooltip.nomorevanillatools.pct_other_parts", pct, tier)
+                        "tooltip.nomorevanillatools.any_other_parts")
                         .withStyle(ChatFormatting.GRAY));
             }
-        } else {
-            event.getToolTip().add(Component.translatable(
-                    "tooltip.nomorevanillatools.any_other_parts")
-                    .withStyle(ChatFormatting.GRAY));
         }
     }
 }

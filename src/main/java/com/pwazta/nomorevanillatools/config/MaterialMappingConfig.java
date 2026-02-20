@@ -25,17 +25,17 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
  * Maps vanilla material tiers to Tinker's Construct material IDs.
- * Manages both tool and armor mappings via shared TierMappingStore instances.
  *
- * Two-phase initialization per store:
- *   Phase 1 (commonSetup): load existing config file if present
- *   Phase 2 (MaterialsLoadedEvent): generate from registry if config is missing, or merge if force-regenerate
+ * <p><b>Tools</b>: Config-based via TierMappingStore — maps HeadMaterialStats.tier() to vanilla tier names.
+ * Two-phase initialization: Phase 1 (commonSetup) loads config, Phase 2 (MaterialsLoadedEvent) generates/merges.
  *
- * The generate command uses refresh methods which combine disk reload + registry merge.
+ * <p><b>Armor</b>: Automatic via IMaterial.getTier() — no config file needed. Materials with PlatingMaterialStats
+ * are grouped by their IMaterial.getTier() (int 0-4) at query time, cached for performance.
  */
 public class MaterialMappingConfig {
 
@@ -52,18 +52,6 @@ public class MaterialMappingConfig {
         new ResourceLocation("minecraft", "netherite"), "netherite"
     );
 
-    /** Materials with PlatingMaterialStats but NO HeadMaterialStats — need hardcoded tier defaults. */
-    private static final Map<String, String> ARMOR_ONLY_DEFAULTS = Map.of(
-        "tconstruct:gold",     "golden",
-        "tconstruct:obsidian", "diamond",
-        "tconstruct:aluminum", "diamond"
-    );
-
-    /** Materials whose head tier doesn't match their appropriate armor tier. */
-    private static final Map<String, String> ARMOR_TIER_OVERRIDES = Map.of(
-        "tconstruct:copper", "leather"  // copper plating defense (1/2/3/1) = vanilla leather
-    );
-
     // ── Canonical materials (shared by loot generation + JEI display) ──
 
     /** Canonical tool material per vanilla tier — the "representative" TC material for loot (85% weight) and JEI display. */
@@ -76,13 +64,13 @@ public class MaterialMappingConfig {
         "netherite", "tconstruct:hepatizon"
     );
 
-    /** Canonical armor material per vanilla tier. Separate because armor has leather tier and different golden mapping. */
-    private static final Map<String, String> CANONICAL_ARMOR_MATERIALS = Map.of(
-        "leather",   "tconstruct:copper",
-        "iron",      "tconstruct:iron",
-        "golden",    "tconstruct:gold",
-        "diamond",   "tconstruct:cobalt",
-        "netherite", "tconstruct:hepatizon"
+    /** Canonical armor material per set+tier combo. Key format: "set:minTier-maxTier". */
+    private static final Map<String, String> CANONICAL_ARMOR_BY_SET_TIER = Map.of(
+        "travelers:0-1", "tconstruct:copper",
+        "travelers:2-2", "tconstruct:iron",
+        "plate:0-1",     "tconstruct:gold",
+        "plate:2-2",     "tconstruct:iron",
+        "plate:3-3",     "tconstruct:cobalt"
     );
 
     // ── Store instances ───────────────────────────────────────────────
@@ -92,10 +80,9 @@ public class MaterialMappingConfig {
         "tool", MaterialMappingConfig::scanToolRegistry
     );
 
-    private static final TierMappingStore ARMOR_STORE = new TierMappingStore(
-        List.of("leather", "wooden", "stone", "iron", "golden", "diamond", "netherite"),
-        "armor", MaterialMappingConfig::scanArmorRegistry
-    );
+    // ── Armor plating cache (keyed by "minTier-maxTier") ────────────
+
+    private static final Map<String, List<IMaterial>> PLATING_TIER_CACHE = new ConcurrentHashMap<>();
 
     // ── Result types ──────────────────────────────────────────────────
 
@@ -126,8 +113,8 @@ public class MaterialMappingConfig {
     // ── TierMappingStore ──────────────────────────────────────────────
 
     /**
-     * Manages a single tier-to-materials mapping with config file persistence and registry scanning.
-     * Tool and armor each get their own instance with different tier orders and scan logic.
+     * Manages a tier-to-materials mapping with config file persistence and registry scanning.
+     * Used for tool materials only — armor uses IMaterial.getTier() directly via {@link #getPlatingMaterialsInTierRange}.
      */
     private static class TierMappingStore {
         private final Map<String, Set<String>> mappings = new HashMap<>();
@@ -374,88 +361,48 @@ public class MaterialMappingConfig {
         return new RegistryScanResult(tiers, skipped);
     }
 
-    /** Scans for materials with PlatingMaterialStats. Uses overrides/defaults for materials without HeadMaterialStats. */
-    private static RegistryScanResult scanArmorRegistry() {
-        Map<String, Set<String>> tiers = new LinkedHashMap<>();
-        List<String> skipped = new ArrayList<>();
-        IMaterialRegistry registry = MaterialRegistry.getInstance();
-
-        for (IMaterial material : registry.getVisibleMaterials()) {
-            MaterialId materialId = material.getIdentifier();
-            String matIdStr = materialId.toString();
-
-            // Only include materials with plating stats (checking BOOTS is sufficient —
-            // addArmorShieldStats adds all slots atomically)
-            Optional<PlatingMaterialStats> plating = registry.getMaterialStats(materialId, PlatingMaterialStats.BOOTS.getId());
-            if (plating.isEmpty()) continue;
-
-            // 1. Check overrides first (copper → leather)
-            String overrideTier = ARMOR_TIER_OVERRIDES.get(matIdStr);
-            if (overrideTier != null) {
-                tiers.computeIfAbsent(overrideTier, k -> new LinkedHashSet<>()).add(matIdStr);
-                continue;
-            }
-
-            // 2. Check armor-only defaults (gold, obsidian, aluminum — no HeadMaterialStats)
-            String defaultTier = ARMOR_ONLY_DEFAULTS.get(matIdStr);
-            if (defaultTier != null) {
-                tiers.computeIfAbsent(defaultTier, k -> new LinkedHashSet<>()).add(matIdStr);
-                continue;
-            }
-
-            // 3. Fall back to HeadMaterialStats tier
-            Optional<HeadMaterialStats> headStats = registry.getMaterialStats(materialId, HeadMaterialStats.ID);
-            if (headStats.isEmpty()) {
-                LOGGER.warn("Armor material '{}' has plating stats but no head stats and no hardcoded default, skipping", materialId);
-                skipped.add(matIdStr + " (no head stats, no default)");
-                continue;
-            }
-
-            Tier headTier = headStats.get().tier();
-            ResourceLocation tierId = TierSortingRegistry.getName(headTier);
-
-            if (tierId == null) {
-                LOGGER.warn("Could not resolve tier name for armor material '{}', skipping", materialId);
-                skipped.add(matIdStr + " (tier: unknown)");
-                continue;
-            }
-
-            String configName = TIER_NAME_MAP.get(tierId);
-            if (configName == null) {
-                LOGGER.warn("Unknown tier '{}' for armor material '{}', skipping", tierId, materialId);
-                skipped.add(matIdStr + " (tier: " + tierId + ")");
-                continue;
-            }
-
-            tiers.computeIfAbsent(configName, k -> new LinkedHashSet<>()).add(matIdStr);
-        }
-
-        return new RegistryScanResult(tiers, skipped);
-    }
-
     // ── Canonical resolution ─────────────────────────────────────────
 
     /**
-     * Returns the canonical tool material for the given tier.
-     * Falls back to the first material in the config if the canonical isn't available.
+     * Returns the canonical tool/ranged material for the given tier.
+     * Validates the hardcoded canonical against the user's config; falls back to first-in-config if removed.
      */
     public static @Nullable String getCanonicalToolMaterial(String tier) {
-        return resolveCanonical(CANONICAL_TOOL_MATERIALS, TOOL_STORE, tier);
+        String canonical = CANONICAL_TOOL_MATERIALS.get(tier.toLowerCase());
+        Set<String> materials = TOOL_STORE.getMaterialsForTier(tier);
+        if (canonical != null && materials != null && materials.contains(canonical)) return canonical;
+        return (materials != null && !materials.isEmpty()) ? materials.iterator().next() : null;
     }
 
     /**
-     * Returns the canonical armor material for the given tier.
-     * Falls back to the first material in the config if the canonical isn't available.
+     * Returns the canonical armor material for a given set + tier range combo.
+     * Used for 85% loot weight and JEI display. Returns null if no canonical defined.
      */
-    public static @Nullable String getCanonicalArmorMaterial(String tier) {
-        return resolveCanonical(CANONICAL_ARMOR_MATERIALS, ARMOR_STORE, tier);
+    public static @Nullable String getCanonicalArmorMaterial(String set, int minTier, int maxTier) {
+        return CANONICAL_ARMOR_BY_SET_TIER.get(set + ":" + minTier + "-" + maxTier);
     }
 
-    private static @Nullable String resolveCanonical(Map<String, String> canonicalMap, TierMappingStore store, String tier) {
-        String canonical = canonicalMap.get(tier.toLowerCase());
-        Set<String> materials = store.getMaterialsForTier(tier);
-        if (canonical != null && materials != null && materials.contains(canonical)) return canonical;
-        return (materials != null && !materials.isEmpty()) ? materials.iterator().next() : null;
+    /**
+     * Returns all visible materials with PlatingMaterialStats whose IMaterial.getTier() is in [minTier, maxTier].
+     * Results are cached per tier range; cleared via {@link #clearArmorCaches()}.
+     */
+    public static List<IMaterial> getPlatingMaterialsInTierRange(int minTier, int maxTier) {
+        return PLATING_TIER_CACHE.computeIfAbsent(minTier + "-" + maxTier, k -> {
+            IMaterialRegistry registry = MaterialRegistry.getInstance();
+            List<IMaterial> result = new ArrayList<>();
+            for (IMaterial material : registry.getVisibleMaterials()) {
+                int tier = material.getTier();
+                if (tier < minTier || tier > maxTier) continue;
+                if (registry.getMaterialStats(material.getIdentifier(), PlatingMaterialStats.BOOTS.getId()).isEmpty()) continue;
+                result.add(material);
+            }
+            return result;
+        });
+    }
+
+    /** Clears cached armor plating materials. Called from TinkerToolBuilder.clearCaches(). */
+    public static void clearArmorCaches() {
+        PLATING_TIER_CACHE.clear();
     }
 
     // ── Public API — Tool ─────────────────────────────────────────────
@@ -469,13 +416,4 @@ public class MaterialMappingConfig {
     public static Set<String> getAllTiers() { return TOOL_STORE.mappings.keySet(); }
     public static File getConfigFile() { return TOOL_STORE.configFile; }
 
-    // ── Public API — Armor ────────────────────────────────────────────
-
-    public static void initializeArmor(File configDir) { ARMOR_STORE.initialize(configDir, "armor_material_mappings.json"); }
-    public static void generateArmorIfNeeded(boolean force) { ARMOR_STORE.generateIfNeeded(force); }
-    public static MergeResult refreshArmorFromRegistry() { return ARMOR_STORE.refresh(); }
-    public static void reloadArmor() { ARMOR_STORE.reload(); }
-    public static Set<String> getArmorMaterialsForTier(String tier) { return ARMOR_STORE.getMaterialsForTier(tier); }
-    public static boolean isArmorMaterialValidForTier(String tier, String id) { return ARMOR_STORE.isMaterialValidForTier(tier, id); }
-    public static File getArmorConfigFile() { return ARMOR_STORE.configFile; }
 }

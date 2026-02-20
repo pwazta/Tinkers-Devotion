@@ -79,18 +79,27 @@ public final class TcItemRegistry {
     }
 
     /**
-     * Returns all TC armor pieces matching the given {@link ArmorItem.Type}, excluding items in
-     * {@link ToolExclusionConfig}. Results are cached per slot name.
+     * Returns all TC armor pieces matching the given {@link ArmorItem.Type} and armor set prefix,
+     * excluding items in {@link ToolExclusionConfig}. Results are cached per set:slot key.
+     *
+     * @param armorType the ArmorItem.Type to match (HELMET, CHESTPLATE, etc.)
+     * @param set       the TC armor set prefix ("travelers" or "plate")
+     * @param slotName  the slot name for exclusion checking and cache key
      */
-    public static List<IModifiable> getEligibleArmor(ArmorItem.Type armorType, String slotName) {
-        return ARMOR_CACHE.computeIfAbsent(slotName, k -> {
+    public static List<IModifiable> getEligibleArmor(ArmorItem.Type armorType, String set, String slotName) {
+        String cacheKey = set + ":" + slotName;
+        return ARMOR_CACHE.computeIfAbsent(cacheKey, k -> {
+            String setPrefix = "tconstruct:" + set + "_";
             List<IModifiable> armor = new ArrayList<>();
             for (Item item : ForgeRegistries.ITEMS) {
                 if (!(item instanceof ModifiableArmorItem armorItem)) continue;
                 if (armorItem.getType() != armorType) continue;
 
                 ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(item);
-                if (armorId != null && ToolExclusionConfig.isExcluded(slotName, armorId.toString())) continue;
+                if (armorId == null) continue;
+                String idStr = armorId.toString();
+                if (!idStr.startsWith(setPrefix)) continue;
+                if (ToolExclusionConfig.isExcluded(slotName, idStr)) continue;
 
                 armor.add(armorItem);
             }

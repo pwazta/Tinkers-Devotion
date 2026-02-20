@@ -53,9 +53,7 @@ public class TinkerToolBuilder {
     private static final int ARMOR_INNER_MAX_TIER = 3;
 
     /** Maps vanilla tier name to IMaterial.getTier() int for ranged per-part filtering. */
-    private static final Map<String, Integer> TIER_NAME_TO_INT = Map.of(
-        "wooden", 0, "stone", 1, "iron", 2, "golden", 1, "diamond", 3, "netherite", 4
-    );
+    private static final Map<String, Integer> TIER_NAME_TO_INT = Map.of("wooden", 0, "stone", 1, "iron", 2, "golden", 1, "diamond", 3, "netherite", 4);
 
     // ── Caches (ConcurrentHashMap, consistent with codebase pattern) ─────
 
@@ -65,6 +63,7 @@ public class TinkerToolBuilder {
     /** Clears all caches. Called from MaterialMappingConfig and ToolExclusionConfig reload paths. */
     public static void clearCaches() {
         MATERIAL_CACHE.clear();
+        MaterialMappingConfig.clearArmorCaches();
         TcItemRegistry.clearCaches();
     }
 
@@ -88,7 +87,7 @@ public class TinkerToolBuilder {
 
         // Check armor
         VanillaItemMappings.ArmorInfo armorInfo = VanillaItemMappings.getArmorInfo(item);
-        if (armorInfo != null) return buildRandomArmor(armorInfo.slot(), armorInfo.tier(), original, random);
+        if (armorInfo != null) return buildRandomArmor(armorInfo.set(), armorInfo.slot(), armorInfo.minTier(), armorInfo.maxTier(), original, random);
 
         // Check ranged weapons
         VanillaItemMappings.RangedInfo rangedInfo = VanillaItemMappings.getRangedInfo(item);
@@ -127,12 +126,12 @@ public class TinkerToolBuilder {
 
     // ── Armor building ───────────────────────────────────────────────────
 
-    private static @Nullable ItemStack buildRandomArmor(String slot, String tier, ItemStack original, RandomSource random) {
+    private static @Nullable ItemStack buildRandomArmor(String set, String slot, int minTier, int maxTier, ItemStack original, RandomSource random) {
         try {
             ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
             if (armorType == null) return null;
 
-            List<IModifiable> eligible = TcItemRegistry.getEligibleArmor(armorType, slot);
+            List<IModifiable> eligible = TcItemRegistry.getEligibleArmor(armorType, set, slot);
             if (eligible.isEmpty()) return null;
 
             IModifiable selected = eligible.get(random.nextInt(eligible.size()));
@@ -143,7 +142,7 @@ public class TinkerToolBuilder {
             List<MaterialStatsId> statTypes = getStatTypes(selected, definition);
             if (statTypes == null) return null;
 
-            List<MaterialVariantId> materials = selectArmorMaterials(tier, statTypes, random);
+            List<MaterialVariantId> materials = selectArmorMaterials(set, minTier, maxTier, statTypes, random);
             if (materials == null) return null;
 
             return buildFromMaterials(selected, definition, materials, original);
@@ -189,7 +188,7 @@ public class TinkerToolBuilder {
     private static @Nullable List<MaterialVariantId> selectToolMaterials(String tier, List<MaterialStatsId> statTypes, RandomSource random) {
         List<MaterialVariantId> materials = new ArrayList<>();
 
-        MaterialVariantId headMaterial = selectHeadMaterial(tier, random, false);
+        MaterialVariantId headMaterial = selectHeadMaterial(tier, random);
         if (headMaterial == null) return null;
         materials.add(headMaterial);
 
@@ -204,11 +203,11 @@ public class TinkerToolBuilder {
         return materials;
     }
 
-    /** Selects materials for armor: plating (index 0) + inner parts (index 1+). */
-    private static @Nullable List<MaterialVariantId> selectArmorMaterials(String tier, List<MaterialStatsId> statTypes, RandomSource random) {
+    /** Selects materials for armor: plating (index 0) via IMaterial.getTier() range + inner parts (index 1+). */
+    private static @Nullable List<MaterialVariantId> selectArmorMaterials(String set, int minTier, int maxTier, List<MaterialStatsId> statTypes, RandomSource random) {
         List<MaterialVariantId> materials = new ArrayList<>();
 
-        MaterialVariantId platingMaterial = selectHeadMaterial(tier, random, true);
+        MaterialVariantId platingMaterial = selectPlatingMaterial(set, minTier, maxTier, random);
         if (platingMaterial == null) return null;
         materials.add(platingMaterial);
 
@@ -307,32 +306,54 @@ public class TinkerToolBuilder {
         return MaterialVariantId.create(selected.getIdentifier(), "");
     }
 
-    // ── Head / Plating selection (index 0) ───────────────────────────────
+    // ── Head selection (index 0 for tools) ─────────────────────────────
 
     /**
-     * Selects head/plating material using weighted algorithm:
+     * Selects head material for tools using weighted algorithm:
      * 85% canonical (from MaterialMappingConfig), 15% random from tier pool.
-     * Canonical materials match JEI display — defined in MaterialMappingConfig.
      */
-    private static @Nullable MaterialVariantId selectHeadMaterial(String tier, RandomSource random, boolean isArmor) {
-        Set<String> materials = isArmor
-            ? MaterialMappingConfig.getArmorMaterialsForTier(tier)
-            : MaterialMappingConfig.getMaterialsForTier(tier);
+    private static @Nullable MaterialVariantId selectHeadMaterial(String tier, RandomSource random) {
+        Set<String> materials = MaterialMappingConfig.getMaterialsForTier(tier);
         if (materials == null || materials.isEmpty()) return null;
 
         String selectedId;
         if (random.nextFloat() < CANONICAL_WEIGHT) {
-            // Canonical material — same as JEI display, with fallback to first in config
-            selectedId = isArmor
-                ? MaterialMappingConfig.getCanonicalArmorMaterial(tier)
-                : MaterialMappingConfig.getCanonicalToolMaterial(tier);
+            selectedId = MaterialMappingConfig.getCanonicalToolMaterial(tier);
         } else {
-            // Random from tier pool
             selectedId = materials.stream().skip(random.nextInt(materials.size())).findFirst().orElse(null);
         }
         if (selectedId == null) return null;
 
         return MaterialVariantId.tryParse(selectedId);
+    }
+
+    // ── Plating selection (index 0 for armor) ───────────────────────────
+
+    /**
+     * Selects plating material for armor using IMaterial.getTier() range filtering.
+     * 85% canonical (from CANONICAL_ARMOR_BY_SET_TIER), 15% random from tier-filtered pool.
+     */
+    private static @Nullable MaterialVariantId selectPlatingMaterial(String set, int minTier, int maxTier, RandomSource random) {
+        List<IMaterial> pool = MaterialMappingConfig.getPlatingMaterialsInTierRange(minTier, maxTier);
+        if (pool.isEmpty()) return null;
+
+        if (random.nextFloat() < CANONICAL_WEIGHT) {
+            String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(set, minTier, maxTier);
+            if (canonicalId != null) {
+                MaterialVariantId canonicalVariant = MaterialVariantId.tryParse(canonicalId);
+                if (canonicalVariant != null) {
+                    boolean inPool = pool.stream()
+                        .anyMatch(mat -> mat.getIdentifier().equals(canonicalVariant.getId()));
+                    if (inPool) return canonicalVariant;
+                }
+            }
+            // Canonical not in pool — fall back to first material
+            return MaterialVariantId.create(pool.get(0).getIdentifier(), "");
+        }
+
+        // 15% random from pool
+        IMaterial selected = pool.get(random.nextInt(pool.size()));
+        return MaterialVariantId.create(selected.getIdentifier(), "");
     }
 
     // ── Tool other parts (index 1+) — same TC tier or lower ──────────────

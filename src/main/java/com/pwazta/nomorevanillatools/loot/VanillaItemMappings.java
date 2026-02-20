@@ -23,7 +23,7 @@ public class VanillaItemMappings {
 
     // ── Record types ─────────────────────────────────────────────────────
     public record ToolInfo(String tier, String toolType) {}
-    public record ArmorInfo(String tier, String slot) {}
+    public record ArmorInfo(String set, String slot, int minTier, int maxTier) {}
     /** Per-part tier list matches the tool definition's stat type order (e.g., limb, limb, grip, bowstring). */
     public record RangedInfo(String rangedType, List<String> partTiers) {}
 
@@ -37,10 +37,7 @@ public class VanillaItemMappings {
 
     public static final String[] TOOL_TYPES = {"sword", "pickaxe", "axe", "shovel", "hoe"};
 
-    /** All armor tiers including netherite (for loot replacement scope). */
-    public static final String[] ALL_ARMOR_TIERS = {"leather", "iron", "golden", "diamond", "netherite"};
-
-    /** Armor tiers for recipe generation — no netherite, no chainmail. */
+    /** Armor tiers for recipe generation — no netherite (smithing), no chainmail (no recipe). */
     public static final String[] RECIPE_ARMOR_TIERS = {"leather", "iron", "golden", "diamond"};
 
     public static final String[] ARMOR_SLOTS = {"helmet", "chestplate", "leggings", "boots"};
@@ -59,22 +56,23 @@ public class VanillaItemMappings {
                 TOOLS_BY_ID.put("minecraft:" + tier + "_" + tool, new ToolInfo(tier, tool));
             }
         }
-        for (String tier : ALL_ARMOR_TIERS) {
-            for (String slot : ARMOR_SLOTS) {
-                ARMOR_BY_ID.put("minecraft:" + tier + "_" + slot, new ArmorInfo(tier, slot));
-            }
+        // Armor: mapped by set (travelers/plate) + IMaterial.getTier() range
+        // TODO (P2): TC plating defense at tier N < vanilla tier N because TC assumes diamond modifier.
+        // Replaced armor may be weaker than vanilla. See PLANNING-armor-rework.md for options.
+        for (String slot : ARMOR_SLOTS) {
+            ARMOR_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo("travelers", slot, 0, 1));
+            ARMOR_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo("travelers", slot, 2, 2));
+            ARMOR_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo("plate", slot, 0, 1));
+            ARMOR_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo("plate", slot, 2, 2));
+            ARMOR_BY_ID.put("minecraft:diamond_" + slot,    new ArmorInfo("plate", slot, 3, 3));
+            ARMOR_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo("plate", slot, 3, 3));
         }
-        // TODO: Chainmail armor replacement (P3)
-        // Chainmail has no crafting recipe but appears in mob drops and some loot tables.
-        // Currently excluded — stays as vanilla. Needs tier mapping decision (iron-tier?).
 
         // Ranged weapons — per-part tiers match TC tool definition stat type order
         // Bow: 4 parts (limb, limb, grip, bowstring) — all wooden tier
-        RANGED_BY_ID.put("minecraft:bow", new RangedInfo("bow",
-            List.of("wooden", "wooden", "wooden", "wooden")));
+        RANGED_BY_ID.put("minecraft:bow", new RangedInfo("bow", List.of("wooden", "wooden", "wooden", "wooden")));
         // Crossbow: 3 parts (limb, grip, bowstring) — iron grip matches vanilla iron ingot ingredient
-        RANGED_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow",
-            List.of("wooden", "iron", "wooden")));
+        RANGED_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow", List.of("wooden", "iron", "wooden")));
     }
 
     // ── Item-keyed maps (lazy-initialized on first access) ───────────────

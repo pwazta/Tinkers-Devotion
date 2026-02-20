@@ -34,7 +34,6 @@ public class ForgeEventHandlers {
     @SubscribeEvent
     public static void onMaterialsLoaded(MaterialsLoadedEvent event) {
         MaterialMappingConfig.generateIfNeeded(true);
-        MaterialMappingConfig.generateArmorIfNeeded(true);
         TinkerToolBuilder.clearCaches();
     }
 

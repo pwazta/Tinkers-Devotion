@@ -40,9 +40,7 @@ public abstract class AbstractZombieModelMixin<T extends Monster> extends Humano
         ),
         cancellable = true
     )
-    private void nmvt_skipZombieArmsForTcRanged(T entity, float limbSwing, float limbSwingAmount,
-                                                 float ageInTicks, float netHeadYaw, float headPitch,
-                                                 CallbackInfo ci) {
+    private void nmvt_skipZombieArmsForTcRanged(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
         if (TcRangedItems.isRangedWeapon(entity.getItemInHand(InteractionHand.MAIN_HAND).getItem())) {
             ci.cancel();
         }
