@@ -24,6 +24,7 @@ import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraftforge.registries.ForgeRegistries;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -53,14 +54,22 @@ public class GenerateRecipesCommand {
         int staleRecipesCleaned = 0;
         int materialsAdded = 0;
         int materialsSkippedOverrides = 0;
-        int armorMaterialsAdded = 0;
-        int armorMaterialsSkippedOverrides = 0;
         List<String> skippedTiers = List.of();
-        List<String> armorSkippedTiers = List.of();
         final List<String> errors = new ArrayList<>();
     }
 
-    private record ReplacementInfo(int index, String tier, String toolType, MatchMode mode) {}
+    /** Info about a vanilla ingredient to replace with a TC ingredient. */
+    private record ReplacementInfo(int index, String tier, String toolType, MatchMode mode,
+                                   @Nullable String armorSet, int minTier, int maxTier) {
+        /** Tool-mode factory. */
+        static ReplacementInfo tool(int index, String tier, String toolType) {
+            return new ReplacementInfo(index, tier, toolType, MatchMode.TOOL_ACTION, null, 0, 0);
+        }
+        /** Armor-mode factory. */
+        static ReplacementInfo armor(int index, String slot, String set, int minTier, int maxTier) {
+            return new ReplacementInfo(index, null, slot, MatchMode.ARMOR_SLOT, set, minTier, maxTier);
+        }
+    }
 
     // ── Command entry point ───────────────────────────────────────────────────
 
@@ -89,16 +98,6 @@ public class GenerateRecipesCommand {
                 result.skippedTiers = mergeResult.skippedTiers;
             } else {
                 MaterialMappingConfig.reload();
-            }
-
-            // Step 1b: Refresh armor materials
-            MaterialMappingConfig.MergeResult armorMerge = MaterialMappingConfig.refreshArmorFromRegistry();
-            if (armorMerge != null) {
-                result.armorMaterialsAdded = armorMerge.addedCount;
-                result.armorMaterialsSkippedOverrides = armorMerge.skippedOverrides;
-                result.armorSkippedTiers = armorMerge.skippedTiers;
-            } else {
-                MaterialMappingConfig.reloadArmor();
             }
 
             // Step 2: Reload tool/armor exclusions from disk
@@ -144,15 +143,14 @@ public class GenerateRecipesCommand {
 
     /**
      * Resets all configs to defaults and regenerates everything from scratch.
-     * Deletes material mappings, armor mappings, and tool exclusions, then runs full generation.
+     * Deletes tool material mappings and tool exclusions, then runs full generation.
      */
     public static int runReset(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         CommandSourceStack source = context.getSource();
         source.sendSuccess(() -> Component.literal("Resetting all configs to defaults..."), true);
 
-        // Delete material mapping configs (refreshFromRegistry in run() will regenerate from TC registry)
+        // Delete tool material mapping config (refreshFromRegistry in run() will regenerate from TC registry)
         deleteIfExists(MaterialMappingConfig.getConfigFile());
-        deleteIfExists(MaterialMappingConfig.getArmorConfigFile());
 
         // Reset tool exclusions to defaults (recreates file with default entries)
         ToolExclusionConfig.resetToDefaults();
@@ -270,13 +268,13 @@ public class GenerateRecipesCommand {
 
                 VanillaItemMappings.ToolInfo toolInfo = VanillaItemMappings.getToolInfoById(key);
                 if (toolInfo != null) {
-                    replacements.add(new ReplacementInfo(i, toolInfo.tier(), toolInfo.toolType(), MatchMode.TOOL_ACTION));
+                    replacements.add(ReplacementInfo.tool(i, toolInfo.tier(), toolInfo.toolType()));
                     break;
                 }
 
                 VanillaItemMappings.ArmorInfo armorInfo = VanillaItemMappings.getArmorInfoById(key);
                 if (armorInfo != null) {
-                    replacements.add(new ReplacementInfo(i, armorInfo.tier(), armorInfo.slot(), MatchMode.ARMOR_SLOT));
+                    replacements.add(ReplacementInfo.armor(i, armorInfo.slot(), armorInfo.set(), armorInfo.minTier(), armorInfo.maxTier()));
                     break;
                 }
             }
@@ -296,12 +294,18 @@ public class GenerateRecipesCommand {
         return null;
     }
 
-    private static JsonObject createTinkerIngredientJson(String tier, String toolType, MatchMode mode) {
+    private static JsonObject createTinkerIngredientJson(ReplacementInfo info) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "nomorevanillatools:tinker_material");
-        json.addProperty("tier", tier);
-        json.addProperty("tool_type", toolType);
-        json.addProperty("mode", mode.name().toLowerCase());
+        json.addProperty("tool_type", info.toolType);
+        json.addProperty("mode", info.mode.name().toLowerCase());
+        if (info.mode == MatchMode.TOOL_ACTION) {
+            json.addProperty("tier", info.tier);
+        } else {
+            json.addProperty("armor_set", info.armorSet);
+            json.addProperty("min_tier", info.minTier);
+            json.addProperty("max_tier", info.maxTier);
+        }
         return json;
     }
 
@@ -354,7 +358,7 @@ public class GenerateRecipesCommand {
 
             ReplacementInfo replacement = findReplacementForIndex(replacements, index);
             if (replacement != null) {
-                key.add(keyChar, createTinkerIngredientJson(replacement.tier, replacement.toolType, replacement.mode));
+                key.add(keyChar, createTinkerIngredientJson(replacement));
             } else {
                 key.add(keyChar, ingredients.get(index).toJson());
             }
@@ -378,7 +382,7 @@ public class GenerateRecipesCommand {
         for (int i = 0; i < ingredients.size(); i++) {
             ReplacementInfo replacement = findReplacementForIndex(replacements, i);
             if (replacement != null) {
-                ingredientsArray.add(createTinkerIngredientJson(replacement.tier, replacement.toolType, replacement.mode));
+                ingredientsArray.add(createTinkerIngredientJson(replacement));
             } else {
                 ingredientsArray.add(ingredients.get(i).toJson());
             }
@@ -415,23 +419,6 @@ public class GenerateRecipesCommand {
             source.sendSuccess(() -> Component.literal(
                 "  Warning: " + result.skippedTiers.size() + " tool materials have unsupported modded tiers (skipped)"), false);
             for (String skipped : result.skippedTiers) {
-                source.sendSuccess(() -> Component.literal("    - " + skipped), false);
-            }
-        }
-
-        // Armor materials
-        if (result.armorMaterialsAdded > 0) {
-            source.sendSuccess(() -> Component.literal(
-                "  Armor materials: " + result.armorMaterialsAdded + " new plating materials detected and added"), false);
-        }
-        if (result.armorMaterialsSkippedOverrides > 0) {
-            source.sendSuccess(() -> Component.literal(
-                "  Armor materials: " + result.armorMaterialsSkippedOverrides + " kept in user-assigned tiers"), false);
-        }
-        if (!result.armorSkippedTiers.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(
-                "  Warning: " + result.armorSkippedTiers.size() + " armor materials have unsupported tiers (skipped)"), false);
-            for (String skipped : result.armorSkippedTiers) {
                 source.sendSuccess(() -> Component.literal("    - " + skipped), false);
             }
         }

@@ -33,7 +33,6 @@ public class ExampleMod {
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         MaterialMappingConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
-        MaterialMappingConfig.initializeArmor(FMLPaths.CONFIGDIR.get().toFile());
         ToolExclusionConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
         ModNetwork.register();
         CraftingContainerRegistry.registerBuiltIns();

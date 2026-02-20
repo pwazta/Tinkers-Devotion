@@ -19,6 +19,9 @@ import net.minecraftforge.common.crafting.AbstractIngredient;
 import net.minecraftforge.common.crafting.IIngredientSerializer;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
+import slimeknights.tconstruct.library.materials.MaterialRegistry;
+import slimeknights.tconstruct.library.materials.definition.IMaterial;
+import slimeknights.tconstruct.library.materials.definition.MaterialId;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariant;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
@@ -38,12 +41,14 @@ import java.util.stream.Stream;
 /**
  * Custom ingredient that matches Tinker's Construct tools or armor by material tier and type.
  *
- * Two modes:
- * - TOOL_ACTION: matches assembled TC tools by head material tier and ToolAction capability
- * - ARMOR_SLOT: matches TC armor by plating material tier and ArmorItem.Type slot
+ * <p>Two modes:
+ * <ul>
+ *   <li><b>TOOL_ACTION</b>: matches assembled TC tools by head material's config tier and ToolAction capability.
+ *   <li><b>ARMOR_SLOT</b>: matches TC armor by plating material's {@code IMaterial.getTier()} (int 0-4)
+ *       within a [minTier, maxTier] range, filtered to a specific armor set (travelers/plate).
+ * </ul>
  *
- * In both modes, head/plating material (index 0 in tic_materials) must match the required tier.
- * For tools, a configurable percentage of other parts can optionally be required to match.
+ * <p>For tools, a configurable percentage of other parts can optionally be required to match.
  */
 public class TinkerMaterialIngredient extends AbstractIngredient {
     /** Matching mode: tool action (pickaxe, sword, etc.) or armor slot (helmet, chestplate, etc.) */
@@ -61,15 +66,30 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     // ── Instance fields ──────────────────────────────────────────────────
 
-    private final String requiredTier; // e.g., "wooden", "iron", "leather", "diamond"
+    private final String requiredTier; // e.g., "wooden", "iron" — used by TOOL_ACTION mode
     private final String toolType;     // e.g., "sword", "pickaxe", "helmet", "chestplate"
     private final MatchMode matchMode;
 
-    protected TinkerMaterialIngredient(String requiredTier, String toolType, MatchMode matchMode) {
+    // Armor-specific fields (ARMOR_SLOT mode only)
+    private final @Nullable String armorSet; // e.g., "travelers", "plate"
+    private final int minTier;               // IMaterial.getTier() lower bound (inclusive)
+    private final int maxTier;               // IMaterial.getTier() upper bound (inclusive)
+
+    /** Full constructor. */
+    protected TinkerMaterialIngredient(String requiredTier, String toolType, MatchMode matchMode,
+                                       @Nullable String armorSet, int minTier, int maxTier) {
         super(Stream.empty());
         this.requiredTier = requiredTier;
         this.toolType = toolType;
         this.matchMode = matchMode;
+        this.armorSet = armorSet;
+        this.minTier = minTier;
+        this.maxTier = maxTier;
+    }
+
+    /** Tool-mode convenience constructor. */
+    protected TinkerMaterialIngredient(String requiredTier, String toolType, MatchMode matchMode) {
+        this(requiredTier, toolType, matchMode, null, 0, 0);
     }
 
     // ── test() — main matching logic ─────────────────────────────────────
@@ -115,14 +135,16 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
         if (materialsList.isEmpty()) return false;
 
-        Set<String> allowedMaterials = MaterialMappingConfig.getArmorMaterialsForTier(requiredTier);
-        if (allowedMaterials == null || allowedMaterials.isEmpty()) return false;
+        // Resolve plating material (index 0) via TC registry and check IMaterial.getTier()
+        String platingId = materialsList.getString(0);
+        MaterialId materialId = MaterialId.tryParse(platingId);
+        if (materialId == null) return false;
 
-        // Plating material (index 0) MUST match
-        if (!allowedMaterials.contains(materialsList.getString(0))) return false;
+        IMaterial material = MaterialRegistry.getInstance().getMaterial(materialId);
+        if (material == IMaterial.UNKNOWN) return false;
 
-        // Note: requireOtherPartsMatch is skipped for armor — inner parts (maille, cuirass)
-        // use different stat types than plating and are not in the armor tier map.
+        int tier = material.getTier();
+        if (tier < minTier || tier > maxTier) return false;
 
         return matchesArmorSlot(stack);
     }
@@ -154,7 +176,12 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         if (required == null || armorItem.getType() != required) return false;
 
         ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        return armorId == null || !ToolExclusionConfig.isExcluded(toolType, armorId.toString());
+        if (armorId == null) return false;
+
+        // Filter by armor set prefix (e.g., "tconstruct:travelers_" or "tconstruct:plate_")
+        if (armorSet != null && !armorId.toString().startsWith("tconstruct:" + armorSet + "_")) return false;
+
+        return !ToolExclusionConfig.isExcluded(toolType, armorId.toString());
     }
 
     // ── Display items (JEI) ──────────────────────────────────────────────
@@ -177,10 +204,22 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
     private ItemStack[] getArmorItems() {
         ArmorItem.Type armorType = VanillaItemMappings.getArmorType(toolType);
-        if (armorType == null) return new ItemStack[0];
-        String cacheKey = "armor:" + toolType + ":" + requiredTier;
-        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> buildDisplayItems(
-            MaterialMappingConfig.getCanonicalArmorMaterial(requiredTier), requiredTier, TcItemRegistry.getEligibleArmor(armorType, toolType)));
+        if (armorType == null || armorSet == null) return new ItemStack[0];
+        String tierKey = armorSet + ":" + minTier + "-" + maxTier;
+        String cacheKey = "armor:" + toolType + ":" + tierKey;
+        String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(armorSet, minTier, maxTier);
+        // Derive human-readable label from canonical material (e.g., "tconstruct:cobalt" → "cobalt")
+        String displayLabel = canonicalId != null
+            ? canonicalId.substring(canonicalId.indexOf(':') + 1)
+            : armorSet;
+        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> {
+            ItemStack[] items = buildDisplayItems(canonicalId, displayLabel,
+                TcItemRegistry.getEligibleArmor(armorType, armorSet, toolType));
+            for (ItemStack item : items) {
+                item.getOrCreateTag().putString("nmvt_match_mode", "armor_slot");
+            }
+            return items;
+        });
     }
 
     // ── Shared display building ──────────────────────────────────────────
@@ -189,7 +228,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
      * Builds display ItemStacks for JEI from a list of valid items and a canonical material.
      * Canonical material is resolved by MaterialMappingConfig (shared with loot generation).
      */
-    private static ItemStack[] buildDisplayItems(@Nullable String canonicalId, String requiredTier, List<? extends IModifiable> items) {
+    private static ItemStack[] buildDisplayItems(@Nullable String canonicalId, String tierLabel, List<? extends IModifiable> items) {
         if (canonicalId == null) return new ItemStack[0];
 
         MaterialVariantId variantId = MaterialVariantId.tryParse(canonicalId);
@@ -200,7 +239,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         for (IModifiable item : items) {
             ItemStack displayStack = ToolBuildHandler.createSingleMaterial(item, displayVariant);
             if (!displayStack.isEmpty()) {
-                displayStack.getOrCreateTag().putString("nmvt_required_tier", requiredTier);
+                displayStack.getOrCreateTag().putString("nmvt_required_tier", tierLabel);
                 displayItems.add(displayStack);
             }
         }
@@ -221,9 +260,15 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     public JsonElement toJson() {
         JsonObject json = new JsonObject();
         json.addProperty("type", "nomorevanillatools:tinker_material");
-        json.addProperty("tier", requiredTier);
         json.addProperty("tool_type", toolType);
         json.addProperty("mode", matchMode.name().toLowerCase());
+        if (matchMode == MatchMode.TOOL_ACTION) {
+            json.addProperty("tier", requiredTier);
+        } else {
+            json.addProperty("armor_set", armorSet);
+            json.addProperty("min_tier", minTier);
+            json.addProperty("max_tier", maxTier);
+        }
         return json;
     }
 
@@ -232,6 +277,9 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     public String getRequiredTier() { return requiredTier; }
     public String getToolType() { return toolType; }
     public MatchMode getMatchMode() { return matchMode; }
+    public @Nullable String getArmorSet() { return armorSet; }
+    public int getMinTier() { return minTier; }
+    public int getMaxTier() { return maxTier; }
 
     // ── Serializer ───────────────────────────────────────────────────────
 
@@ -241,25 +289,45 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
         @Override
         public TinkerMaterialIngredient parse(JsonObject json) {
-            String tier = json.get("tier").getAsString();
             String toolType = json.get("tool_type").getAsString();
             MatchMode mode = MatchMode.valueOf(json.get("mode").getAsString().toUpperCase());
-            return new TinkerMaterialIngredient(tier, toolType, mode);
+            if (mode == MatchMode.TOOL_ACTION) {
+                String tier = json.get("tier").getAsString();
+                return new TinkerMaterialIngredient(tier, toolType, mode);
+            } else {
+                String armorSet = json.get("armor_set").getAsString();
+                int minTier = json.get("min_tier").getAsInt();
+                int maxTier = json.get("max_tier").getAsInt();
+                return new TinkerMaterialIngredient(null, toolType, mode, armorSet, minTier, maxTier);
+            }
         }
 
         @Override
         public TinkerMaterialIngredient parse(FriendlyByteBuf buffer) {
-            String tier = buffer.readUtf();
             String toolType = buffer.readUtf();
             MatchMode mode = buffer.readEnum(MatchMode.class);
-            return new TinkerMaterialIngredient(tier, toolType, mode);
+            if (mode == MatchMode.TOOL_ACTION) {
+                String tier = buffer.readUtf();
+                return new TinkerMaterialIngredient(tier, toolType, mode);
+            } else {
+                String armorSet = buffer.readUtf();
+                int minTier = buffer.readVarInt();
+                int maxTier = buffer.readVarInt();
+                return new TinkerMaterialIngredient(null, toolType, mode, armorSet, minTier, maxTier);
+            }
         }
 
         @Override
         public void write(FriendlyByteBuf buffer, TinkerMaterialIngredient ingredient) {
-            buffer.writeUtf(ingredient.requiredTier);
             buffer.writeUtf(ingredient.toolType);
             buffer.writeEnum(ingredient.matchMode);
+            if (ingredient.matchMode == MatchMode.TOOL_ACTION) {
+                buffer.writeUtf(ingredient.requiredTier != null ? ingredient.requiredTier : "");
+            } else {
+                buffer.writeUtf(ingredient.armorSet != null ? ingredient.armorSet : "");
+                buffer.writeVarInt(ingredient.minTier);
+                buffer.writeVarInt(ingredient.maxTier);
+            }
         }
     }
 }

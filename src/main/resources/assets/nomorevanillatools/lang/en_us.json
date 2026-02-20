@@ -2,5 +2,6 @@
     "tooltip.nomorevanillatools.required_tier": "Requires %s-tier head",
     "tooltip.nomorevanillatools.any_other_parts": "Other parts can be any material",
     "tooltip.nomorevanillatools.pct_other_parts": "%s%% of total parts must be %s-tier",
-    "tooltip.nomorevanillatools.all_parts": "All parts must be %s-tier"
+    "tooltip.nomorevanillatools.all_parts": "All parts must be %s-tier",
+    "tooltip.nomorevanillatools.required_plating_tier": "Requires %s-tier plating"
 }

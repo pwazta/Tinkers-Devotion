@@ -4,9 +4,7 @@
     "refmap": "nomorevanillatools.refmap.json",
     "compatibilityLevel": "JAVA_17",
     "minVersion": "0.8",
-    "mixins": [
-        "AbstractPiglinMixin"
-    ],
+    "mixins": [],
     "client": [
         "AbstractZombieModelMixin",
         "HumanoidModelMixin",
