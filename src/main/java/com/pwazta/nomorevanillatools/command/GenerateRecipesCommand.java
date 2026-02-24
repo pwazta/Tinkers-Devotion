@@ -51,6 +51,7 @@ public class GenerateRecipesCommand {
         int recipesGenerated = 0;
         int vanillaToolRecipesRemoved = 0;
         int vanillaArmorRecipesRemoved = 0;
+        int vanillaRangedRecipesRemoved = 0;
         int staleRecipesCleaned = 0;
         int materialsAdded = 0;
         int materialsSkippedOverrides = 0;
@@ -60,14 +61,19 @@ public class GenerateRecipesCommand {
 
     /** Info about a vanilla ingredient to replace with a TC ingredient. */
     private record ReplacementInfo(int index, String tier, String toolType, MatchMode mode,
-                                   @Nullable String armorSet, int minTier, int maxTier) {
+                                   @Nullable String armorSet, int minTier, int maxTier,
+                                   @Nullable String rangedType, @Nullable List<String> partTiers) {
         /** Tool-mode factory. */
         static ReplacementInfo tool(int index, String tier, String toolType) {
-            return new ReplacementInfo(index, tier, toolType, MatchMode.TOOL_ACTION, null, 0, 0);
+            return new ReplacementInfo(index, tier, toolType, MatchMode.TOOL_ACTION, null, 0, 0, null, null);
         }
         /** Armor-mode factory. */
         static ReplacementInfo armor(int index, String slot, String set, int minTier, int maxTier) {
-            return new ReplacementInfo(index, null, slot, MatchMode.ARMOR_SLOT, set, minTier, maxTier);
+            return new ReplacementInfo(index, null, slot, MatchMode.ARMOR_SLOT, set, minTier, maxTier, null, null);
+        }
+        /** Ranged-mode factory. */
+        static ReplacementInfo ranged(int index, String rangedType, List<String> partTiers) {
+            return new ReplacementInfo(index, null, null, MatchMode.RANGED, null, 0, 0, rangedType, partTiers);
         }
     }
 
@@ -179,7 +185,7 @@ public class GenerateRecipesCommand {
     public static int generate(MinecraftServer server) throws Exception {
         GenerationResult result = new GenerationResult();
         doGenerate(server, result);
-        return result.recipesGenerated + result.vanillaToolRecipesRemoved + result.vanillaArmorRecipesRemoved;
+        return result.recipesGenerated + result.vanillaToolRecipesRemoved + result.vanillaArmorRecipesRemoved + result.vanillaRangedRecipesRemoved;
     }
 
     // ── Core generation logic ─────────────────────────────────────────────────
@@ -207,6 +213,12 @@ public class GenerateRecipesCommand {
         if (Config.removeVanillaArmorCrafting) {
             removeVanillaArmorRecipes(dataPath);
             result.vanillaArmorRecipesRemoved = VanillaItemMappings.RECIPE_ARMOR_TIERS.length * VanillaItemMappings.ARMOR_SLOTS.length;
+        }
+
+        // Remove vanilla ranged weapon crafting recipes if configured
+        if (Config.removeVanillaRangedCrafting) {
+            removeVanillaRangedRecipes(dataPath);
+            result.vanillaRangedRecipesRemoved = VanillaItemMappings.RANGED_TYPES.length;
         }
 
         // Scan all recipes and generate replacements
@@ -256,6 +268,12 @@ public class GenerateRecipesCommand {
         }
     }
 
+    private static void removeVanillaRangedRecipes(Path dataPath) throws Exception {
+        for (String type : VanillaItemMappings.RANGED_TYPES) {
+            DatapackHelper.removeRecipe(dataPath, "minecraft", type);
+        }
+    }
+
     private static List<ReplacementInfo> findVanillaItems(Recipe<?> recipe) {
         List<ReplacementInfo> replacements = new ArrayList<>();
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
@@ -275,6 +293,12 @@ public class GenerateRecipesCommand {
                 VanillaItemMappings.ArmorInfo armorInfo = VanillaItemMappings.getArmorInfoById(key);
                 if (armorInfo != null) {
                     replacements.add(ReplacementInfo.armor(i, armorInfo.slot(), armorInfo.set(), armorInfo.minTier(), armorInfo.maxTier()));
+                    break;
+                }
+
+                VanillaItemMappings.RangedInfo rangedInfo = VanillaItemMappings.getRangedInfoById(key);
+                if (rangedInfo != null) {
+                    replacements.add(ReplacementInfo.ranged(i, rangedInfo.rangedType(), rangedInfo.partTiers()));
                     break;
                 }
             }
@@ -297,14 +321,20 @@ public class GenerateRecipesCommand {
     private static JsonObject createTinkerIngredientJson(ReplacementInfo info) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "nomorevanillatools:tinker_material");
-        json.addProperty("tool_type", info.toolType);
         json.addProperty("mode", info.mode.name().toLowerCase());
         if (info.mode == MatchMode.TOOL_ACTION) {
+            json.addProperty("tool_type", info.toolType);
             json.addProperty("tier", info.tier);
-        } else {
+        } else if (info.mode == MatchMode.ARMOR_SLOT) {
+            json.addProperty("tool_type", info.toolType);
             json.addProperty("armor_set", info.armorSet);
             json.addProperty("min_tier", info.minTier);
             json.addProperty("max_tier", info.maxTier);
+        } else {
+            json.addProperty("ranged_type", info.rangedType);
+            JsonArray tiers = new JsonArray();
+            for (String t : info.partTiers) tiers.add(t);
+            json.add("part_tiers", tiers);
         }
         return json;
     }
@@ -434,6 +464,10 @@ public class GenerateRecipesCommand {
         if (result.vanillaArmorRecipesRemoved > 0) {
             source.sendSuccess(() -> Component.literal(
                 "  Recipes: " + result.vanillaArmorRecipesRemoved + " vanilla armor recipes disabled"), false);
+        }
+        if (result.vanillaRangedRecipesRemoved > 0) {
+            source.sendSuccess(() -> Component.literal(
+                "  Recipes: " + result.vanillaRangedRecipesRemoved + " vanilla ranged recipes disabled"), false);
         }
 
         if (result.staleRecipesCleaned > 0) {

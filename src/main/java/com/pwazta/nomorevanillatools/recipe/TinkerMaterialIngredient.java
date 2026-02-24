@@ -1,5 +1,6 @@
 package com.pwazta.nomorevanillatools.recipe;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pwazta.nomorevanillatools.Config;
@@ -29,6 +30,8 @@ import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
 import slimeknights.tconstruct.library.tools.helper.ToolBuildHandler;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
+import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
+import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 import java.util.ArrayList;
@@ -39,20 +42,21 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 /**
- * Custom ingredient that matches Tinker's Construct tools or armor by material tier and type.
+ * Custom ingredient that matches Tinker's Construct tools, armor, or ranged weapons by material tier and type.
  *
- * <p>Two modes:
+ * <p>Three modes:
  * <ul>
  *   <li><b>TOOL_ACTION</b>: matches assembled TC tools by head material's config tier and ToolAction capability.
  *   <li><b>ARMOR_SLOT</b>: matches TC armor by plating material's {@code IMaterial.getTier()} (int 0-4)
  *       within a [minTier, maxTier] range, filtered to a specific armor set (travelers/plate).
+ *   <li><b>RANGED</b>: matches TC ranged weapons (bow/crossbow) by per-part {@code IMaterial.getTier()} floor.
  * </ul>
  *
  * <p>For tools, a configurable percentage of other parts can optionally be required to match.
  */
 public class TinkerMaterialIngredient extends AbstractIngredient {
-    /** Matching mode: tool action (pickaxe, sword, etc.) or armor slot (helmet, chestplate, etc.) */
-    public enum MatchMode { TOOL_ACTION, ARMOR_SLOT }
+    /** Matching mode: tool action, armor slot, or ranged weapon type. */
+    public enum MatchMode { TOOL_ACTION, ARMOR_SLOT, RANGED }
 
     // ── Caches ──────────────────────────────────────────────────────────
 
@@ -75,9 +79,17 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     private final int minTier;               // IMaterial.getTier() lower bound (inclusive)
     private final int maxTier;               // IMaterial.getTier() upper bound (inclusive)
 
+    // Ranged-specific field (RANGED mode only)
+    private final @Nullable List<String> partTiers; // per-part tier floors
+
+    private static final Map<String, Integer> TIER_NAME_TO_INT = Map.of(
+        "wooden", 0, "stone", 1, "iron", 2, "golden", 1, "diamond", 3, "netherite", 4
+    );
+
     /** Full constructor. */
     protected TinkerMaterialIngredient(String requiredTier, String toolType, MatchMode matchMode,
-                                       @Nullable String armorSet, int minTier, int maxTier) {
+                                       @Nullable String armorSet, int minTier, int maxTier,
+                                       @Nullable List<String> partTiers) {
         super(Stream.empty());
         this.requiredTier = requiredTier;
         this.toolType = toolType;
@@ -85,11 +97,17 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         this.armorSet = armorSet;
         this.minTier = minTier;
         this.maxTier = maxTier;
+        this.partTiers = partTiers;
     }
 
     /** Tool-mode convenience constructor. */
     protected TinkerMaterialIngredient(String requiredTier, String toolType, MatchMode matchMode) {
-        this(requiredTier, toolType, matchMode, null, 0, 0);
+        this(requiredTier, toolType, matchMode, null, 0, 0, null);
+    }
+
+    /** Ranged-mode convenience constructor. toolType stores rangedType internally. */
+    protected TinkerMaterialIngredient(String rangedType, MatchMode matchMode, List<String> partTiers) {
+        this(null, rangedType, matchMode, null, 0, 0, partTiers);
     }
 
     // ── test() — main matching logic ─────────────────────────────────────
@@ -100,6 +118,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         return switch (matchMode) {
             case TOOL_ACTION -> testTool(stack);
             case ARMOR_SLOT  -> testArmor(stack);
+            case RANGED      -> testRanged(stack);
         };
     }
 
@@ -184,6 +203,50 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         return !ToolExclusionConfig.isExcluded(toolType, armorId.toString());
     }
 
+    // ── Ranged matching ─────────────────────────────────────────────────
+
+    private boolean testRanged(ItemStack stack) {
+        if (partTiers == null || partTiers.isEmpty()) return false;
+
+        if (!matchesRangedType(stack)) return false;
+
+        CompoundTag nbt = stack.getTag();
+        if (nbt == null || !nbt.contains("tic_materials", Tag.TAG_LIST)) return false;
+
+        ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
+        if (materialsList.isEmpty()) return false;
+
+        // Per-part tier floor: each part's IMaterial.getTier() >= required floor
+        for (int i = 0; i < partTiers.size() && i < materialsList.size(); i++) {
+            Integer requiredFloor = TIER_NAME_TO_INT.get(partTiers.get(i).toLowerCase());
+            if (requiredFloor == null) return false;
+
+            MaterialId materialId = MaterialId.tryParse(materialsList.getString(i));
+            if (materialId == null) return false;
+
+            IMaterial material = MaterialRegistry.getInstance().getMaterial(materialId);
+            if (material == IMaterial.UNKNOWN) return false;
+
+            if (material.getTier() < requiredFloor) return false;
+        }
+
+        return true;
+    }
+
+    private boolean matchesRangedType(ItemStack stack) {
+        if (toolType == null || toolType.isEmpty()) return false;
+
+        boolean matchesType = switch (toolType.toLowerCase()) {
+            case "bow"      -> stack.getItem() instanceof ModifiableBowItem;
+            case "crossbow" -> stack.getItem() instanceof ModifiableCrossbowItem;
+            default -> false;
+        };
+        if (!matchesType) return false;
+
+        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        return itemId == null || !ToolExclusionConfig.isExcluded(toolType, itemId.toString());
+    }
+
     // ── Display items (JEI) ──────────────────────────────────────────────
 
     @Override
@@ -191,6 +254,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         return switch (matchMode) {
             case TOOL_ACTION -> getToolItems();
             case ARMOR_SLOT  -> getArmorItems();
+            case RANGED      -> getRangedItems();
         };
     }
 
@@ -217,6 +281,21 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
                 TcItemRegistry.getEligibleArmor(armorType, armorSet, toolType));
             for (ItemStack item : items) {
                 item.getOrCreateTag().putString("nmvt_match_mode", "armor_slot");
+            }
+            return items;
+        });
+    }
+
+    private ItemStack[] getRangedItems() {
+        if (toolType == null || partTiers == null || partTiers.isEmpty()) return new ItemStack[0];
+        String cacheKey = "ranged:" + toolType;
+        String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(partTiers.get(0));
+        String displayLabel = partTiers.get(0);
+        return DISPLAY_CACHE.computeIfAbsent(cacheKey, k -> {
+            ItemStack[] items = buildDisplayItems(canonicalId, displayLabel,
+                TcItemRegistry.getEligibleRanged(toolType));
+            for (ItemStack item : items) {
+                item.getOrCreateTag().putString("nmvt_match_mode", "ranged");
             }
             return items;
         });
@@ -260,14 +339,20 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     public JsonElement toJson() {
         JsonObject json = new JsonObject();
         json.addProperty("type", "nomorevanillatools:tinker_material");
-        json.addProperty("tool_type", toolType);
         json.addProperty("mode", matchMode.name().toLowerCase());
         if (matchMode == MatchMode.TOOL_ACTION) {
+            json.addProperty("tool_type", toolType);
             json.addProperty("tier", requiredTier);
-        } else {
+        } else if (matchMode == MatchMode.ARMOR_SLOT) {
+            json.addProperty("tool_type", toolType);
             json.addProperty("armor_set", armorSet);
             json.addProperty("min_tier", minTier);
             json.addProperty("max_tier", maxTier);
+        } else {
+            json.addProperty("ranged_type", toolType);
+            JsonArray tiers = new JsonArray();
+            if (partTiers != null) for (String t : partTiers) tiers.add(t);
+            json.add("part_tiers", tiers);
         }
         return json;
     }
@@ -280,6 +365,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
     public @Nullable String getArmorSet() { return armorSet; }
     public int getMinTier() { return minTier; }
     public int getMaxTier() { return maxTier; }
+    public @Nullable List<String> getPartTiers() { return partTiers; }
 
     // ── Serializer ───────────────────────────────────────────────────────
 
@@ -289,44 +375,64 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
 
         @Override
         public TinkerMaterialIngredient parse(JsonObject json) {
-            String toolType = json.get("tool_type").getAsString();
             MatchMode mode = MatchMode.valueOf(json.get("mode").getAsString().toUpperCase());
             if (mode == MatchMode.TOOL_ACTION) {
+                String toolType = json.get("tool_type").getAsString();
                 String tier = json.get("tier").getAsString();
                 return new TinkerMaterialIngredient(tier, toolType, mode);
-            } else {
+            } else if (mode == MatchMode.ARMOR_SLOT) {
+                String toolType = json.get("tool_type").getAsString();
                 String armorSet = json.get("armor_set").getAsString();
                 int minTier = json.get("min_tier").getAsInt();
                 int maxTier = json.get("max_tier").getAsInt();
-                return new TinkerMaterialIngredient(null, toolType, mode, armorSet, minTier, maxTier);
+                return new TinkerMaterialIngredient(null, toolType, mode, armorSet, minTier, maxTier, null);
+            } else {
+                String rangedType = json.get("ranged_type").getAsString();
+                List<String> partTiers = new ArrayList<>();
+                json.getAsJsonArray("part_tiers").forEach(e -> partTiers.add(e.getAsString()));
+                return new TinkerMaterialIngredient(rangedType, mode, partTiers);
             }
         }
 
         @Override
         public TinkerMaterialIngredient parse(FriendlyByteBuf buffer) {
-            String toolType = buffer.readUtf();
             MatchMode mode = buffer.readEnum(MatchMode.class);
             if (mode == MatchMode.TOOL_ACTION) {
+                String toolType = buffer.readUtf();
                 String tier = buffer.readUtf();
                 return new TinkerMaterialIngredient(tier, toolType, mode);
-            } else {
+            } else if (mode == MatchMode.ARMOR_SLOT) {
+                String toolType = buffer.readUtf();
                 String armorSet = buffer.readUtf();
                 int minTier = buffer.readVarInt();
                 int maxTier = buffer.readVarInt();
-                return new TinkerMaterialIngredient(null, toolType, mode, armorSet, minTier, maxTier);
+                return new TinkerMaterialIngredient(null, toolType, mode, armorSet, minTier, maxTier, null);
+            } else {
+                String rangedType = buffer.readUtf();
+                int count = buffer.readVarInt();
+                List<String> partTiers = new ArrayList<>(count);
+                for (int i = 0; i < count; i++) partTiers.add(buffer.readUtf());
+                return new TinkerMaterialIngredient(rangedType, mode, partTiers);
             }
         }
 
         @Override
         public void write(FriendlyByteBuf buffer, TinkerMaterialIngredient ingredient) {
-            buffer.writeUtf(ingredient.toolType);
             buffer.writeEnum(ingredient.matchMode);
             if (ingredient.matchMode == MatchMode.TOOL_ACTION) {
+                buffer.writeUtf(ingredient.toolType);
                 buffer.writeUtf(ingredient.requiredTier != null ? ingredient.requiredTier : "");
-            } else {
+            } else if (ingredient.matchMode == MatchMode.ARMOR_SLOT) {
+                buffer.writeUtf(ingredient.toolType);
                 buffer.writeUtf(ingredient.armorSet != null ? ingredient.armorSet : "");
                 buffer.writeVarInt(ingredient.minTier);
                 buffer.writeVarInt(ingredient.maxTier);
+            } else {
+                buffer.writeUtf(ingredient.toolType); // stores rangedType
+                buffer.writeVarInt(ingredient.partTiers != null ? ingredient.partTiers.size() : 0);
+                if (ingredient.partTiers != null) {
+                    for (String tier : ingredient.partTiers) buffer.writeUtf(tier);
+                }
             }
         }
     }

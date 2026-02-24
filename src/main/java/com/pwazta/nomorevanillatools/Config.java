@@ -25,6 +25,11 @@ public class Config {
                      "Recommended when extending TC immersion to armor.")
             .define("removeVanillaArmorCrafting", true);
 
+    private static final ForgeConfigSpec.BooleanValue REMOVE_VANILLA_RANGED_CRAFTING = BUILDER
+            .comment("Remove vanilla ranged weapon crafting recipes (bow, crossbow).",
+                     "Recommended when using this mod.")
+            .define("removeVanillaRangedCrafting", true);
+
     private static final ForgeConfigSpec.BooleanValue REQUIRE_OTHER_PARTS_MATCH = BUILDER
             .comment("Require other parts (handle, binding) to also match the tier.",
                      "HEAD MATERIAL ALWAYS MUST MATCH - this controls additional checking.",
@@ -65,6 +70,7 @@ public class Config {
     // Config values
     public static boolean removeVanillaToolCrafting;
     public static boolean removeVanillaArmorCrafting;
+    public static boolean removeVanillaRangedCrafting;
     public static boolean requireOtherPartsMatch;
     public static double otherPartsThreshold;
     public static boolean replaceLootTableItems;
@@ -76,6 +82,7 @@ public class Config {
     static void onLoad(final ModConfigEvent event) {
         removeVanillaToolCrafting = REMOVE_VANILLA_TOOL_CRAFTING.get();
         removeVanillaArmorCrafting = REMOVE_VANILLA_ARMOR_CRAFTING.get();
+        removeVanillaRangedCrafting = REMOVE_VANILLA_RANGED_CRAFTING.get();
         requireOtherPartsMatch = REQUIRE_OTHER_PARTS_MATCH.get();
         otherPartsThreshold = OTHER_PARTS_THRESHOLD.get();
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();

@@ -29,11 +29,17 @@ public class ClientEventHandlers {
 
         String tier = tag.getString("nmvt_required_tier");
         boolean isArmor = "armor_slot".equals(tag.getString("nmvt_match_mode"));
+        boolean isRanged = "ranged".equals(tag.getString("nmvt_match_mode"));
 
         if (isArmor) {
             // Armor: plating requirement only (no "other parts" — armor skips that config)
             event.getToolTip().add(Component.translatable(
                     "tooltip.nomorevanillatools.required_plating_tier", tier)
+                    .withStyle(ChatFormatting.GOLD));
+        } else if (isRanged) {
+            // Ranged: tier floor requirement
+            event.getToolTip().add(Component.translatable(
+                    "tooltip.nomorevanillatools.required_ranged", tier)
                     .withStyle(ChatFormatting.GOLD));
         } else {
             // Tool: head requirement + other parts clarification

@@ -33,7 +33,6 @@ public class RangedGoalHelper {
      *
      * <p>Priority 3 for crossbow: matches Pillager's vanilla registration priority.
      */
-    @SuppressWarnings("unchecked")
     public static void ensureGoalsForRangedWeapons(Mob mob) {
         for (InteractionHand hand : InteractionHand.values()) {
             ItemStack held = mob.getItemInHand(hand);
