@@ -14,7 +14,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import com.pwazta.nomorevanillatools.util.TcRangedItems;
+import slimeknights.tconstruct.library.modifiers.ModifierEntry;
+import slimeknights.tconstruct.library.modifiers.ModifierHooks;
 import slimeknights.tconstruct.library.modifiers.hook.interaction.GeneralInteractionModifierHook;
+import slimeknights.tconstruct.library.tools.helper.ModifierUtil;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
@@ -132,9 +135,9 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
                 this.mob.stopUsingItem();
             } else if (canSee) {
                 int drawTicks = this.mob.getTicksUsingItem();
-                if (drawTicks >= 20) {
+                if (drawTicks >= getDrawDuration(this.mob.getUseItem())) {
                     this.mob.stopUsingItem();
-                    fireTcBowArrow(target);
+                    fireTcBowArrow(target, drawTicks);
                     this.attackTime = this.attackIntervalMin;
                 }
             }
@@ -149,9 +152,13 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
      * Creates and fires an arrow with TC stats applied. Falls back to vanilla if not a TC bow.
      *
      * <p>Arrow creation follows vanilla's {@code AbstractSkeleton.performRangedAttack()} pattern.
-     * TC stats (damage, velocity, modifier hooks) are applied via {@link TcProjectileHelper}.
+     * TC stats (damage, velocity, accuracy, charge, modifier hooks) are applied via TC utility
+     * methods and {@link TcProjectileHelper}, mirroring TC's {@code releaseUsing()} order.
+     *
+     * @param target    the entity to fire at
+     * @param drawTicks how many ticks the mob spent drawing the bow
      */
-    private void fireTcBowArrow(LivingEntity target) {
+    private void fireTcBowArrow(LivingEntity target, int drawTicks) {
         ItemStack bowStack = this.mob.getItemInHand(
             ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isBow));
 
@@ -162,27 +169,39 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
         }
 
         Level level = this.mob.level();
+        ToolStack tool = ToolStack.from(bowStack);
+
+        // Pre-fire modifier hook (matches TC's releaseUsing() order)
+        int useDuration = bowStack.getUseDuration();
+        int timeLeft = useDuration - drawTicks;
+        for (ModifierEntry entry : tool.getModifierList()) {
+            entry.getHook(ModifierHooks.TOOL_USING)
+                .beforeReleaseUsing(tool, entry, this.mob, useDuration, timeLeft, ModifierEntry.EMPTY);
+        }
+
+        // Charge: TC easing curve based on draw progress vs drawtime
+        float charge = GeneralInteractionModifierHook.getToolCharge(tool, drawTicks);
+
         ArrowItem arrowItem = (ArrowItem) Items.ARROW;
         AbstractArrow arrow = arrowItem.createArrow(level, new ItemStack(Items.ARROW), this.mob);
 
-        // Apply TC stats (shared helper — same formula as TC's internal code)
-        ToolStack tool = ToolStack.from(bowStack);
-        TcProjectileHelper.applyLauncherStats(tool, this.mob, arrow);
+        // Apply TC stats (damage, conditional crit, modifier transfer, launch hooks)
+        TcProjectileHelper.applyLauncherStats(tool, this.mob, arrow, charge);
 
-        // Velocity from TC stats
+        // Velocity: TC charge curve * velocity stat * standard arrow speed base (3.0F matches TC's releaseUsing)
         float velocity = TcProjectileHelper.getLauncherVelocity(tool, this.mob);
+
+        // Accuracy: TC's ACCURACY stat with conditional modifiers (replaces vanilla difficulty-based formula)
+        float inaccuracy = ModifierUtil.getInaccuracy(tool, this.mob);
 
         // Trajectory (same math as AbstractSkeleton.performRangedAttack)
         double dx = target.getX() - this.mob.getX();
         double dy = target.getY(0.3333333333333333D) - arrow.getY();
         double dz = target.getZ() - this.mob.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
-        int difficulty = this.mob.level().getDifficulty().getId();
-        float inaccuracy = (float)(14 - difficulty * 4);
 
-        arrow.shoot(dx, dy + dist * 0.2D, dz, velocity * 1.6F, inaccuracy);
+        arrow.shoot(dx, dy + dist * 0.2D, dz, charge * velocity * 3.0F, inaccuracy);
 
-        // Tool damage + fire
         TcProjectileHelper.damageLauncher(tool, this.mob);
         level.addFreshEntity(arrow);
         this.mob.playSound(SoundEvents.SKELETON_SHOOT, 1.0F,
@@ -196,5 +215,21 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
             ToolStack toolStack = ToolStack.from(weapon);
             GeneralInteractionModifierHook.startDrawtime(toolStack, this.mob, 1.0f);
         }
+    }
+
+    /**
+     * Returns draw duration in ticks from TC persistent data. For TC bows, reads
+     * {@code KEY_DRAWTIME} set by {@link #initDrawtimeIfTcBow()}. Falls back to 20 ticks
+     * (vanilla default) for vanilla bows or if drawtime wasn't initialized.
+     *
+     * <p>Mirrors {@code TcCrossbowAttackGoal.getChargeDuration()} pattern.
+     */
+    private int getDrawDuration(ItemStack stack) {
+        if (stack.getItem() instanceof ModifiableBowItem) {
+            ToolStack tool = ToolStack.from(stack);
+            int drawtime = tool.getPersistentData().getInt(GeneralInteractionModifierHook.KEY_DRAWTIME);
+            return drawtime > 0 ? drawtime : 20;
+        }
+        return 20;
     }
 }
