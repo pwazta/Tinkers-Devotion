@@ -30,18 +30,18 @@ public class Config {
                      "Recommended when using this mod.")
             .define("removeVanillaRangedCrafting", true);
 
-    private static final ForgeConfigSpec.BooleanValue REQUIRE_OTHER_PARTS_MATCH = BUILDER
-            .comment("Require other parts (handle, binding) to also match the tier.",
+    private static final ForgeConfigSpec.BooleanValue REQUIRE_ALL_PARTS_MATCH = BUILDER
+            .comment("Require all parts (including head) to meet a percentage-based match threshold.",
                      "HEAD MATERIAL ALWAYS MUST MATCH - this controls additional checking.",
                      "When false (default): Only the head material needs to match (recommended by TC creator).",
-                     "When true: Other parts must also match based on otherPartsThreshold.")
-            .define("requireOtherPartsMatch", false);
+                     "When true: A percentage of ALL parts must match based on allPartsThreshold.")
+            .define("requireAllPartsMatch", false);
 
-    private static final ForgeConfigSpec.DoubleValue OTHER_PARTS_THRESHOLD = BUILDER
-            .comment("Percentage of other parts (excluding head) that must match the tier (0.0 to 1.0).",
-                     "Only applies if requireOtherPartsMatch is true.",
-                     "Example: 0.5 means 50% of non-head parts must match, 1.0 means all must match.")
-            .defineInRange("otherPartsThreshold", 0.5, 0.0, 1.0);
+    private static final ForgeConfigSpec.DoubleValue ALL_PARTS_THRESHOLD = BUILDER
+            .comment("Percentage of ALL parts (including head) that must match the tier (0.0 to 1.0).",
+                     "Only applies if requireAllPartsMatch is true.",
+                     "Example: 0.5 means 50% of all parts must match, 1.0 means every part must match.")
+            .defineInRange("allPartsThreshold", 0.5, 0.0, 1.0);
 
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
             .comment("Enable debug logging for recipe modifications and ingredient matching.",
@@ -71,8 +71,8 @@ public class Config {
     public static boolean removeVanillaToolCrafting;
     public static boolean removeVanillaArmorCrafting;
     public static boolean removeVanillaRangedCrafting;
-    public static boolean requireOtherPartsMatch;
-    public static double otherPartsThreshold;
+    public static boolean requireAllPartsMatch;
+    public static double allPartsThreshold;
     public static boolean replaceLootTableItems;
     public static boolean replaceMobEquipment;
     public static boolean replaceMobRangedAI;
@@ -83,8 +83,8 @@ public class Config {
         removeVanillaToolCrafting = REMOVE_VANILLA_TOOL_CRAFTING.get();
         removeVanillaArmorCrafting = REMOVE_VANILLA_ARMOR_CRAFTING.get();
         removeVanillaRangedCrafting = REMOVE_VANILLA_RANGED_CRAFTING.get();
-        requireOtherPartsMatch = REQUIRE_OTHER_PARTS_MATCH.get();
-        otherPartsThreshold = OTHER_PARTS_THRESHOLD.get();
+        requireAllPartsMatch = REQUIRE_ALL_PARTS_MATCH.get();
+        allPartsThreshold = ALL_PARTS_THRESHOLD.get();
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
         replaceMobRangedAI = REPLACE_MOB_RANGED_AI.get();

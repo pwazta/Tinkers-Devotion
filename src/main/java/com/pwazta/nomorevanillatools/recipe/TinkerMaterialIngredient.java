@@ -52,7 +52,7 @@ import java.util.stream.Stream;
  *   <li><b>RANGED</b>: matches TC ranged weapons (bow/crossbow) by per-part {@code IMaterial.getTier()} floor.
  * </ul>
  *
- * <p>For tools, a configurable percentage of other parts can optionally be required to match.
+ * <p>For tools, a configurable percentage of all parts (including head) can optionally be required to match.
  */
 public class TinkerMaterialIngredient extends AbstractIngredient {
     /** Matching mode: tool action, armor slot, or ranged weapon type. */
@@ -135,13 +135,13 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         // HEAD material (index 0) MUST match
         if (!allowedMaterials.contains(materialsList.getString(0))) return false;
 
-        // Optional: check percentage of total parts
-        if (Config.requireOtherPartsMatch && materialsList.size() > 1) {
+        // Optional: check percentage of all parts (including head)
+        if (Config.requireAllPartsMatch && materialsList.size() > 1) {
             int matchingCount = 1; // head already verified
             for (int i = 1; i < materialsList.size(); i++) {
                 if (allowedMaterials.contains(materialsList.getString(i))) matchingCount++;
             }
-            if ((double) matchingCount / materialsList.size() < Config.otherPartsThreshold) return false;
+            if ((double) matchingCount / materialsList.size() < Config.allPartsThreshold) return false;
         }
 
         return matchesToolType(stack);
