@@ -40,8 +40,9 @@ public final class TcProjectileHelper {
      * @param tool    the TC launcher ToolStack (bow or crossbow)
      * @param shooter the mob firing the arrow
      * @param arrow   the arrow entity to modify (vanilla or TC — works on any AbstractArrow)
+     * @param charge  charge level from {@code GeneralInteractionModifierHook.getToolCharge()} (0.0–1.0)
      */
-    public static void applyLauncherStats(ToolStack tool, LivingEntity shooter, AbstractArrow arrow) {
+    public static void applyLauncherStats(ToolStack tool, LivingEntity shooter, AbstractArrow arrow, float charge) {
         // Damage: zero out vanilla base (2.0), replace with TC PROJECTILE_DAMAGE
         float baseDamage = (float)(arrow.getBaseDamage() - 2.0)
             + tool.getStats().get(ToolStats.PROJECTILE_DAMAGE);
@@ -49,8 +50,10 @@ public final class TcProjectileHelper {
             tool, shooter, ToolStats.PROJECTILE_DAMAGE, baseDamage);
         arrow.setBaseDamage(modifiedDamage);
 
-        // Critical arrow (TC pattern: always crit when fired from launcher)
-        arrow.setCritArrow(true);
+        // Critical arrow only at full charge (matches TC's releaseUsing())
+        if (charge >= 1.0F) {
+            arrow.setCritArrow(true);
+        }
 
         // Transfer modifier data for hit hooks (Fiery, Piercing, etc.)
         // TC registers `entity instanceof Projectile` predicate, so vanilla arrows have these capabilities
