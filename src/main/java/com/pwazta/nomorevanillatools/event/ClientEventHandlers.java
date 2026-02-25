@@ -20,7 +20,7 @@ public class ClientEventHandlers {
     /**
      * Adds tooltip lines to JEI display stacks tagged with nmvt_required_tier.
      * Line 1 (gold): the head tier requirement.
-     * Line 2 (gray): clarifies what other parts need to be — varies by config.
+     * Line 2 (gray): clarifies parts matching requirement — varies by config.
      */
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
@@ -32,7 +32,7 @@ public class ClientEventHandlers {
         boolean isRanged = "ranged".equals(tag.getString("nmvt_match_mode"));
 
         if (isArmor) {
-            // Armor: plating requirement only (no "other parts" — armor skips that config)
+            // Armor: plating requirement only (no all-parts check — armor skips that config)
             event.getToolTip().add(Component.translatable(
                     "tooltip.nomorevanillatools.required_plating_tier", tier)
                     .withStyle(ChatFormatting.GOLD));
@@ -42,13 +42,13 @@ public class ClientEventHandlers {
                     "tooltip.nomorevanillatools.required_ranged", tier)
                     .withStyle(ChatFormatting.GOLD));
         } else {
-            // Tool: head requirement + other parts clarification
+            // Tool: head requirement + all-parts match clarification
             event.getToolTip().add(Component.translatable(
                     "tooltip.nomorevanillatools.required_tier", tier)
                     .withStyle(ChatFormatting.GOLD));
 
-            if (Config.requireOtherPartsMatch) {
-                int pct = (int) (Config.otherPartsThreshold * 100);
+            if (Config.requireAllPartsMatch) {
+                int pct = (int) (Config.allPartsThreshold * 100);
                 if (pct >= 100) {
                     event.getToolTip().add(Component.translatable(
                             "tooltip.nomorevanillatools.all_parts", tier)
