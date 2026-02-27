@@ -65,6 +65,7 @@ public class TinkerToolBuilder {
         MATERIAL_CACHE.clear();
         MaterialMappingConfig.clearArmorCaches();
         TcItemRegistry.clearCaches();
+        EnchantmentConverter.clearCache();
     }
 
     // ── Main entry point ─────────────────────────────────────────────────
@@ -117,7 +118,7 @@ public class TinkerToolBuilder {
             List<MaterialVariantId> materials = selectToolMaterials(tier, statTypes, random);
             if (materials == null) return null;
 
-            return buildFromMaterials(selected, definition, materials, original);
+            return buildFromMaterials(selected, definition, materials, original, random);
         } catch (Exception e) {
             LOGGER.warn("Failed to build TC tool replacement: {}", e.getMessage());
             return null;
@@ -145,7 +146,7 @@ public class TinkerToolBuilder {
             List<MaterialVariantId> materials = selectArmorMaterials(set, minTier, maxTier, statTypes, random);
             if (materials == null) return null;
 
-            return buildFromMaterials(selected, definition, materials, original);
+            return buildFromMaterials(selected, definition, materials, original, random);
         } catch (Exception e) {
             LOGGER.warn("Failed to build TC armor replacement: {}", e.getMessage());
             return null;
@@ -165,22 +166,19 @@ public class TinkerToolBuilder {
         return statTypes;
     }
 
-    /** Builds a TC item from pre-selected materials. Transfers damage from the original. */
-    private static ItemStack buildFromMaterials(IModifiable modifiable, ToolDefinition definition, List<MaterialVariantId> materials, ItemStack original) {
+    /** Builds a TC item from pre-selected materials. Converts enchantments to modifiers and transfers damage. */
+    private static ItemStack buildFromMaterials(IModifiable modifiable, ToolDefinition definition,
+            List<MaterialVariantId> materials, ItemStack original, RandomSource random) {
         MaterialNBT.Builder materialsBuilder = MaterialNBT.builder();
         for (MaterialVariantId material : materials) materialsBuilder.add(material);
 
         ToolStack toolStack = ToolStack.createTool((Item) modifiable, definition, materialsBuilder.build());
         toolStack.rebuildStats();
 
+        EnchantmentConverter.applyModifiers(toolStack, original, random);
+
         ItemStack result = toolStack.createStack();
         transferDamage(original, result);
-
-        // TODO: Enchantment -> TC modifier conversion (P2)
-        // Currently enchantments on the original vanilla item are dropped.
-        // TC tools use modifiers, not enchantments. Future: map common enchantments
-        // to TC modifier equivalents and apply via ToolStack modifier API.
-
         return result;
     }
 
@@ -240,7 +238,7 @@ public class TinkerToolBuilder {
             List<MaterialVariantId> materials = selectRangedMaterials(partTiers, statTypes, random);
             if (materials == null) return null;
 
-            return buildFromMaterials(selected, definition, materials, original);
+            return buildFromMaterials(selected, definition, materials, original, random);
         } catch (Exception e) {
             LOGGER.warn("Failed to build TC ranged replacement: {}", e.getMessage());
             return null;
