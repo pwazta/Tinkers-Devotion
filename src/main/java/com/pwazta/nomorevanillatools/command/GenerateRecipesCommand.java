@@ -8,6 +8,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
@@ -106,8 +107,9 @@ public class GenerateRecipesCommand {
                 MaterialMappingConfig.reload();
             }
 
-            // Step 2: Reload tool/armor exclusions from disk
+            // Step 2: Reload tool/armor exclusions and modifier skip list from disk
             ToolExclusionConfig.reload();
+            ModifierSkipListConfig.reload();
 
             // Step 3: Collect existing generated files before regenerating
             Set<Path> existingFiles = DatapackHelper.listGeneratedRecipeFiles(server);
@@ -158,8 +160,9 @@ public class GenerateRecipesCommand {
         // Delete tool material mapping config (refreshFromRegistry in run() will regenerate from TC registry)
         deleteIfExists(MaterialMappingConfig.getConfigFile());
 
-        // Reset tool exclusions to defaults (recreates file with default entries)
+        // Reset tool exclusions and modifier skip list to defaults
         ToolExclusionConfig.resetToDefaults();
+        ModifierSkipListConfig.resetToDefaults();
 
         source.sendSuccess(() -> Component.literal("Configs reset. Regenerating..."), false);
         return run(context);
