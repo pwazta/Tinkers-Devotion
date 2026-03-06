@@ -2,6 +2,7 @@ package com.pwazta.nomorevanillatools.loot;
 
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
+import com.pwazta.nomorevanillatools.config.ModifierWeightsConfig;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -52,18 +53,10 @@ public class EnchantmentConverter {
     private static final int MAX_BUDGET = 7;
     /** Maximum bonus slot modifiers (writable, harmonious, recapitated, forecast). */
     private static final int MAX_BONUS = 4;
-    /** Maximum level for any single randomly-applied modifier. */
-    private static final int INDIVIDUAL_LEVEL_CAP = 3;
-    /** Probability of leveling up an existing upgrade modifier instead of adding new. */
+    /** Probability of leveling up an existing upgrade/defense modifier instead of adding new. */
     private static final float LEVEL_UP_CHANCE = 0.35f;
     /** Minimum budget required before an ability-slot modifier can be picked. */
     private static final int ABILITY_BUDGET_THRESHOLD = 4;
-
-    // ── Weight constants ────────────────────────────────────────────────
-
-    private static final double PRIMARY_WEIGHT = 0.60;
-    private static final double SECONDARY_WEIGHT = 0.30;
-    private static final double MISC_WEIGHT = 0.10;
 
     // ── Bonus slot modifiers (applied as slot expansion, excluded from random pool) ──
 
@@ -86,10 +79,6 @@ public class EnchantmentConverter {
         new ResourceLocation("tconstruct", "modifiable/armor"));
     private static final TagKey<Item> RANGED_TAG = TagKey.create(Registries.ITEM,
         new ResourceLocation("tconstruct", "modifiable/ranged"));
-
-    // ── Category weight maps (category → modifierId → tier) ─────────────
-
-    private static final Map<String, Map<ModifierId, String>> CATEGORY_WEIGHTS = buildCategoryWeights();
 
     // ── Pool cache (volatile + double-checked locking) ──────────────────
 
@@ -149,12 +138,19 @@ public class EnchantmentConverter {
         int defenseUsed = 0;
 
         for (int i = 0; i < budget; i++) {
-            // Layer 3: 35% chance to level up an existing upgrade modifier
-            if (!picked.isEmpty() && upgradesUsed < freeUpgrades && random.nextFloat() < LEVEL_UP_CHANCE) {
-                ModifierId leveled = tryLevelUp(picked, pool, random);
+            // Layer 3: 35% chance to level up an existing upgrade/defense modifier
+            boolean upgradeAvail = upgradesUsed < freeUpgrades;
+            boolean defenseAvail = defenseUsed < freeDefense;
+            if (!picked.isEmpty() && (upgradeAvail || defenseAvail) && random.nextFloat() < LEVEL_UP_CHANCE) {
+                ModifierId leveled = tryLevelUp(picked, pool, random, upgradeAvail, defenseAvail);
                 if (leveled != null) {
                     picked.merge(leveled, 1, Integer::sum);
-                    upgradesUsed++;
+                    ModifierPoolEntry leveledEntry = findEntry(pool, leveled);
+                    if (leveledEntry != null && leveledEntry.slotType() == SlotType.DEFENSE) {
+                        defenseUsed++;
+                    } else {
+                        upgradesUsed++;
+                    }
                     continue;
                 }
             }
@@ -318,56 +314,9 @@ public class EnchantmentConverter {
         return "melee";
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  Category weight maps
-    // ═══════════════════════════════════════════════════════════════════
-
-    private static Map<String, Map<ModifierId, String>> buildCategoryWeights() {
-        Map<String, Map<ModifierId, String>> weights = new HashMap<>();
-
-        Map<ModifierId, String> melee = new HashMap<>();
-        addWeights(melee, "primary", "sharpness", "smite", "bane_of_sssss", "fiery", "severing", "necrotic");
-        addWeights(melee, "secondary", "knockback", "luck", "sweeping_edge", "experienced");
-        addWeights(melee, "misc", "reinforced", "soulbound");
-        weights.put("melee", Map.copyOf(melee));
-
-        Map<ModifierId, String> mining = new HashMap<>();
-        addWeights(mining, "primary", "haste", "fortune", "experienced");
-        addWeights(mining, "secondary", "sharpness", "reinforced");
-        addWeights(mining, "misc", "knockback", "fiery");
-        weights.put("mining", Map.copyOf(mining));
-
-        Map<ModifierId, String> armor = new HashMap<>();
-        addWeights(armor, "primary", "protection", "fire_protection", "blast_protection",
-            "projectile_protection", "thorns");
-        addWeights(armor, "secondary", "reinforced", "respiration");
-        addWeights(armor, "misc", "aqua_affinity", "soulbound");
-        weights.put("armor", Map.copyOf(armor));
-
-        Map<ModifierId, String> ranged = new HashMap<>();
-        addWeights(ranged, "primary", "power", "punch", "quick_charge");
-        addWeights(ranged, "secondary", "fiery", "piercing");
-        addWeights(ranged, "misc", "reinforced", "experienced");
-        weights.put("ranged", Map.copyOf(ranged));
-
-        return Map.copyOf(weights);
-    }
-
-    private static void addWeights(Map<ModifierId, String> map, String tier, String... modifierNames) {
-        for (String name : modifierNames) {
-            map.put(new ModifierId("tconstruct", name), tier);
-        }
-    }
-
-    /** Returns the weight for a modifier in the given category. Unknown modifiers default to misc. */
+    /** Returns the weight for a modifier in the given category. Delegates to {@link ModifierWeightsConfig}. */
     private static double getCategoryWeight(ModifierId modId, String category) {
-        Map<ModifierId, String> categoryMap = CATEGORY_WEIGHTS.get(category);
-        String tier = categoryMap != null ? categoryMap.getOrDefault(modId, "misc") : "misc";
-        return switch (tier) {
-            case "primary" -> PRIMARY_WEIGHT;
-            case "secondary" -> SECONDARY_WEIGHT;
-            default -> MISC_WEIGHT;
-        };
+        return ModifierWeightsConfig.getWeight(modId, category);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -386,7 +335,7 @@ public class EnchantmentConverter {
         for (int i = 0; i < pool.size(); i++) {
             ModifierPoolEntry entry = pool.get(i);
             int currentLevel = alreadyPicked.getOrDefault(entry.id(), 0);
-            if (currentLevel >= Math.min(entry.maxLevel(), INDIVIDUAL_LEVEL_CAP)) {
+            if (currentLevel >= entry.maxLevel()) {
                 weights[i] = 0;
                 continue;
             }
@@ -407,19 +356,21 @@ public class EnchantmentConverter {
     }
 
     /**
-     * Attempts to level up a randomly-chosen existing upgrade modifier.
-     * Only considers upgrade-slot modifiers below their level cap.
+     * Attempts to level up a randomly-chosen existing upgrade or defense modifier.
+     * Only considers modifiers below their natural max level, for slot types that still have budget.
      *
      * @return the modifier ID to level up, or null if none eligible
      */
     private static @Nullable ModifierId tryLevelUp(Map<ModifierId, Integer> picked,
-            List<ModifierPoolEntry> pool, RandomSource random) {
+            List<ModifierPoolEntry> pool, RandomSource random,
+            boolean upgradeSlotAvailable, boolean defenseSlotAvailable) {
         List<ModifierId> candidates = new ArrayList<>();
         for (Map.Entry<ModifierId, Integer> entry : picked.entrySet()) {
             ModifierPoolEntry poolEntry = findEntry(pool, entry.getKey());
-            if (poolEntry != null
-                    && poolEntry.slotType() == SlotType.UPGRADE
-                    && entry.getValue() < Math.min(poolEntry.maxLevel(), INDIVIDUAL_LEVEL_CAP)) {
+            if (poolEntry == null || entry.getValue() >= poolEntry.maxLevel()) continue;
+            SlotType st = poolEntry.slotType();
+            if ((st == SlotType.UPGRADE && upgradeSlotAvailable)
+                    || (st == SlotType.DEFENSE && defenseSlotAvailable)) {
                 candidates.add(entry.getKey());
             }
         }
