@@ -4,6 +4,7 @@ import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerConfigLoader;
 import com.pwazta.nomorevanillatools.compat.jei.CraftingContainerRegistry;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
+import com.pwazta.nomorevanillatools.config.ModifierWeightsConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.loot.ModGlobalLootModifiers;
 import com.pwazta.nomorevanillatools.network.ModNetwork;
@@ -36,6 +37,7 @@ public class ExampleMod {
         MaterialMappingConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
         ToolExclusionConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
         ModifierSkipListConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
+        ModifierWeightsConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
         ModNetwork.register();
         CraftingContainerRegistry.registerBuiltIns();
         CraftingContainerConfigLoader.loadExtrasFromConfig(FMLPaths.CONFIGDIR.get());
