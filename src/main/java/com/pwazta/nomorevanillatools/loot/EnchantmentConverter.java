@@ -10,7 +10,6 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.jetbrains.annotations.Nullable;
@@ -23,8 +22,8 @@ import slimeknights.tconstruct.library.tools.SlotType;
 import slimeknights.tconstruct.library.tools.nbt.ModifierNBT;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
-import java.lang.reflect.Field;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Converts vanilla enchantment "power budget" into randomized TC modifiers.
@@ -48,7 +47,7 @@ public class EnchantmentConverter {
     // ── Budget constants ────────────────────────────────────────────────
 
     /** Enchant levels → budget scaling factor. */
-    private static final double POWER_MULTIPLIER = 3.5;
+    private static final double POWER_MULTIPLIER = 4.0;
     /** Maximum modifier budget (caps total modifiers applied). */
     private static final int MAX_BUDGET = 7;
     /** Maximum bonus slot modifiers (writable, harmonious, recapitated, forecast). */
@@ -84,15 +83,10 @@ public class EnchantmentConverter {
 
     private static volatile Map<ModifierId, ModifierPoolEntry> poolCache;
 
-    // ── Reflection for AbstractModifierRecipe.toolRequirement ────────────
-
-    private static Field toolRequirementField;
-    private static boolean reflectionFailed;
-
     // ── Inner record ────────────────────────────────────────────────────
 
     /** Cached info about a modifier available from TC recipes. */
-    record ModifierPoolEntry(ModifierId id, SlotType slotType, int maxLevel, @Nullable Ingredient toolRequirement) {}
+    record ModifierPoolEntry(ModifierId id, SlotType slotType, int maxLevel, Set<Item> compatibleTools) {}
 
     // ═══════════════════════════════════════════════════════════════════
     //  Public API
@@ -119,7 +113,8 @@ public class EnchantmentConverter {
 
         // 3. Calculate bonus slot modifiers needed.
         //    Each bonus grants exactly +1 upgrade (verified: modifier_slot module, each_level: 1).
-        int bonusNeeded = Math.max(0, Math.min(budget - baseFreeUpgrades, MAX_BONUS));
+        int totalFreeSlots = baseFreeUpgrades + freeDefense + freeAbilities;
+        int bonusNeeded = Math.max(0, Math.min(budget - totalFreeSlots, MAX_BONUS));
         int freeUpgrades = baseFreeUpgrades + bonusNeeded;
 
         // 4. Get compatible modifier pool (cached globally, filtered per tool).
@@ -128,58 +123,66 @@ public class EnchantmentConverter {
         List<ModifierPoolEntry> pool = getCompatiblePool(representative);
         if (pool.isEmpty()) return;
 
-        // 5. Detect tool category for weighting
+        // 5. Build existing modifier levels map (traits + pre-existing upgrades)
+        Map<ModifierId, Integer> existingLevels = new HashMap<>();
+        for (ModifierEntry existing : toolStack.getModifierList())
+            existingLevels.put(existing.getId(), existing.getLevel());
+
+        // 6. Detect tool category for weighting
         String category = detectCategory(representative);
 
-        // 6. Pick modifiers from weighted pool
+        // 7. Pick modifiers from weighted pool
         Map<ModifierId, Integer> picked = new LinkedHashMap<>();
         int upgradesUsed = 0;
         boolean abilityPicked = false;
         int defenseUsed = 0;
 
         for (int i = 0; i < budget; i++) {
-            // Layer 3: 35% chance to level up an existing upgrade/defense modifier
             boolean upgradeAvail = upgradesUsed < freeUpgrades;
             boolean defenseAvail = defenseUsed < freeDefense;
+            boolean abilityAvail = !abilityPicked && budget >= ABILITY_BUDGET_THRESHOLD && freeAbilities > 0;
+
+            if (!upgradeAvail && !defenseAvail && !abilityAvail) break;
+
+            // Level-up attempt (35% chance, only for upgrade/defense)
             if (!picked.isEmpty() && (upgradeAvail || defenseAvail) && random.nextFloat() < LEVEL_UP_CHANCE) {
-                ModifierId leveled = tryLevelUp(picked, pool, random, upgradeAvail, defenseAvail);
+                ModifierId leveled = tryLevelUp(picked, pool, random, upgradeAvail, defenseAvail, existingLevels);
                 if (leveled != null) {
                     picked.merge(leveled, 1, Integer::sum);
                     ModifierPoolEntry leveledEntry = findEntry(pool, leveled);
-                    if (leveledEntry != null && leveledEntry.slotType() == SlotType.DEFENSE) {
+                    if (leveledEntry != null && leveledEntry.slotType() == SlotType.DEFENSE)
                         defenseUsed++;
-                    } else {
+                    else
                         upgradesUsed++;
-                    }
                     continue;
                 }
             }
 
-            // Pick a new modifier from weighted pool
-            ModifierPoolEntry entry = weightedPick(pool, category, picked, random);
-            if (entry == null) continue;
+            // Pick with bounded retry when picked slot type is full
+            boolean applied = false;
+            for (int attempt = 0; attempt < 3 && !applied; attempt++) {
+                ModifierPoolEntry entry = weightedPick(pool, category, picked, random, existingLevels);
+                if (entry == null) break;
 
-            if (entry.slotType() == SlotType.ABILITY) {
-                if (!abilityPicked && budget >= ABILITY_BUDGET_THRESHOLD && freeAbilities > 0) {
-                    picked.put(entry.id(), 1);
-                    abilityPicked = true;
-                }
-            } else if (entry.slotType() == SlotType.DEFENSE) {
-                if (defenseUsed < freeDefense) {
-                    picked.merge(entry.id(), 1, Integer::sum);
-                    defenseUsed++;
-                }
-            } else { // UPGRADE
-                if (upgradesUsed < freeUpgrades) {
+                if (entry.slotType() == SlotType.UPGRADE && upgradeAvail) {
                     picked.merge(entry.id(), 1, Integer::sum);
                     upgradesUsed++;
+                    applied = true;
+                } else if (entry.slotType() == SlotType.DEFENSE && defenseAvail) {
+                    picked.merge(entry.id(), 1, Integer::sum);
+                    defenseUsed++;
+                    applied = true;
+                } else if (entry.slotType() == SlotType.ABILITY && abilityAvail) {
+                    picked.put(entry.id(), 1);
+                    abilityPicked = true;
+                    applied = true;
                 }
             }
         }
 
         if (picked.isEmpty() && bonusNeeded == 0) return;
 
-        // 7. Batch ALL modifiers (bonus + picked) into single setUpgrades → single rebuildStats.
+        // 8. Batch ALL modifiers (bonus + picked) into single setUpgrades → single rebuildStats.
         ModifierNBT upgrades = toolStack.getUpgrades();
         for (int i = 0; i < bonusNeeded; i++) {
             upgrades = upgrades.withModifier(BONUS_SLOT_ORDER.get(i), 1);
@@ -189,7 +192,7 @@ public class EnchantmentConverter {
         }
         toolStack.setUpgrades(upgrades); // triggers single rebuildStats
 
-        // 8. Deduct slots (bonus modifiers are slotless — no deduction for them).
+        // 9. Deduct slots (bonus modifiers are slotless — no deduction for them).
         var persistentData = toolStack.getPersistentData();
         if (upgradesUsed > 0) persistentData.addSlots(SlotType.UPGRADE, -upgradesUsed);
         if (abilityPicked)    persistentData.addSlots(SlotType.ABILITY, -1);
@@ -207,7 +210,7 @@ public class EnchantmentConverter {
 
     /**
      * Computes the modifier budget from the original item's total enchantment levels.
-     * Formula: min(ceil(sqrt(totalLevels * 3.5)), 7)
+     * Formula: min(ceil(sqrt(totalLevels * 4.0)), 7)
      */
     static int calculateBudget(ItemStack original) {
         int totalLevels = 0;
@@ -274,12 +277,19 @@ public class EnchantmentConverter {
                 maxLevel = Math.max(levelRange.max(), 1);
             }
 
-            // Get tool requirement via reflection (null = compatible with all tools)
-            Ingredient toolReq = getToolRequirement(modRecipe);
+            // Get compatible tools from display recipe (empty = compatible with all tools)
+            Set<Item> compatibleTools = modRecipe.getToolWithoutModifier().stream()
+                .map(ItemStack::getItem)
+                .collect(Collectors.toCollection(HashSet::new));
 
-            // Deduplicate: keep highest maxLevel if multiple recipes for the same modifier
-            pool.merge(modId, new ModifierPoolEntry(modId, slotType, maxLevel, toolReq),
-                (existing, incoming) -> existing.maxLevel() >= incoming.maxLevel() ? existing : incoming);
+            // Deduplicate: keep highest maxLevel, merge compatible tool sets
+            pool.merge(modId, new ModifierPoolEntry(modId, slotType, maxLevel, compatibleTools),
+                (existing, incoming) -> {
+                    Set<Item> merged = new HashSet<>(existing.compatibleTools());
+                    merged.addAll(incoming.compatibleTools());
+                    return new ModifierPoolEntry(existing.id(), existing.slotType(),
+                        Math.max(existing.maxLevel(), incoming.maxLevel()), merged);
+                });
         }
 
         LOGGER.info("Built modifier pool with {} entries from TC recipes", pool.size());
@@ -295,7 +305,7 @@ public class EnchantmentConverter {
         for (ModifierPoolEntry entry : pool.values()) {
             SlotType st = entry.slotType();
             if (st != SlotType.UPGRADE && st != SlotType.ABILITY && st != SlotType.DEFENSE) continue;
-            if (entry.toolRequirement() != null && !entry.toolRequirement().test(representative)) continue;
+            if (!entry.compatibleTools().isEmpty() && !entry.compatibleTools().contains(representative.getItem())) continue;
             compatible.add(entry);
         }
         return compatible;
@@ -328,14 +338,16 @@ public class EnchantmentConverter {
      * Excludes modifiers already at their level cap. Uses category weights.
      */
     private static @Nullable ModifierPoolEntry weightedPick(List<ModifierPoolEntry> pool, String category,
-            Map<ModifierId, Integer> alreadyPicked, RandomSource random) {
+            Map<ModifierId, Integer> alreadyPicked, RandomSource random,
+            Map<ModifierId, Integer> existingLevels) {
         double totalWeight = 0;
         double[] weights = new double[pool.size()];
 
         for (int i = 0; i < pool.size(); i++) {
             ModifierPoolEntry entry = pool.get(i);
-            int currentLevel = alreadyPicked.getOrDefault(entry.id(), 0);
-            if (currentLevel >= entry.maxLevel()) {
+            int pickedLevel = alreadyPicked.getOrDefault(entry.id(), 0);
+            int existingLevel = existingLevels.getOrDefault(entry.id(), 0);
+            if (pickedLevel + existingLevel >= entry.maxLevel()) {
                 weights[i] = 0;
                 continue;
             }
@@ -363,11 +375,13 @@ public class EnchantmentConverter {
      */
     private static @Nullable ModifierId tryLevelUp(Map<ModifierId, Integer> picked,
             List<ModifierPoolEntry> pool, RandomSource random,
-            boolean upgradeSlotAvailable, boolean defenseSlotAvailable) {
+            boolean upgradeSlotAvailable, boolean defenseSlotAvailable,
+            Map<ModifierId, Integer> existingLevels) {
         List<ModifierId> candidates = new ArrayList<>();
         for (Map.Entry<ModifierId, Integer> entry : picked.entrySet()) {
             ModifierPoolEntry poolEntry = findEntry(pool, entry.getKey());
-            if (poolEntry == null || entry.getValue() >= poolEntry.maxLevel()) continue;
+            int existingLevel = existingLevels.getOrDefault(entry.getKey(), 0);
+            if (poolEntry == null || entry.getValue() + existingLevel >= poolEntry.maxLevel()) continue;
             SlotType st = poolEntry.slotType();
             if ((st == SlotType.UPGRADE && upgradeSlotAvailable)
                     || (st == SlotType.DEFENSE && defenseSlotAvailable)) {
@@ -389,26 +403,4 @@ public class EnchantmentConverter {
         return null;
     }
 
-    /**
-     * Extracts the toolRequirement field from AbstractModifierRecipe via reflection.
-     * One-time cost per field lookup; returns null if reflection fails (modifier treated
-     * as compatible with all tools).
-     */
-    private static @Nullable Ingredient getToolRequirement(AbstractModifierRecipe recipe) {
-        if (reflectionFailed) return null;
-        try {
-            if (toolRequirementField == null) {
-                toolRequirementField = AbstractModifierRecipe.class.getDeclaredField("toolRequirement");
-                toolRequirementField.setAccessible(true);
-            }
-            return (Ingredient) toolRequirementField.get(recipe);
-        } catch (NoSuchFieldException e) {
-            LOGGER.warn("AbstractModifierRecipe.toolRequirement field not found — "
-                + "modifier pool will not filter by tool compatibility");
-            reflectionFailed = true;
-            return null;
-        } catch (ReflectiveOperationException e) {
-            return null;
-        }
-    }
 }

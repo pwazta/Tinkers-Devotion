@@ -39,7 +39,8 @@ public class ModifierSkipListConfig {
         "tconstruct:creative_slot",
         "tconstruct:draconic",
         "tconstruct:rebalanced",
-        "tconstruct:gilded"
+        "tconstruct:gilded",
+        "tconstruct:unbreakable"
     );
 
     private static volatile Set<ModifierId> skipList = Set.of();
