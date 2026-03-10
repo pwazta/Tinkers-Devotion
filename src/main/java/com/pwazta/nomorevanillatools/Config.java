@@ -43,6 +43,11 @@ public class Config {
                      "Example: 0.5 means 50% of all parts must match, 1.0 means every part must match.")
             .defineInRange("allPartsThreshold", 0.5, 0.0, 1.0);
 
+    private static final ForgeConfigSpec.DoubleValue LEVEL_UP_CHANCE = BUILDER
+            .comment("When modifiers are added to a tool, this is the chance (0.0 to 1.0) that an",
+                     "existing modifier gets leveled up instead of adding a new random one.")
+            .defineInRange("levelUpChance", 0.50, 0.0, 1.0);
+
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
             .comment("Enable debug logging for recipe modifications and ingredient matching.",
                      "Useful for troubleshooting. May spam console.")
@@ -76,6 +81,7 @@ public class Config {
     public static boolean replaceLootTableItems;
     public static boolean replaceMobEquipment;
     public static boolean replaceMobRangedAI;
+    public static double levelUpChance;
     public static boolean debugLogging;
 
     @SubscribeEvent
@@ -88,6 +94,7 @@ public class Config {
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
         replaceMobRangedAI = REPLACE_MOB_RANGED_AI.get();
+        levelUpChance = LEVEL_UP_CHANCE.get();
         debugLogging = DEBUG_LOGGING.get();
     }
 }

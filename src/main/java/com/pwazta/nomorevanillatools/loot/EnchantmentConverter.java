@@ -1,6 +1,7 @@
 package com.pwazta.nomorevanillatools.loot;
 
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
 import com.pwazta.nomorevanillatools.config.ModifierWeightsConfig;
 import net.minecraft.core.registries.Registries;
@@ -34,7 +35,7 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>Compatibility filter — only modifiers whose recipe accepts the tool type</li>
  *   <li>Category weighting — primary/secondary/misc weights per tool category</li>
- *   <li>Level-up preference — 35% chance to level up an existing modifier</li>
+ *   <li>Level-up preference — configurable chance (default 50%) to level up an existing modifier</li>
  * </ol>
  *
  * Modifier pool is lazily built from TC tinker station recipes on first use, cached
@@ -52,8 +53,6 @@ public class EnchantmentConverter {
     private static final int MAX_BUDGET = 7;
     /** Maximum bonus slot modifiers (writable, harmonious, recapitated, forecast). */
     private static final int MAX_BONUS = 4;
-    /** Probability of leveling up an existing upgrade/defense modifier instead of adding new. */
-    private static final float LEVEL_UP_CHANCE = 0.35f;
     /** Minimum budget required before an ability-slot modifier can be picked. */
     private static final int ABILITY_BUDGET_THRESHOLD = 4;
 
@@ -144,8 +143,8 @@ public class EnchantmentConverter {
 
             if (!upgradeAvail && !defenseAvail && !abilityAvail) break;
 
-            // Level-up attempt (35% chance, only for upgrade/defense)
-            if (!picked.isEmpty() && (upgradeAvail || defenseAvail) && random.nextFloat() < LEVEL_UP_CHANCE) {
+            // Level-up attempt (configurable chance, default 50%, only for upgrade/defense)
+            if (!picked.isEmpty() && (upgradeAvail || defenseAvail) && random.nextFloat() < Config.levelUpChance) {
                 ModifierId leveled = tryLevelUp(picked, pool, random, upgradeAvail, defenseAvail, existingLevels);
                 if (leveled != null) {
                     picked.merge(leveled, 1, Integer::sum);
