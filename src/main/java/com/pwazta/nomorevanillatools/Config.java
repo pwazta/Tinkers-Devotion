@@ -48,6 +48,13 @@ public class Config {
                      "existing modifier gets leveled up instead of adding a new random one.")
             .defineInRange("levelUpChance", 0.50, 0.0, 1.0);
 
+    private static final ForgeConfigSpec.DoubleValue MODIFIER_WEIGHT_FALLOFF = BUILDER
+            .comment("How much specialist modifiers are favored over generalist ones.",
+                     "Higher = specialist modifiers (e.g. sharpness on swords) appear more often.",
+                     "Lower = all compatible modifiers appear with similar frequency.",
+                     "Default 1.3 makes specialists ~6x more likely than universals.")
+            .defineInRange("modifierWeightFalloff", 1.3, 0.0, 5.0);
+
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
             .comment("Enable debug logging for recipe modifications and ingredient matching.",
                      "Useful for troubleshooting. May spam console.")
@@ -82,6 +89,7 @@ public class Config {
     public static boolean replaceMobEquipment;
     public static boolean replaceMobRangedAI;
     public static double levelUpChance;
+    public static double modifierWeightFalloff;
     public static boolean debugLogging;
 
     @SubscribeEvent
@@ -95,6 +103,7 @@ public class Config {
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
         replaceMobRangedAI = REPLACE_MOB_RANGED_AI.get();
         levelUpChance = LEVEL_UP_CHANCE.get();
+        modifierWeightFalloff = MODIFIER_WEIGHT_FALLOFF.get();
         debugLogging = DEBUG_LOGGING.get();
     }
 }
