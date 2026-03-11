@@ -262,6 +262,10 @@ public class EnchantmentConverter {
             // Skip excluded modifiers (hardcoded bonus + player-configurable skip list)
             if (BONUS_MODIFIERS.contains(modId) || skipList.contains(modId)) continue;
 
+            // Skip modifiers with prerequisites (e.g. unbreakable needs reinforced 5 + netherite)
+            var modifier = ModifierManager.getValue(modId);
+            if (modifier != null && modifier.getHooks().hasHook(ModifierHooks.REQUIREMENTS)) continue;
+
             // Skip slotless modifiers (no slot cost = special modifiers, not for random application)
             SlotType.SlotCount slotCount = modRecipe.getSlots();
             if (slotCount == null) continue;
