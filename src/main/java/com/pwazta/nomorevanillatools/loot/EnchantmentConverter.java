@@ -3,7 +3,6 @@ package com.pwazta.nomorevanillatools.loot;
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
-import com.pwazta.nomorevanillatools.config.ModifierWeightsConfig;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -12,11 +11,14 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import slimeknights.tconstruct.library.modifiers.ModifierEntry;
+import slimeknights.tconstruct.library.modifiers.ModifierHooks;
 import slimeknights.tconstruct.library.modifiers.ModifierId;
+import slimeknights.tconstruct.library.modifiers.ModifierManager;
 import slimeknights.tconstruct.library.recipe.TinkerRecipeTypes;
 import slimeknights.tconstruct.library.recipe.modifiers.adding.AbstractModifierRecipe;
 import slimeknights.tconstruct.library.tools.SlotType;
@@ -34,7 +36,7 @@ import java.util.stream.Collectors;
  * weighted selection algorithm:
  * <ol>
  *   <li>Compatibility filter — only modifiers whose recipe accepts the tool type</li>
- *   <li>Category weighting — primary/secondary/misc weights per tool category</li>
+ *   <li>Specificity weighting — specialist modifiers (fewer category overlaps) weighted higher</li>
  *   <li>Level-up preference — configurable chance (default 50%) to level up an existing modifier</li>
  * </ol>
  *
@@ -67,16 +69,14 @@ public class EnchantmentConverter {
 
     private static final Set<ModifierId> BONUS_MODIFIERS = Set.copyOf(BONUS_SLOT_ORDER);
 
-    // ── Item tags for tool category detection ───────────────────────────
+    // ── Tool category tags for specificity-based weighting ────────────────
 
-    private static final TagKey<Item> MELEE_TAG = TagKey.create(Registries.ITEM,
-        new ResourceLocation("tconstruct", "modifiable/melee"));
-    private static final TagKey<Item> HARVEST_TAG = TagKey.create(Registries.ITEM,
-        new ResourceLocation("tconstruct", "modifiable/harvest"));
-    private static final TagKey<Item> ARMOR_TAG = TagKey.create(Registries.ITEM,
-        new ResourceLocation("tconstruct", "modifiable/armor"));
-    private static final TagKey<Item> RANGED_TAG = TagKey.create(Registries.ITEM,
-        new ResourceLocation("tconstruct", "modifiable/ranged"));
+    private static final List<TagKey<Item>> CATEGORY_TAGS = List.of(
+        TagKey.create(Registries.ITEM, new ResourceLocation("tconstruct", "modifiable/melee")),
+        TagKey.create(Registries.ITEM, new ResourceLocation("tconstruct", "modifiable/harvest")),
+        TagKey.create(Registries.ITEM, new ResourceLocation("tconstruct", "modifiable/armor")),
+        TagKey.create(Registries.ITEM, new ResourceLocation("tconstruct", "modifiable/ranged"))
+    );
 
     // ── Pool cache (volatile + double-checked locking) ──────────────────
 
@@ -84,8 +84,8 @@ public class EnchantmentConverter {
 
     // ── Inner record ────────────────────────────────────────────────────
 
-    /** Cached info about a modifier available from TC recipes. */
-    record ModifierPoolEntry(ModifierId id, SlotType slotType, int maxLevel, Set<Item> compatibleTools) {}
+    /** Cached info about a modifier available from TC recipes, with pre-computed specificity weight. */
+    record ModifierPoolEntry(ModifierId id, SlotType slotType, int maxLevel, Set<Item> compatibleTools, double weight) {}
 
     // ═══════════════════════════════════════════════════════════════════
     //  Public API
@@ -127,10 +127,7 @@ public class EnchantmentConverter {
         for (ModifierEntry existing : toolStack.getModifierList())
             existingLevels.put(existing.getId(), existing.getLevel());
 
-        // 6. Detect tool category for weighting
-        String category = detectCategory(representative);
-
-        // 7. Pick modifiers from weighted pool
+        // 6. Pick modifiers from weighted pool
         Map<ModifierId, Integer> picked = new LinkedHashMap<>();
         int upgradesUsed = 0;
         boolean abilityPicked = false;
@@ -160,7 +157,7 @@ public class EnchantmentConverter {
             // Pick with bounded retry when picked slot type is full
             boolean applied = false;
             for (int attempt = 0; attempt < 3 && !applied; attempt++) {
-                ModifierPoolEntry entry = weightedPick(pool, category, picked, random, existingLevels);
+                ModifierPoolEntry entry = weightedPick(pool, picked, random, existingLevels);
                 if (entry == null) break;
 
                 if (entry.slotType() == SlotType.UPGRADE && upgradeAvail) {
@@ -181,7 +178,7 @@ public class EnchantmentConverter {
 
         if (picked.isEmpty() && bonusNeeded == 0) return;
 
-        // 8. Batch ALL modifiers (bonus + picked) into single setUpgrades → single rebuildStats.
+        // 7. Batch ALL modifiers (bonus + picked) into single setUpgrades → single rebuildStats.
         ModifierNBT upgrades = toolStack.getUpgrades();
         for (int i = 0; i < bonusNeeded; i++) {
             upgrades = upgrades.withModifier(BONUS_SLOT_ORDER.get(i), 1);
@@ -191,7 +188,7 @@ public class EnchantmentConverter {
         }
         toolStack.setUpgrades(upgrades); // triggers single rebuildStats
 
-        // 9. Deduct slots (bonus modifiers are slotless — no deduction for them).
+        // 8. Deduct slots (bonus modifiers are slotless — no deduction for them).
         var persistentData = toolStack.getPersistentData();
         if (upgradesUsed > 0) persistentData.addSlots(SlotType.UPGRADE, -upgradesUsed);
         if (abilityPicked)    persistentData.addSlots(SlotType.ABILITY, -1);
@@ -238,9 +235,9 @@ public class EnchantmentConverter {
     }
 
     /**
-     * Scans all TC tinker station recipes for modifier recipes and builds the pool.
-     * Extracts modifier ID, slot type, max level, and tool requirement from each recipe.
-     * Deduplicates by modifier ID (keeps highest max level) and filters out skip-list entries.
+     * Scans all TC tinker station recipes for modifier recipes and builds the weighted pool.
+     * Two-phase: first collects entries from recipes (merging duplicates), then computes
+     * specificity-based weights from tool category overlap.
      */
     private static Map<ModifierId, ModifierPoolEntry> buildPool() {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
@@ -251,6 +248,8 @@ public class EnchantmentConverter {
 
         var recipeManager = server.getRecipeManager();
         Set<ModifierId> skipList = ModifierSkipListConfig.getSkipList();
+
+        // Phase 1: Collect entries from recipes, merge duplicates (weight placeholder = 0.0)
         Map<ModifierId, ModifierPoolEntry> pool = new HashMap<>();
 
         for (var recipe : recipeManager.getAllRecipesFor(TinkerRecipeTypes.TINKER_STATION.get())) {
@@ -282,17 +281,30 @@ public class EnchantmentConverter {
                 .collect(Collectors.toCollection(HashSet::new));
 
             // Deduplicate: keep highest maxLevel, merge compatible tool sets
-            pool.merge(modId, new ModifierPoolEntry(modId, slotType, maxLevel, compatibleTools),
+            pool.merge(modId, new ModifierPoolEntry(modId, slotType, maxLevel, compatibleTools, 0.0),
                 (existing, incoming) -> {
                     Set<Item> merged = new HashSet<>(existing.compatibleTools());
                     merged.addAll(incoming.compatibleTools());
                     return new ModifierPoolEntry(existing.id(), existing.slotType(),
-                        Math.max(existing.maxLevel(), incoming.maxLevel()), merged);
+                        Math.max(existing.maxLevel(), incoming.maxLevel()), merged, 0.0);
                 });
         }
 
-        LOGGER.info("Built modifier pool with {} entries from TC recipes", pool.size());
-        return Collections.unmodifiableMap(pool);
+        // Phase 2: Compute specificity-based weights from category overlap
+        Map<TagKey<Item>, Set<Item>> categorySets = buildCategorySets();
+        Collection<Set<Item>> catValues = categorySets.values();
+        double k = Config.modifierWeightFalloff;
+
+        Map<ModifierId, ModifierPoolEntry> weighted = new HashMap<>();
+        for (ModifierPoolEntry entry : pool.values()) {
+            int count = countCategoryOverlap(entry.compatibleTools(), catValues);
+            double weight = 1.0 / Math.pow(count, k);
+            weighted.put(entry.id(), new ModifierPoolEntry(
+                entry.id(), entry.slotType(), entry.maxLevel(), entry.compatibleTools(), weight));
+        }
+
+        LOGGER.info("Built modifier pool with {} entries from TC recipes", weighted.size());
+        return Collections.unmodifiableMap(weighted);
     }
 
     /** Filters the global pool to modifiers compatible with the given tool. */
@@ -311,21 +323,36 @@ public class EnchantmentConverter {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  Category detection
+    //  Specificity-based weighting
     // ═══════════════════════════════════════════════════════════════════
 
-    /** Determines the tool category from item tags. Falls back to "melee". */
-    private static String detectCategory(ItemStack representative) {
-        if (representative.is(MELEE_TAG)) return "melee";
-        if (representative.is(HARVEST_TAG)) return "mining";
-        if (representative.is(ARMOR_TAG)) return "armor";
-        if (representative.is(RANGED_TAG)) return "ranged";
-        return "melee";
+    /**
+     * Builds item sets for each tool category tag in a single registry pass.
+     * Called once per pool build — category sets are used to compute weights, then GC'd.
+     */
+    private static Map<TagKey<Item>, Set<Item>> buildCategorySets() {
+        Map<TagKey<Item>, Set<Item>> result = new HashMap<>();
+        for (TagKey<Item> tag : CATEGORY_TAGS) result.put(tag, new HashSet<>());
+
+        for (Item item : ForgeRegistries.ITEMS.getValues()) {
+            var holder = item.builtInRegistryHolder();
+            for (TagKey<Item> tag : CATEGORY_TAGS)
+                if (holder.is(tag)) result.get(tag).add(item);
+        }
+        return result;
     }
 
-    /** Returns the weight for a modifier in the given category. Delegates to {@link ModifierWeightsConfig}. */
-    private static double getCategoryWeight(ModifierId modId, String category) {
-        return ModifierWeightsConfig.getWeight(modId, category);
+    /**
+     * Counts how many of TC's 4 tool category tags the modifier's compatible tools overlap with.
+     * Empty compatibleTools (universal modifier) → max count (all categories).
+     * Floor of 1 prevents division by zero in weight formula.
+     */
+    private static int countCategoryOverlap(Set<Item> compatibleTools, Collection<Set<Item>> categorySets) {
+        if (compatibleTools.isEmpty()) return categorySets.size();
+        int count = 0;
+        for (Set<Item> catSet : categorySets)
+            if (!Collections.disjoint(compatibleTools, catSet)) count++;
+        return Math.max(count, 1);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -334,9 +361,9 @@ public class EnchantmentConverter {
 
     /**
      * Weighted random selection from the compatible pool.
-     * Excludes modifiers already at their level cap. Uses category weights.
+     * Uses pre-computed specificity weights. Excludes modifiers already at their level cap.
      */
-    private static @Nullable ModifierPoolEntry weightedPick(List<ModifierPoolEntry> pool, String category,
+    private static @Nullable ModifierPoolEntry weightedPick(List<ModifierPoolEntry> pool,
             Map<ModifierId, Integer> alreadyPicked, RandomSource random,
             Map<ModifierId, Integer> existingLevels) {
         double totalWeight = 0;
@@ -350,9 +377,8 @@ public class EnchantmentConverter {
                 weights[i] = 0;
                 continue;
             }
-            double weight = getCategoryWeight(entry.id(), category);
-            weights[i] = weight;
-            totalWeight += weight;
+            weights[i] = entry.weight();
+            totalWeight += entry.weight();
         }
 
         if (totalWeight == 0) return null;

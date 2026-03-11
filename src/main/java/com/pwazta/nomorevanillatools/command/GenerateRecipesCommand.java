@@ -9,7 +9,6 @@ import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
-import com.pwazta.nomorevanillatools.config.ModifierWeightsConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
@@ -111,7 +110,6 @@ public class GenerateRecipesCommand {
             // Step 2: Reload tool/armor exclusions and modifier skip list from disk
             ToolExclusionConfig.reload();
             ModifierSkipListConfig.reload();
-            ModifierWeightsConfig.reload();
 
             // Step 3: Collect existing generated files before regenerating
             Set<Path> existingFiles = DatapackHelper.listGeneratedRecipeFiles(server);
@@ -165,7 +163,6 @@ public class GenerateRecipesCommand {
         // Reset tool exclusions and modifier skip list to defaults
         ToolExclusionConfig.resetToDefaults();
         ModifierSkipListConfig.resetToDefaults();
-        ModifierWeightsConfig.resetToDefaults();
 
         source.sendSuccess(() -> Component.literal("Configs reset. Regenerating..."), false);
         return run(context);
