@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>Compatibility filter — only modifiers whose recipe accepts the tool type</li>
  *   <li>Specificity weighting — specialist modifiers (fewer category overlaps) weighted higher</li>
- *   <li>Level-up preference — configurable chance (default 50%) to level up an existing modifier</li>
+ *   <li>Level-up preference — configurable chance (default 65%) to level up an existing modifier</li>
  * </ol>
  *
  * Modifier pool is lazily built from TC tinker station recipes on first use, cached
@@ -140,7 +140,7 @@ public class EnchantmentConverter {
 
             if (!upgradeAvail && !defenseAvail && !abilityAvail) break;
 
-            // Level-up attempt (configurable chance, default 50%, only for upgrade/defense)
+            // Level-up attempt (configurable chance, default 65%, only for upgrade/defense)
             if (!picked.isEmpty() && (upgradeAvail || defenseAvail) && random.nextFloat() < Config.levelUpChance) {
                 ModifierId leveled = tryLevelUp(picked, pool, random, upgradeAvail, defenseAvail, existingLevels);
                 if (leveled != null) {
