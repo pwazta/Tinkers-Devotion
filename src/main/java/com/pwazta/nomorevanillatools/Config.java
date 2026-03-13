@@ -46,14 +46,14 @@ public class Config {
     private static final ForgeConfigSpec.DoubleValue LEVEL_UP_CHANCE = BUILDER
             .comment("When modifiers are added to a tool, this is the chance (0.0 to 1.0) that an",
                      "existing modifier gets leveled up instead of adding a new random one.")
-            .defineInRange("levelUpChance", 0.50, 0.0, 1.0);
+            .defineInRange("levelUpChance", 0.65, 0.0, 1.0);
 
     private static final ForgeConfigSpec.DoubleValue MODIFIER_WEIGHT_FALLOFF = BUILDER
             .comment("How much specialist modifiers are favored over generalist ones.",
                      "Higher = specialist modifiers (e.g. sharpness on swords) appear more often.",
                      "Lower = all compatible modifiers appear with similar frequency.",
-                     "Default 1.3 makes specialists ~6x more likely than universals.")
-            .defineInRange("modifierWeightFalloff", 1.3, 0.0, 5.0);
+                     "Default 1.5 makes specialists ~8x more likely than universals.")
+            .defineInRange("modifierWeightFalloff", 1.5, 0.0, 5.0);
 
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
             .comment("Enable debug logging for recipe modifications and ingredient matching.",

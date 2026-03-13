@@ -38,9 +38,22 @@ public class ModifierSkipListConfig {
         "tconstruct:netherite",
         "tconstruct:creative_slot",
         "tconstruct:draconic",
+        "tconstruct:dragonborn",
+        "tconstruct:dragonshot",
         "tconstruct:rebalanced",
         "tconstruct:gilded",
-        "tconstruct:unbreakable"
+        "tconstruct:unbreakable",
+        "tconstruct:shiny",
+        "tconstruct:worldbound",
+        "tconstruct:wings",
+        "tconstruct:pockets",
+        "tconstruct:shulking",
+        "tconstruct:flamewake",
+        // Addon modifiers (ignored if mod absent — ModifierId won't resolve)
+        "tinkerslevellingaddon:improvable",
+        "tcintegrations:flamed",
+        "tcintegrations:iced",
+        "tcintegrations:zapped"
     );
 
     private static volatile Set<ModifierId> skipList = Set.of();
