@@ -21,11 +21,14 @@ import java.util.Map;
  */
 public class VanillaItemMappings {
 
+    // ── Sealed interface for strategy dispatch ─────────────────────────
+    public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo {}
+
     // ── Record types ─────────────────────────────────────────────────────
-    public record ToolInfo(String tier, String toolType) {}
-    public record ArmorInfo(String set, String slot, int minTier, int maxTier) {}
+    public record ToolInfo(String tier, String toolType) implements ReplacementInfo {}
+    public record ArmorInfo(String set, String slot, int minTier, int maxTier) implements ReplacementInfo {}
     /** Per-part tier list matches the tool definition's stat type order (e.g., limb, limb, grip, bowstring). */
-    public record RangedInfo(String rangedType, List<String> partTiers) {}
+    public record RangedInfo(String rangedType, List<String> partTiers) implements ReplacementInfo {}
 
     // ── Tier/type arrays ─────────────────────────────────────────────────
 
@@ -123,6 +126,16 @@ public class VanillaItemMappings {
     /** Look up ranged info by Item reference. Returns null if not a vanilla ranged weapon. */
     public static @Nullable RangedInfo getRangedInfo(Item item) {
         ensureItemMaps();
+        return rangedByItem.get(item);
+    }
+
+    /** Unified lookup for strategy dispatch. Returns null if not a mapped vanilla item. */
+    public static @Nullable ReplacementInfo getReplacementInfo(Item item) {
+        ensureItemMaps();
+        ToolInfo tool = toolsByItem.get(item);
+        if (tool != null) return tool;
+        ArmorInfo armor = armorByItem.get(item);
+        if (armor != null) return armor;
         return rangedByItem.get(item);
     }
 
