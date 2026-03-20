@@ -12,7 +12,10 @@ import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
-import com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient.MatchMode;
+import com.pwazta.nomorevanillatools.recipe.ArmorMode;
+import com.pwazta.nomorevanillatools.recipe.IngredientMode;
+import com.pwazta.nomorevanillatools.recipe.RangedMode;
+import com.pwazta.nomorevanillatools.recipe.ToolMode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
@@ -25,7 +28,6 @@ import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraftforge.registries.ForgeRegistries;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -61,22 +63,7 @@ public class GenerateRecipesCommand {
     }
 
     /** Info about a vanilla ingredient to replace with a TC ingredient. */
-    private record ReplacementInfo(int index, String tier, String toolType, MatchMode mode,
-                                   @Nullable String armorSet, int minTier, int maxTier,
-                                   @Nullable String rangedType, @Nullable List<String> partTiers) {
-        /** Tool-mode factory. */
-        static ReplacementInfo tool(int index, String tier, String toolType) {
-            return new ReplacementInfo(index, tier, toolType, MatchMode.TOOL_ACTION, null, 0, 0, null, null);
-        }
-        /** Armor-mode factory. */
-        static ReplacementInfo armor(int index, String slot, String set, int minTier, int maxTier) {
-            return new ReplacementInfo(index, null, slot, MatchMode.ARMOR_SLOT, set, minTier, maxTier, null, null);
-        }
-        /** Ranged-mode factory. */
-        static ReplacementInfo ranged(int index, String rangedType, List<String> partTiers) {
-            return new ReplacementInfo(index, null, null, MatchMode.RANGED, null, 0, 0, rangedType, partTiers);
-        }
-    }
+    private record ReplacementEntry(int index, IngredientMode mode) {}
 
     // ── Command entry point ───────────────────────────────────────────────────
 
@@ -228,7 +215,7 @@ public class GenerateRecipesCommand {
         for (Recipe<?> recipe : recipeManager.getRecipes()) {
             if (!(recipe instanceof CraftingRecipe)) continue;
 
-            List<ReplacementInfo> replacements = findVanillaItems(recipe);
+            List<ReplacementEntry> replacements = findVanillaItems(recipe);
             if (replacements.isEmpty()) continue;
 
             try {
@@ -277,31 +264,18 @@ public class GenerateRecipesCommand {
         }
     }
 
-    private static List<ReplacementInfo> findVanillaItems(Recipe<?> recipe) {
-        List<ReplacementInfo> replacements = new ArrayList<>();
+    private static List<ReplacementEntry> findVanillaItems(Recipe<?> recipe) {
+        List<ReplacementEntry> replacements = new ArrayList<>();
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
 
         for (int i = 0; i < ingredients.size(); i++) {
             for (var stack : ingredients.get(i).getItems()) {
                 ResourceLocation itemKey = ForgeRegistries.ITEMS.getKey(stack.getItem());
                 if (itemKey == null) continue;
-                String key = itemKey.toString();
 
-                VanillaItemMappings.ToolInfo toolInfo = VanillaItemMappings.getToolInfoById(key);
-                if (toolInfo != null) {
-                    replacements.add(ReplacementInfo.tool(i, toolInfo.tier(), toolInfo.toolType()));
-                    break;
-                }
-
-                VanillaItemMappings.ArmorInfo armorInfo = VanillaItemMappings.getArmorInfoById(key);
-                if (armorInfo != null) {
-                    replacements.add(ReplacementInfo.armor(i, armorInfo.slot(), armorInfo.set(), armorInfo.minTier(), armorInfo.maxTier()));
-                    break;
-                }
-
-                VanillaItemMappings.RangedInfo rangedInfo = VanillaItemMappings.getRangedInfoById(key);
-                if (rangedInfo != null) {
-                    replacements.add(ReplacementInfo.ranged(i, rangedInfo.rangedType(), rangedInfo.partTiers()));
+                VanillaItemMappings.ReplacementInfo info = VanillaItemMappings.getReplacementInfoById(itemKey.toString());
+                if (info != null) {
+                    replacements.add(new ReplacementEntry(i, toIngredientMode(info)));
                     break;
                 }
             }
@@ -310,9 +284,21 @@ public class GenerateRecipesCommand {
         return replacements;
     }
 
+    /** Bridges loot-side ReplacementInfo to recipe-side IngredientMode. */
+    private static IngredientMode toIngredientMode(VanillaItemMappings.ReplacementInfo info) {
+        if (info instanceof VanillaItemMappings.ToolInfo t) {
+            return new ToolMode(t.tier(), t.toolType());
+        } else if (info instanceof VanillaItemMappings.ArmorInfo a) {
+            return new ArmorMode(a.slot(), a.set(), a.minTier(), a.maxTier());
+        } else if (info instanceof VanillaItemMappings.RangedInfo r) {
+            return new RangedMode(r.rangedType(), r.partTiers());
+        }
+        throw new IllegalStateException("Unknown ReplacementInfo type: " + info.getClass());
+    }
+
     // ── Recipe building ───────────────────────────────────────────────────────
 
-    private static JsonObject buildReplacementRecipe(Recipe<?> recipe, List<ReplacementInfo> replacements, MinecraftServer server) {
+    private static JsonObject buildReplacementRecipe(Recipe<?> recipe, List<ReplacementEntry> replacements, MinecraftServer server) {
         if (recipe instanceof ShapedRecipe shaped) {
             return buildShapedReplacement(shaped, replacements, server);
         } else if (recipe instanceof ShapelessRecipe shapeless) {
@@ -321,25 +307,8 @@ public class GenerateRecipesCommand {
         return null;
     }
 
-    private static JsonObject createTinkerIngredientJson(ReplacementInfo info) {
-        JsonObject json = new JsonObject();
-        json.addProperty("type", "nomorevanillatools:tinker_material");
-        json.addProperty("mode", info.mode.name().toLowerCase());
-        if (info.mode == MatchMode.TOOL_ACTION) {
-            json.addProperty("tool_type", info.toolType);
-            json.addProperty("tier", info.tier);
-        } else if (info.mode == MatchMode.ARMOR_SLOT) {
-            json.addProperty("tool_type", info.toolType);
-            json.addProperty("armor_set", info.armorSet);
-            json.addProperty("min_tier", info.minTier);
-            json.addProperty("max_tier", info.maxTier);
-        } else {
-            json.addProperty("ranged_type", info.rangedType);
-            JsonArray tiers = new JsonArray();
-            for (String t : info.partTiers) tiers.add(t);
-            json.add("part_tiers", tiers);
-        }
-        return json;
+    private static JsonObject createTinkerIngredientJson(ReplacementEntry entry) {
+        return (JsonObject) entry.mode().toJson();
     }
 
     private static JsonObject createResultJson(Recipe<?> recipe, MinecraftServer server) {
@@ -351,7 +320,7 @@ public class GenerateRecipesCommand {
         return result;
     }
 
-    private static JsonObject buildShapedReplacement(ShapedRecipe recipe, List<ReplacementInfo> replacements, MinecraftServer server) {
+    private static JsonObject buildShapedReplacement(ShapedRecipe recipe, List<ReplacementEntry> replacements, MinecraftServer server) {
         JsonObject recipeJson = new JsonObject();
         recipeJson.addProperty("type", "minecraft:crafting_shaped");
 
@@ -389,7 +358,7 @@ public class GenerateRecipesCommand {
             int index = entry.getKey();
             String keyChar = entry.getValue();
 
-            ReplacementInfo replacement = findReplacementForIndex(replacements, index);
+            ReplacementEntry replacement = findReplacementForIndex(replacements, index);
             if (replacement != null) {
                 key.add(keyChar, createTinkerIngredientJson(replacement));
             } else {
@@ -402,7 +371,7 @@ public class GenerateRecipesCommand {
         return recipeJson;
     }
 
-    private static JsonObject buildShapelessReplacement(ShapelessRecipe recipe, List<ReplacementInfo> replacements, MinecraftServer server) {
+    private static JsonObject buildShapelessReplacement(ShapelessRecipe recipe, List<ReplacementEntry> replacements, MinecraftServer server) {
         JsonObject recipeJson = new JsonObject();
         recipeJson.addProperty("type", "minecraft:crafting_shapeless");
 
@@ -413,7 +382,7 @@ public class GenerateRecipesCommand {
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
 
         for (int i = 0; i < ingredients.size(); i++) {
-            ReplacementInfo replacement = findReplacementForIndex(replacements, i);
+            ReplacementEntry replacement = findReplacementForIndex(replacements, i);
             if (replacement != null) {
                 ingredientsArray.add(createTinkerIngredientJson(replacement));
             } else {
@@ -427,8 +396,8 @@ public class GenerateRecipesCommand {
     }
 
     /** Finds the replacement for a given ingredient index, or null. */
-    private static ReplacementInfo findReplacementForIndex(List<ReplacementInfo> replacements, int index) {
-        for (ReplacementInfo r : replacements) {
+    private static ReplacementEntry findReplacementForIndex(List<ReplacementEntry> replacements, int index) {
+        for (ReplacementEntry r : replacements) {
             if (r.index == index) return r;
         }
         return null;
