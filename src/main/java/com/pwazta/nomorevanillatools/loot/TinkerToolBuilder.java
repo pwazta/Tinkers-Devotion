@@ -46,8 +46,7 @@ public class TinkerToolBuilder {
     public static final float CANONICAL_WEIGHT = 0.85f;
 
     /** Maps vanilla tier name to IMaterial.getTier() int for tier-based filtering. */
-    public static final Map<String, Integer> TIER_NAME_TO_INT = Map.of(
-        "wooden", 0, "stone", 1, "iron", 2, "golden", 1, "diamond", 3, "netherite", 4);
+    public static final Map<String, Integer> TIER_NAME_TO_INT = VanillaItemMappings.TIER_NAME_TO_INT;
 
     // ── Strategy dispatch ────────────────────────────────────────────────
 

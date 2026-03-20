@@ -30,6 +30,12 @@ public class VanillaItemMappings {
     /** Per-part tier list matches the tool definition's stat type order (e.g., limb, limb, grip, bowstring). */
     public record RangedInfo(String rangedType, List<String> partTiers) implements ReplacementInfo {}
 
+    // ── Shared tier mapping ─────────────────────────────────────────────
+
+    /** Maps vanilla tier name to IMaterial.getTier() int for tier-based filtering. */
+    public static final Map<String, Integer> TIER_NAME_TO_INT = Map.of(
+        "wooden", 0, "stone", 1, "iron", 2, "golden", 1, "diamond", 3, "netherite", 4);
+
     // ── Tier/type arrays ─────────────────────────────────────────────────
 
     /** All tool tiers including netherite (for loot replacement scope). */
@@ -153,6 +159,15 @@ public class VanillaItemMappings {
 
     /** Look up ranged info by registry ID string. Returns null if not a vanilla ranged weapon. */
     public static @Nullable RangedInfo getRangedInfoById(String registryId) {
+        return RANGED_BY_ID.get(registryId);
+    }
+
+    /** Unified string-keyed lookup for recipe generation. */
+    public static @Nullable ReplacementInfo getReplacementInfoById(String registryId) {
+        ToolInfo tool = TOOLS_BY_ID.get(registryId);
+        if (tool != null) return tool;
+        ArmorInfo armor = ARMOR_BY_ID.get(registryId);
+        if (armor != null) return armor;
         return RANGED_BY_ID.get(registryId);
     }
 
