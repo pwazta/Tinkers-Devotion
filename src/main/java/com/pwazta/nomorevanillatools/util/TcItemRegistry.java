@@ -79,17 +79,16 @@ public final class TcItemRegistry {
     }
 
     /**
-     * Returns all TC armor pieces matching the given {@link ArmorItem.Type} and armor set prefix,
-     * excluding items in {@link ToolExclusionConfig}. Results are cached per set:slot key.
+     * Returns all TC armor pieces matching the given {@link ArmorItem.Type} and any of the allowed
+     * armor set prefixes, excluding items in {@link ToolExclusionConfig}. Results are cached.
      *
      * @param armorType the ArmorItem.Type to match (HELMET, CHESTPLATE, etc.)
-     * @param set       the TC armor set prefix ("travelers" or "plate")
+     * @param sets      allowed armor set prefixes with full namespace (e.g., "tconstruct:plate", "tinkers_things:laminar")
      * @param slotName  the slot name for exclusion checking and cache key
      */
-    public static List<IModifiable> getEligibleArmor(ArmorItem.Type armorType, String set, String slotName) {
-        String cacheKey = set + ":" + slotName;
+    public static List<IModifiable> getEligibleArmor(ArmorItem.Type armorType, List<String> sets, String slotName) {
+        String cacheKey = sets + ":" + slotName;
         return ARMOR_CACHE.computeIfAbsent(cacheKey, k -> {
-            String setPrefix = "tconstruct:" + set + "_";
             List<IModifiable> armor = new ArrayList<>();
             for (Item item : ForgeRegistries.ITEMS) {
                 if (!(item instanceof ModifiableArmorItem armorItem)) continue;
@@ -98,8 +97,35 @@ public final class TcItemRegistry {
                 ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(item);
                 if (armorId == null) continue;
                 String idStr = armorId.toString();
-                if (!idStr.startsWith(setPrefix)) continue;
                 if (ToolExclusionConfig.isExcluded(slotName, idStr)) continue;
+
+                boolean matchesSet = false;
+                for (String set : sets) {
+                    if (idStr.startsWith(set + "_")) { matchesSet = true; break; }
+                }
+                if (!matchesSet) continue;
+
+                armor.add(armorItem);
+            }
+            return armor;
+        });
+    }
+
+    /**
+     * Returns all TC armor pieces matching the given {@link ArmorItem.Type} regardless of set,
+     * excluding items in {@link ToolExclusionConfig}. Used by recipe JEI display (any set at matching tier).
+     */
+    public static List<IModifiable> getAllEligibleArmor(ArmorItem.Type armorType, String slotName) {
+        String cacheKey = "all:" + slotName;
+        return ARMOR_CACHE.computeIfAbsent(cacheKey, k -> {
+            List<IModifiable> armor = new ArrayList<>();
+            for (Item item : ForgeRegistries.ITEMS) {
+                if (!(item instanceof ModifiableArmorItem armorItem)) continue;
+                if (armorItem.getType() != armorType) continue;
+
+                ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(item);
+                if (armorId == null) continue;
+                if (ToolExclusionConfig.isExcluded(slotName, armorId.toString())) continue;
 
                 armor.add(armorItem);
             }

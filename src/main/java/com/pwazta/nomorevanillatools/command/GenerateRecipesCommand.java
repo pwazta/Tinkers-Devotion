@@ -289,7 +289,7 @@ public class GenerateRecipesCommand {
         if (info instanceof VanillaItemMappings.ToolInfo t) {
             return new ToolMode(t.tier(), t.toolType());
         } else if (info instanceof VanillaItemMappings.ArmorInfo a) {
-            return new ArmorMode(a.slot(), a.set(), a.minTier(), a.maxTier());
+            return new ArmorMode(a.slot(), null, a.minTier(), a.maxTier());
         } else if (info instanceof VanillaItemMappings.RangedInfo r) {
             return new RangedMode(r.rangedType(), r.partTiers());
         }
