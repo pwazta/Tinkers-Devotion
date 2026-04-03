@@ -19,6 +19,8 @@ import slimeknights.tconstruct.library.materials.definition.IMaterial;
 import slimeknights.tconstruct.library.materials.definition.MaterialId;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
 
+import java.util.List;
+
 public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) implements IngredientMode {
 
     @Override
@@ -58,8 +60,8 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
         ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (armorId == null) return false;
 
-        // Filter by armor set prefix (e.g., "tconstruct:travelers_" or "tconstruct:plate_")
-        if (armorSet != null && !armorId.toString().startsWith("tconstruct:" + armorSet + "_")) return false;
+        // Filter by armor set prefix (e.g., "tconstruct:plate_" or "tinkers_things:laminar_"). Null = any set.
+        if (armorSet != null && !armorId.toString().startsWith(armorSet + "_")) return false;
 
         return !ToolExclusionConfig.isExcluded(slot, armorId.toString());
     }
@@ -68,14 +70,16 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
     @Override
     public ItemStack[] computeDisplayItems() {
         ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
-        if (armorType == null || armorSet == null) return new ItemStack[0];
-        String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(armorSet, minTier, maxTier);
-        // Derive human-readable label from canonical material (e.g., "tconstruct:cobalt" -> "cobalt")
+        if (armorType == null) return new ItemStack[0];
+        String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(minTier, maxTier);
         String displayLabel = canonicalId != null
             ? canonicalId.substring(canonicalId.indexOf(':') + 1)
-            : armorSet;
-        ItemStack[] items = IngredientMode.buildDisplayItems(canonicalId, displayLabel,
-            TcItemRegistry.getEligibleArmor(armorType, armorSet, slot));
+            : "tier" + minTier;
+        // Null armorSet = recipe mode: show all eligible armor at this tier/slot regardless of set
+        var eligible = armorSet == null
+            ? TcItemRegistry.getAllEligibleArmor(armorType, slot)
+            : TcItemRegistry.getEligibleArmor(armorType, List.of(armorSet), slot);
+        ItemStack[] items = IngredientMode.buildDisplayItems(canonicalId, displayLabel, eligible);
         for (ItemStack item : items) {
             item.getOrCreateTag().putString("nmvt_match_mode", "armor_slot");
         }
@@ -93,7 +97,7 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
         json.addProperty("type", "nomorevanillatools:tinker_material");
         json.addProperty("mode", "armor_slot");
         json.addProperty("tool_type", slot);
-        json.addProperty("armor_set", armorSet);
+        if (armorSet != null) json.addProperty("armor_set", armorSet);
         json.addProperty("min_tier", minTier);
         json.addProperty("max_tier", maxTier);
         return json;
@@ -102,14 +106,14 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
     @Override
     public void write(FriendlyByteBuf buffer) {
         buffer.writeUtf(slot);
-        buffer.writeUtf(armorSet);
+        buffer.writeUtf(armorSet != null ? armorSet : "");
         buffer.writeVarInt(minTier);
         buffer.writeVarInt(maxTier);
     }
 
     static ArmorMode fromJson(JsonObject json) {
         String slot = json.get("tool_type").getAsString();
-        String armorSet = json.get("armor_set").getAsString();
+        String armorSet = json.has("armor_set") ? json.get("armor_set").getAsString() : null;
         int minTier = json.get("min_tier").getAsInt();
         int maxTier = json.get("max_tier").getAsInt();
         return new ArmorMode(slot, armorSet, minTier, maxTier);
@@ -117,7 +121,8 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
 
     static ArmorMode fromBuffer(FriendlyByteBuf buffer) {
         String slot = buffer.readUtf();
-        String armorSet = buffer.readUtf();
+        String raw = buffer.readUtf();
+        String armorSet = raw.isEmpty() ? null : raw;
         int minTier = buffer.readVarInt();
         int maxTier = buffer.readVarInt();
         return new ArmorMode(slot, armorSet, minTier, maxTier);

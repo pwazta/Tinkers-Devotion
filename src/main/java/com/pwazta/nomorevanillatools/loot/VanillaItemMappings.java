@@ -26,7 +26,7 @@ public class VanillaItemMappings {
 
     // ── Record types ─────────────────────────────────────────────────────
     public record ToolInfo(String tier, String toolType) implements ReplacementInfo {}
-    public record ArmorInfo(String set, String slot, int minTier, int maxTier) implements ReplacementInfo {}
+    public record ArmorInfo(List<String> sets, String slot, int minTier, int maxTier) implements ReplacementInfo {}
     /** Per-part tier list matches the tool definition's stat type order (e.g., limb, limb, grip, bowstring). */
     public record RangedInfo(String rangedType, List<String> partTiers) implements ReplacementInfo {}
 
@@ -65,16 +65,17 @@ public class VanillaItemMappings {
                 TOOLS_BY_ID.put("minecraft:" + tier + "_" + tool, new ToolInfo(tier, tool));
             }
         }
-        // Armor: mapped by set (travelers/plate) + IMaterial.getTier() range
+        // Armor: mapped by allowed TC sets (full namespace) + IMaterial.getTier() range.
+        // Multiple sets per tier allow addon armor (TinkersThings laminar/makeshift) to appear in loot.
         // TODO (P2): TC plating defense at tier N < vanilla tier N because TC assumes diamond modifier.
         // Replaced armor may be weaker than vanilla. See PLANNING-armor-rework.md for options.
         for (String slot : ARMOR_SLOTS) {
-            ARMOR_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo("travelers", slot, 0, 1));
-            ARMOR_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo("travelers", slot, 2, 2));
-            ARMOR_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo("plate", slot, 0, 1));
-            ARMOR_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo("plate", slot, 2, 2));
-            ARMOR_BY_ID.put("minecraft:diamond_" + slot,    new ArmorInfo("plate", slot, 3, 3));
-            ARMOR_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo("plate", slot, 3, 3));
+            ARMOR_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:makeshift"), slot, 0, 1));
+            ARMOR_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers"), slot, 2, 2));
+            ARMOR_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 0, 1));
+            ARMOR_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
+            ARMOR_BY_ID.put("minecraft:diamond_" + slot,    new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 3, 3));
+            ARMOR_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 3, 3));
         }
 
         // Ranged weapons — per-part tiers match TC tool definition stat type order

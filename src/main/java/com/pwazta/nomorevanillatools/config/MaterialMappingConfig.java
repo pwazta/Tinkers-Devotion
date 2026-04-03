@@ -64,13 +64,11 @@ public class MaterialMappingConfig {
         "netherite", "tconstruct:hepatizon"
     );
 
-    /** Canonical armor material per set+tier combo. Key format: "set:minTier-maxTier". */
-    private static final Map<String, String> CANONICAL_ARMOR_BY_SET_TIER = Map.of(
-        "travelers:0-1", "tconstruct:copper",
-        "travelers:2-2", "tconstruct:iron",
-        "plate:0-1",     "tconstruct:gold",
-        "plate:2-2",     "tconstruct:iron",
-        "plate:3-3",     "tconstruct:cobalt"
+    /** Canonical armor material per tier range. Unified across all armor sets. Key format: "minTier-maxTier". */
+    private static final Map<String, String> CANONICAL_ARMOR_BY_TIER = Map.of(
+        "0-1", "tconstruct:copper",
+        "2-2", "tconstruct:iron",
+        "3-3", "tconstruct:cobalt"
     );
 
     // ── Store instances ───────────────────────────────────────────────
@@ -375,11 +373,12 @@ public class MaterialMappingConfig {
     }
 
     /**
-     * Returns the canonical armor material for a given set + tier range combo.
-     * Used for 85% loot weight and JEI display. Returns null if no canonical defined.
+     * Returns the canonical armor material for a given tier range.
+     * Unified across all armor sets. Used for 85% loot weight and JEI display.
+     * Returns null if no canonical defined for this tier range.
      */
-    public static @Nullable String getCanonicalArmorMaterial(String set, int minTier, int maxTier) {
-        return CANONICAL_ARMOR_BY_SET_TIER.get(set + ":" + minTier + "-" + maxTier);
+    public static @Nullable String getCanonicalArmorMaterial(int minTier, int maxTier) {
+        return CANONICAL_ARMOR_BY_TIER.get(minTier + "-" + maxTier);
     }
 
     /**

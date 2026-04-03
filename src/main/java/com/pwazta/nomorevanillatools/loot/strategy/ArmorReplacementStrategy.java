@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Strategy for replacing vanilla armor pieces with TC armor (travelers/plate sets).
+ * Strategy for replacing vanilla armor pieces with TC armor.
  */
 public final class ArmorReplacementStrategy implements ReplacementStrategy {
 
@@ -33,18 +33,15 @@ public final class ArmorReplacementStrategy implements ReplacementStrategy {
         VanillaItemMappings.ArmorInfo armorInfo = (VanillaItemMappings.ArmorInfo) info;
         ArmorItem.Type armorType = VanillaItemMappings.getArmorType(armorInfo.slot());
         if (armorType == null) return List.of();
-        return TcItemRegistry.getEligibleArmor(armorType, armorInfo.set(), armorInfo.slot());
+        return TcItemRegistry.getEligibleArmor(armorType, armorInfo.sets(), armorInfo.slot());
     }
 
     @Override
-    public @Nullable List<MaterialVariantId> selectMaterials(
-            VanillaItemMappings.ReplacementInfo info,
-            List<MaterialStatsId> statTypes,
-            RandomSource random) {
+    public @Nullable List<MaterialVariantId> selectMaterials(VanillaItemMappings.ReplacementInfo info, List<MaterialStatsId> statTypes, RandomSource random) {
         VanillaItemMappings.ArmorInfo armorInfo = (VanillaItemMappings.ArmorInfo) info;
         List<MaterialVariantId> materials = new ArrayList<>();
 
-        MaterialVariantId platingMaterial = selectPlatingMaterial(armorInfo.set(), armorInfo.minTier(), armorInfo.maxTier(), random);
+        MaterialVariantId platingMaterial = selectPlatingMaterial(armorInfo.minTier(), armorInfo.maxTier(), random);
         if (platingMaterial == null) return null;
         materials.add(platingMaterial);
 
@@ -63,12 +60,12 @@ public final class ArmorReplacementStrategy implements ReplacementStrategy {
      * Selects plating material for armor using IMaterial.getTier() range filtering.
      * 85% canonical, 15% random from tier-filtered pool.
      */
-    private static @Nullable MaterialVariantId selectPlatingMaterial(String set, int minTier, int maxTier, RandomSource random) {
+    private static @Nullable MaterialVariantId selectPlatingMaterial(int minTier, int maxTier, RandomSource random) {
         List<IMaterial> pool = MaterialMappingConfig.getPlatingMaterialsInTierRange(minTier, maxTier);
         if (pool.isEmpty()) return null;
 
         if (random.nextFloat() < TinkerToolBuilder.CANONICAL_WEIGHT) {
-            String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(set, minTier, maxTier);
+            String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(minTier, maxTier);
             if (canonicalId != null) {
                 MaterialVariantId canonicalVariant = MaterialVariantId.tryParse(canonicalId);
                 if (canonicalVariant != null) {
