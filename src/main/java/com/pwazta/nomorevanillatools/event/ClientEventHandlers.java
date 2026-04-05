@@ -32,10 +32,17 @@ public class ClientEventHandlers {
         boolean isRanged = "ranged".equals(tag.getString("nmvt_match_mode"));
 
         if (isArmor) {
-            // Armor: plating requirement only (no all-parts check — armor skips that config)
-            event.getToolTip().add(Component.translatable(
-                    "tooltip.nomorevanillatools.required_plating_tier", tier)
-                    .withStyle(ChatFormatting.GOLD));
+            // Armor: plating tier requirement. Label is "3" (single) or "0-1" (range).
+            if (tier.contains("-")) {
+                String[] parts = tier.split("-", 2);
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_plating_tier_range", parts[0], parts[1])
+                        .withStyle(ChatFormatting.GOLD));
+            } else {
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_plating_tier", tier)
+                        .withStyle(ChatFormatting.GOLD));
+            }
         } else if (isRanged) {
             // Ranged: tier floor requirement
             event.getToolTip().add(Component.translatable(
