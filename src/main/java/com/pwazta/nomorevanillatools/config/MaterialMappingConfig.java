@@ -68,7 +68,8 @@ public class MaterialMappingConfig {
     private static final Map<String, String> CANONICAL_ARMOR_BY_TIER = Map.of(
         "0-1", "tconstruct:copper",
         "2-2", "tconstruct:iron",
-        "3-3", "tconstruct:cobalt"
+        "3-3", "tconstruct:cobalt",
+        "4-4", "tconstruct:hepatizon"
     );
 
     // ── Store instances ───────────────────────────────────────────────

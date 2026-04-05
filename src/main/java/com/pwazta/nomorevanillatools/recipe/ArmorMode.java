@@ -72,9 +72,9 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
         ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
         if (armorType == null) return new ItemStack[0];
         String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(minTier, maxTier);
-        String displayLabel = canonicalId != null
-            ? canonicalId.substring(canonicalId.indexOf(':') + 1)
-            : "tier" + minTier;
+        String displayLabel = (minTier == maxTier)
+            ? String.valueOf(minTier)
+            : minTier + "-" + maxTier;
         // Null armorSet = recipe mode: show all eligible armor at this tier/slot regardless of set
         var eligible = armorSet == null
             ? TcItemRegistry.getAllEligibleArmor(armorType, slot)

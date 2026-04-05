@@ -71,11 +71,11 @@ public class VanillaItemMappings {
         // Replaced armor may be weaker than vanilla. See PLANNING-armor-rework.md for options.
         for (String slot : ARMOR_SLOTS) {
             ARMOR_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:makeshift"), slot, 0, 1));
-            ARMOR_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers"), slot, 2, 2));
-            ARMOR_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 0, 1));
+            ARMOR_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:laminar"), slot, 2, 2));
+            ARMOR_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:travelers", "tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
             ARMOR_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
             ARMOR_BY_ID.put("minecraft:diamond_" + slot,    new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 3, 3));
-            ARMOR_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 3, 3));
+            ARMOR_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 4, 4));
         }
 
         // Ranged weapons — per-part tiers match TC tool definition stat type order
