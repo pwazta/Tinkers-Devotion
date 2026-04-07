@@ -53,16 +53,14 @@ public class VanillaItemMappings {
 
     public static final String[] RANGED_TYPES = {"bow", "crossbow"};
 
-    // ── String-keyed maps (populated in static init) ─────────────────────
+    // ── String-keyed map (populated in static init) ────────────────────
 
-    private static final Map<String, ToolInfo> TOOLS_BY_ID = new HashMap<>();
-    private static final Map<String, ArmorInfo> ARMOR_BY_ID = new HashMap<>();
-    private static final Map<String, RangedInfo> RANGED_BY_ID = new HashMap<>();
+    private static final Map<String, ReplacementInfo> REPLACEMENTS_BY_ID = new HashMap<>();
 
     static {
         for (String tier : ALL_TOOL_TIERS) {
             for (String tool : TOOL_TYPES) {
-                TOOLS_BY_ID.put("minecraft:" + tier + "_" + tool, new ToolInfo(tier, tool));
+                REPLACEMENTS_BY_ID.put("minecraft:" + tier + "_" + tool, new ToolInfo(tier, tool));
             }
         }
         // Armor: mapped by allowed TC sets (full namespace) + IMaterial.getTier() range.
@@ -70,106 +68,51 @@ public class VanillaItemMappings {
         // TODO (P2): TC plating defense at tier N < vanilla tier N because TC assumes diamond modifier.
         // Replaced armor may be weaker than vanilla. See PLANNING-armor-rework.md for options.
         for (String slot : ARMOR_SLOTS) {
-            ARMOR_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:makeshift"), slot, 0, 1));
-            ARMOR_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:laminar"), slot, 2, 2));
-            ARMOR_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:travelers", "tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
-            ARMOR_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
-            ARMOR_BY_ID.put("minecraft:diamond_" + slot,    new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 3, 3));
-            ARMOR_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 4, 4));
+            REPLACEMENTS_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:makeshift"), slot, 0, 1));
+            REPLACEMENTS_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:laminar"), slot, 2, 2));
+            REPLACEMENTS_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:travelers", "tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
+            REPLACEMENTS_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
+            REPLACEMENTS_BY_ID.put("minecraft:diamond_" + slot,    new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 3, 3));
+            REPLACEMENTS_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 4, 4));
         }
 
         // Ranged weapons — per-part tiers match TC tool definition stat type order
         // Bow: 4 parts (limb, limb, grip, bowstring) — all wooden tier
-        RANGED_BY_ID.put("minecraft:bow", new RangedInfo("bow", List.of("wooden", "wooden", "wooden", "wooden")));
+        REPLACEMENTS_BY_ID.put("minecraft:bow", new RangedInfo("bow", List.of("wooden", "wooden", "wooden", "wooden")));
         // Crossbow: 3 parts (limb, grip, bowstring) — iron grip matches vanilla iron ingot ingredient
-        RANGED_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow", List.of("wooden", "iron", "wooden")));
+        REPLACEMENTS_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow", List.of("wooden", "iron", "wooden")));
     }
 
-    // ── Item-keyed maps (lazy-initialized on first access) ───────────────
+    // ── Item-keyed map (lazy-initialized on first access) ────────────────
 
-    private static volatile Map<Item, ToolInfo> toolsByItem;
-    private static volatile Map<Item, ArmorInfo> armorByItem;
-    private static volatile Map<Item, RangedInfo> rangedByItem;
+    private static volatile Map<Item, ReplacementInfo> replacementsByItem;
 
-    private static void ensureItemMaps() {
-        if (toolsByItem != null) return;
+    private static void ensureItemMap() {
+        if (replacementsByItem != null) return;
         synchronized (VanillaItemMappings.class) {
-            if (toolsByItem != null) return;
-            Map<Item, ToolInfo> tools = new HashMap<>();
-            Map<Item, ArmorInfo> armor = new HashMap<>();
-            Map<Item, RangedInfo> ranged = new HashMap<>();
-            for (Map.Entry<String, ToolInfo> entry : TOOLS_BY_ID.entrySet()) {
+            if (replacementsByItem != null) return;
+            Map<Item, ReplacementInfo> map = new HashMap<>();
+            for (Map.Entry<String, ReplacementInfo> entry : REPLACEMENTS_BY_ID.entrySet()) {
                 Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey()));
-                if (item != null) tools.put(item, entry.getValue());
+                if (item != null) map.put(item, entry.getValue());
             }
-            for (Map.Entry<String, ArmorInfo> entry : ARMOR_BY_ID.entrySet()) {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey()));
-                if (item != null) armor.put(item, entry.getValue());
-            }
-            for (Map.Entry<String, RangedInfo> entry : RANGED_BY_ID.entrySet()) {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey()));
-                if (item != null) ranged.put(item, entry.getValue());
-            }
-            rangedByItem = ranged;
-            armorByItem = armor;
-            toolsByItem = tools;
+            replacementsByItem = map;
         }
     }
 
     // ── Loot lookup (Item-keyed, O(1)) ───────────────────────────────────
 
-    /** Look up tool info by Item reference. Returns null if not a vanilla tool. */
-    public static @Nullable ToolInfo getToolInfo(Item item) {
-        ensureItemMaps();
-        return toolsByItem.get(item);
-    }
-
-    /** Look up armor info by Item reference. Returns null if not a vanilla armor piece. */
-    public static @Nullable ArmorInfo getArmorInfo(Item item) {
-        ensureItemMaps();
-        return armorByItem.get(item);
-    }
-
-    /** Look up ranged info by Item reference. Returns null if not a vanilla ranged weapon. */
-    public static @Nullable RangedInfo getRangedInfo(Item item) {
-        ensureItemMaps();
-        return rangedByItem.get(item);
-    }
-
     /** Unified lookup for strategy dispatch. Returns null if not a mapped vanilla item. */
     public static @Nullable ReplacementInfo getReplacementInfo(Item item) {
-        ensureItemMaps();
-        ToolInfo tool = toolsByItem.get(item);
-        if (tool != null) return tool;
-        ArmorInfo armor = armorByItem.get(item);
-        if (armor != null) return armor;
-        return rangedByItem.get(item);
+        ensureItemMap();
+        return replacementsByItem.get(item);
     }
 
-    // ── Recipe gen lookup (String-keyed) ──────────────────────────────────
-
-    /** Look up tool info by registry ID string. Returns null if not a vanilla tool. */
-    public static @Nullable ToolInfo getToolInfoById(String registryId) {
-        return TOOLS_BY_ID.get(registryId);
-    }
-
-    /** Look up armor info by registry ID string. Returns null if not a vanilla armor piece. */
-    public static @Nullable ArmorInfo getArmorInfoById(String registryId) {
-        return ARMOR_BY_ID.get(registryId);
-    }
-
-    /** Look up ranged info by registry ID string. Returns null if not a vanilla ranged weapon. */
-    public static @Nullable RangedInfo getRangedInfoById(String registryId) {
-        return RANGED_BY_ID.get(registryId);
-    }
+    // ── Recipe gen lookup (String-keyed, O(1)) ───────────────────────────
 
     /** Unified string-keyed lookup for recipe generation. */
     public static @Nullable ReplacementInfo getReplacementInfoById(String registryId) {
-        ToolInfo tool = TOOLS_BY_ID.get(registryId);
-        if (tool != null) return tool;
-        ArmorInfo armor = ARMOR_BY_ID.get(registryId);
-        if (armor != null) return armor;
-        return RANGED_BY_ID.get(registryId);
+        return REPLACEMENTS_BY_ID.get(registryId);
     }
 
     // ── ToolAction / ArmorItem.Type resolution ───────────────────────────
