@@ -30,7 +30,7 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         return "ranged";
     }
 
-    /** Validates ranged type (bow/crossbow) + exclusions, then checks each part's IMaterial.getTier() >= per-part floor from partTiers. */
+    /** Validates ranged type (bow/crossbow) + exclusions, then checks each part's IMaterial.getTier() exactly matches per-part tier from partTiers. */
     @Override
     public boolean test(ItemStack stack) {
         if (partTiers.isEmpty()) return false;
@@ -43,10 +43,10 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
         if (materialsList.isEmpty()) return false;
 
-        // Per-part tier floor: each part's IMaterial.getTier() >= required floor
+        // Per-part exact tier match: each part's IMaterial.getTier() must equal the required tier
         for (int i = 0; i < partTiers.size() && i < materialsList.size(); i++) {
-            Integer requiredFloor = VanillaItemMappings.TIER_NAME_TO_INT.get(partTiers.get(i).toLowerCase());
-            if (requiredFloor == null) return false;
+            Integer requiredTier = VanillaItemMappings.TIER_NAME_TO_INT.get(partTiers.get(i).toLowerCase());
+            if (requiredTier == null) return false;
 
             MaterialId materialId = MaterialId.tryParse(materialsList.getString(i));
             if (materialId == null) return false;
@@ -54,7 +54,7 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
             IMaterial material = MaterialRegistry.getInstance().getMaterial(materialId);
             if (material == IMaterial.UNKNOWN) return false;
 
-            if (material.getTier() < requiredFloor) return false;
+            if (material.getTier() != requiredTier) return false;
         }
 
         return true;

@@ -55,6 +55,19 @@ public class Config {
                      "Default 1.5 makes specialists ~8x more likely than universals.")
             .defineInRange("modifierWeightFalloff", 1.5, 0.0, 5.0);
 
+    private static final ForgeConfigSpec.DoubleValue LOOT_VARIANCE_CHANCE = BUILDER
+            .comment("Chance per part of selecting a material from any tier (up to maxLootVarianceTier)",
+                     "instead of the base tier, in loot/mob replacement for single-tier items.",
+                     "Set to 0 to disable. Remaining non-canonical chance stays within base tier.",
+                     "At default: 80% canonical, 10% same-tier random, 10% any-tier random.")
+            .defineInRange("lootVarianceChance", 0.10, 0.0, 1.0);
+
+    private static final ForgeConfigSpec.IntValue MAX_LOOT_VARIANCE_TIER = BUILDER
+            .comment("Hard cap on material tier for loot variance (IMaterial.getTier()).",
+                     "0=wood, 1=stone, 2=iron, 3=diamond, 4=netherite.",
+                     "Default 3 prevents netherite/dragonsteel materials on random loot.")
+            .defineInRange("maxLootVarianceTier", 3, 0, 4);
+
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
             .comment("Enable debug logging for recipe modifications and ingredient matching.",
                      "Useful for troubleshooting. May spam console.")
@@ -90,6 +103,8 @@ public class Config {
     public static boolean replaceMobRangedAI;
     public static double levelUpChance;
     public static double modifierWeightFalloff;
+    public static double lootVarianceChance;
+    public static int maxLootVarianceTier;
     public static boolean debugLogging;
 
     @SubscribeEvent
@@ -104,6 +119,8 @@ public class Config {
         replaceMobRangedAI = REPLACE_MOB_RANGED_AI.get();
         levelUpChance = LEVEL_UP_CHANCE.get();
         modifierWeightFalloff = MODIFIER_WEIGHT_FALLOFF.get();
+        lootVarianceChance = LOOT_VARIANCE_CHANCE.get();
+        maxLootVarianceTier = MAX_LOOT_VARIANCE_TIER.get();
         debugLogging = DEBUG_LOGGING.get();
     }
 }

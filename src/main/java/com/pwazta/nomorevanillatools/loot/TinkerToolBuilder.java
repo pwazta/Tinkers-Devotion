@@ -1,18 +1,26 @@
 package com.pwazta.nomorevanillatools.loot;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+
 import com.mojang.logging.LogUtils;
+import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.loot.strategy.ArmorReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.RangedReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ToolReplacementStrategy;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
+
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
-import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
 import slimeknights.tconstruct.library.materials.IMaterialRegistry;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 import slimeknights.tconstruct.library.materials.definition.IMaterial;
@@ -23,11 +31,6 @@ import slimeknights.tconstruct.library.tools.definition.module.material.ToolMate
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Orchestrator for building randomized TC tools, armor, and ranged weapons for loot replacement.
@@ -43,7 +46,7 @@ public class TinkerToolBuilder {
     // ── Shared constants (public for strategy sub-package access) ────────
 
     /** Probability of selecting the canonical (first-in-config) material for primary parts. */
-    public static final float CANONICAL_WEIGHT = 0.85f;
+    public static final float CANONICAL_WEIGHT = 0.80f;
 
     /** Maps vanilla tier name to IMaterial.getTier() int for tier-based filtering. */
     public static final Map<String, Integer> TIER_NAME_TO_INT = VanillaItemMappings.TIER_NAME_TO_INT;
@@ -147,6 +150,72 @@ public class TinkerToolBuilder {
         float ratio = (float) original.getDamageValue() / original.getMaxDamage();
         int newDamage = Math.min((int) (ratio * replacement.getMaxDamage()), replacement.getMaxDamage() - 1);
         replacement.setDamageValue(newDamage);
+    }
+
+    // ── Single-tier shared selection (used by ranged, shield, and future single-tier strategies) ──
+
+    /**
+     * Selects materials for all parts of a single-tier item. Each part selected independently via {@link #selectByPartTier}.
+     *
+     * @param partTiers per-part tier names from ReplacementInfo (e.g., ["wooden","wooden","iron","wooden"])
+     * @param statTypes stat type IDs per part slot from the tool definition
+     * @param random    random source
+     * @return ordered list of materials, or null if any part selection fails
+     */
+    public static @Nullable List<MaterialVariantId> selectMaterialsByPartTiers(List<String> partTiers, List<MaterialStatsId> statTypes, RandomSource random) {
+        List<MaterialVariantId> materials = new ArrayList<>();
+        for (int i = 0; i < statTypes.size(); i++) {
+            String tierName = i < partTiers.size() ? partTiers.get(i) : partTiers.get(partTiers.size() - 1);
+            MaterialVariantId partMaterial = selectByPartTier(tierName, statTypes.get(i), random);
+            if (partMaterial == null) return null;
+            materials.add(partMaterial);
+        }
+        return materials;
+    }
+
+    /**
+     * Selects a material for one part slot. 80% canonical, 10% same-tier random, 10% any-tier variance (configurable).
+     *
+     * @param baseTierName tier name for this part (e.g., "wooden", "iron")
+     * @param statType     the stat type ID for this part slot
+     * @param random       random source
+     * @return selected material, or null if no compatible materials exist
+     */
+    public static @Nullable MaterialVariantId selectByPartTier(String baseTierName, MaterialStatsId statType, RandomSource random) {
+        Integer baseTcTier = TIER_NAME_TO_INT.get(baseTierName.toLowerCase());
+        if (baseTcTier == null) return null;
+
+        List<IMaterial> compatible = getCompatibleMaterials(statType);
+        if (compatible.isEmpty()) return null;
+
+        List<IMaterial> sameTierPool = compatible.stream().filter(mat -> mat.getTier() == baseTcTier).toList();
+        if (sameTierPool.isEmpty()) sameTierPool = compatible;
+
+        float roll = random.nextFloat();
+
+        // 80%: canonical material at base tier: fallback goes to same-tier random branch
+        if (roll < CANONICAL_WEIGHT) {
+            String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(baseTierName);
+            if (canonicalId != null) {
+                MaterialVariantId canonicalVariant = MaterialVariantId.tryParse(canonicalId);
+                if (canonicalVariant != null) {
+                    boolean inPool = sameTierPool.stream().anyMatch(mat -> mat.getIdentifier().equals(canonicalVariant.getId()));
+                    if (inPool) return canonicalVariant;
+                }
+            }
+        }
+
+        // 10% (configurable): random from any tier up to maxLootVarianceTier
+        if (roll >= 1.0f - (float) Config.lootVarianceChance) {
+            List<IMaterial> variancePool = compatible.stream().filter(mat -> mat.getTier() <= Config.maxLootVarianceTier).toList();
+            if (variancePool.isEmpty()) variancePool = compatible;
+            IMaterial selected = variancePool.get(random.nextInt(variancePool.size()));
+            return MaterialVariantId.create(selected.getIdentifier(), "");
+        }
+
+        // 10%: random material at exactly the base tier
+        IMaterial selected = sameTierPool.get(random.nextInt(sameTierPool.size()));
+        return MaterialVariantId.create(selected.getIdentifier(), "");
     }
 
     // ── Compatible materials per stat type (cached, public for strategies) ──
