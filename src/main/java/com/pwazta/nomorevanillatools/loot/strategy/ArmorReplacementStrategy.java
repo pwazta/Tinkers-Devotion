@@ -58,7 +58,7 @@ public final class ArmorReplacementStrategy implements ReplacementStrategy {
 
     /**
      * Selects plating material for armor using IMaterial.getTier() range filtering.
-     * 85% canonical, 15% random from tier-filtered pool.
+     * 80% canonical, 20% random from tier-filtered pool.
      */
     private static @Nullable MaterialVariantId selectPlatingMaterial(int minTier, int maxTier, RandomSource random) {
         List<IMaterial> pool = MaterialMappingConfig.getPlatingMaterialsInTierRange(minTier, maxTier);
@@ -74,7 +74,7 @@ public final class ArmorReplacementStrategy implements ReplacementStrategy {
                     if (inPool) return canonicalVariant;
                 }
             }
-            return MaterialVariantId.create(pool.get(0).getIdentifier(), "");
+            // canonical missing/invalid — fall through to random
         }
 
         IMaterial selected = pool.get(random.nextInt(pool.size()));

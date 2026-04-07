@@ -66,7 +66,7 @@ public final class ToolReplacementStrategy implements ReplacementStrategy {
 
     /**
      * Selects head material for tools using weighted algorithm:
-     * 85% canonical (from MaterialMappingConfig), 15% random from tier pool.
+     * 80% canonical (from MaterialMappingConfig), 20% random from tier pool.
      */
     private static @Nullable MaterialVariantId selectHeadMaterial(String tier, RandomSource random) {
         Set<String> materials = MaterialMappingConfig.getMaterialsForTier(tier);
