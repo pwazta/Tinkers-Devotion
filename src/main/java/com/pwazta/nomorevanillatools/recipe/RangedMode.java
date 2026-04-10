@@ -17,8 +17,16 @@ import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 import slimeknights.tconstruct.library.materials.definition.IMaterial;
 import slimeknights.tconstruct.library.materials.definition.MaterialId;
+import slimeknights.tconstruct.library.materials.definition.MaterialVariant;
+import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
+import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
+import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
+import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
+import slimeknights.tconstruct.library.tools.helper.ToolBuildHandler;
+import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
+import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,18 +83,77 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         return itemId == null || !ToolExclusionConfig.isExcluded(rangedType, itemId.toString());
     }
 
-    /** Builds JEI display stacks from eligible ranged weapons, tagged with nmvt_match_mode for tooltip branching. */
+    /** Builds JEI display stacks with per-part canonical materials. Tags mixed-tier items with formatted part details for tooltip. */
     @Override
     public ItemStack[] computeDisplayItems() {
         if (partTiers.isEmpty()) return new ItemStack[0];
-        String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(partTiers.get(0));
-        String displayLabel = partTiers.get(0);
-        ItemStack[] items = IngredientMode.buildDisplayItems(canonicalId, displayLabel,
-            TcItemRegistry.getEligibleRanged(rangedType));
-        for (ItemStack item : items) {
-            item.getOrCreateTag().putString("nmvt_match_mode", "ranged");
+
+        // Resolve canonical materials per part tier
+        List<MaterialVariantId> partMaterials = new ArrayList<>();
+        for (String tierName : partTiers) {
+            String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(tierName);
+            if (canonicalId == null) return new ItemStack[0];
+            MaterialVariantId variant = MaterialVariantId.tryParse(canonicalId);
+            if (variant == null) return new ItemStack[0];
+            partMaterials.add(variant);
         }
-        return items;
+
+        boolean uniform = partTiers.stream().allMatch(partTiers.get(0)::equals);
+
+        List<IModifiable> eligible = TcItemRegistry.getEligibleRanged(rangedType);
+        List<ItemStack> result = new ArrayList<>();
+        for (IModifiable item : eligible) {
+            ToolDefinition def = item.getToolDefinition();
+            if (!def.isDataLoaded()) continue;
+            List<MaterialStatsId> statTypes = ToolMaterialHook.stats(def);
+            int partCount = statTypes.size();
+
+            MaterialNBT.Builder builder = MaterialNBT.builder();
+            for (int i = 0; i < partCount; i++) {
+                MaterialVariantId mat = i < partMaterials.size()
+                    ? partMaterials.get(i)
+                    : partMaterials.get(partMaterials.size() - 1);
+                builder.add(mat);
+            }
+
+            ItemStack stack = ToolBuildHandler.buildItemFromMaterials(item, builder.build());
+            if (stack.isEmpty()) {
+                // Fallback: addon weapon with unexpected parts — use single-material display
+                stack = ToolBuildHandler.createSingleMaterial(item, MaterialVariant.of(partMaterials.get(0)));
+            }
+            if (!stack.isEmpty()) {
+                stack.getOrCreateTag().putString("nmvt_match_mode", "ranged");
+                stack.getOrCreateTag().putString("nmvt_required_tier", partTiers.get(0));
+                if (!uniform) {
+                    stack.getOrCreateTag().putString("nmvt_part_details",
+                        formatPartDetails(partTiers, statTypes));
+                }
+                result.add(stack);
+            }
+        }
+        return result.toArray(new ItemStack[0]);
+    }
+
+    /** Formats per-part tier details for tooltip, e.g. "wooden-tier Limb, iron-tier Grip, wooden-tier Bowstring". */
+    private static String formatPartDetails(List<String> tiers, List<MaterialStatsId> statTypes) {
+        StringBuilder sb = new StringBuilder();
+        int count = Math.min(tiers.size(), statTypes.size());
+        for (int i = 0; i < count; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(tiers.get(i)).append("-tier ").append(formatPartName(statTypes.get(i).getPath()));
+        }
+        return sb.toString();
+    }
+
+    /** Capitalizes a stat type path, e.g. "bow_grip" → "Bow Grip". */
+    private static String formatPartName(String path) {
+        String[] words = path.split("_");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            if (i > 0) sb.append(' ');
+            if (!words[i].isEmpty()) sb.append(Character.toUpperCase(words[i].charAt(0))).append(words[i].substring(1));
+        }
+        return sb.toString();
     }
 
     @Override
