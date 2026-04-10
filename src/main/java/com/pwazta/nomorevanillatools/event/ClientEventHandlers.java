@@ -44,10 +44,17 @@ public class ClientEventHandlers {
                         .withStyle(ChatFormatting.GOLD));
             }
         } else if (isRanged) {
-            // Ranged: tier floor requirement
-            event.getToolTip().add(Component.translatable(
-                    "tooltip.nomorevanillatools.required_ranged", tier)
-                    .withStyle(ChatFormatting.GOLD));
+            // Ranged: per-part tier details if mixed, otherwise single tier
+            String partDetails = tag.getString("nmvt_part_details");
+            if (!partDetails.isEmpty()) {
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_ranged_parts", partDetails)
+                        .withStyle(ChatFormatting.GOLD));
+            } else {
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_ranged", tier)
+                        .withStyle(ChatFormatting.GOLD));
+            }
         } else {
             // Tool: head requirement + all-parts match clarification
             event.getToolTip().add(Component.translatable(

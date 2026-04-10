@@ -15,6 +15,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.registries.ForgeRegistries;
+import slimeknights.tconstruct.library.materials.definition.MaterialVariant;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
 import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
@@ -110,6 +111,10 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
                 builder.add(i < tierParts ? canonical : BASIC_VARIANT);
 
             ItemStack stack = ToolBuildHandler.buildItemFromMaterials(item, builder.build());
+            if (stack.isEmpty()) {
+                // Fallback: addon tool with unexpected parts — use single-material display
+                stack = ToolBuildHandler.createSingleMaterial(item, MaterialVariant.of(canonical));
+            }
             if (!stack.isEmpty()) {
                 stack.getOrCreateTag().putString("nmvt_required_tier", tier);
                 result.add(stack);
