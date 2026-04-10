@@ -3,9 +3,7 @@ package com.pwazta.nomorevanillatools.recipe;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
-import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -31,17 +29,18 @@ import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 import java.util.ArrayList;
 import java.util.List;
 
-public record RangedMode(String rangedType, List<String> partTiers) implements IngredientMode {
+/** Ranged weapon ingredient mode. Canonical materials define both display and tier requirements — tiers derived via IMaterial.getTier(). */
+public record RangedMode(String rangedType, List<String> canonicalMaterials) implements IngredientMode {
 
     @Override
     public String modeName() {
         return "ranged";
     }
 
-    /** Validates ranged type (bow/crossbow) + exclusions, then checks each part's IMaterial.getTier() exactly matches per-part tier from partTiers. */
+    /** Validates ranged type + exclusions, then checks each part's IMaterial.getTier() matches the tier derived from the canonical material. */
     @Override
     public boolean test(ItemStack stack) {
-        if (partTiers.isEmpty()) return false;
+        if (canonicalMaterials.isEmpty()) return false;
 
         if (!matchesRangedType(stack)) return false;
 
@@ -51,10 +50,10 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
         if (materialsList.isEmpty()) return false;
 
-        // Per-part exact tier match: each part's IMaterial.getTier() must equal the required tier
-        for (int i = 0; i < partTiers.size() && i < materialsList.size(); i++) {
-            Integer requiredTier = VanillaItemMappings.TIER_NAME_TO_INT.get(partTiers.get(i).toLowerCase());
-            if (requiredTier == null) return false;
+        // Per-part tier match: each part's tier must equal the canonical material's tier
+        for (int i = 0; i < canonicalMaterials.size() && i < materialsList.size(); i++) {
+            int requiredTier = resolveCanonicalTier(canonicalMaterials.get(i));
+            if (requiredTier < 0) return false;
 
             MaterialId materialId = MaterialId.tryParse(materialsList.getString(i));
             if (materialId == null) return false;
@@ -66,6 +65,14 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         }
 
         return true;
+    }
+
+    /** Resolves a canonical material ID to its IMaterial.getTier() int. Returns -1 if unresolvable. */
+    private static int resolveCanonicalTier(String canonicalId) {
+        MaterialId matId = MaterialId.tryParse(canonicalId);
+        if (matId == null) return -1;
+        IMaterial material = MaterialRegistry.getInstance().getMaterial(matId);
+        return material == IMaterial.UNKNOWN ? -1 : material.getTier();
     }
 
     /** Checks item is ModifiableBowItem or ModifiableCrossbowItem matching rangedType, and not excluded. */
@@ -83,22 +90,20 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         return itemId == null || !ToolExclusionConfig.isExcluded(rangedType, itemId.toString());
     }
 
-    /** Builds JEI display stacks with per-part canonical materials. Tags mixed-tier items with formatted part details for tooltip. */
+    /** Builds JEI display stacks using canonical materials directly. Tags mixed-tier items with per-part details for tooltip. */
     @Override
     public ItemStack[] computeDisplayItems() {
-        if (partTiers.isEmpty()) return new ItemStack[0];
+        if (canonicalMaterials.isEmpty()) return new ItemStack[0];
 
-        // Resolve canonical materials per part tier
+        // Parse canonical material IDs
         List<MaterialVariantId> partMaterials = new ArrayList<>();
-        for (String tierName : partTiers) {
-            String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(tierName);
-            if (canonicalId == null) return new ItemStack[0];
+        for (String canonicalId : canonicalMaterials) {
             MaterialVariantId variant = MaterialVariantId.tryParse(canonicalId);
             if (variant == null) return new ItemStack[0];
             partMaterials.add(variant);
         }
 
-        boolean uniform = partTiers.stream().allMatch(partTiers.get(0)::equals);
+        boolean uniform = canonicalMaterials.stream().allMatch(canonicalMaterials.get(0)::equals);
 
         List<IModifiable> eligible = TcItemRegistry.getEligibleRanged(rangedType);
         List<ItemStack> result = new ArrayList<>();
@@ -118,15 +123,15 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
 
             ItemStack stack = ToolBuildHandler.buildItemFromMaterials(item, builder.build());
             if (stack.isEmpty()) {
-                // Fallback: addon weapon with unexpected parts — use single-material display
                 stack = ToolBuildHandler.createSingleMaterial(item, MaterialVariant.of(partMaterials.get(0)));
             }
             if (!stack.isEmpty()) {
                 stack.getOrCreateTag().putString("nmvt_match_mode", "ranged");
-                stack.getOrCreateTag().putString("nmvt_required_tier", partTiers.get(0));
+                int firstTier = resolveCanonicalTier(canonicalMaterials.get(0));
+                stack.getOrCreateTag().putString("nmvt_required_tier", String.valueOf(firstTier));
                 if (!uniform) {
                     stack.getOrCreateTag().putString("nmvt_part_details",
-                        formatPartDetails(partTiers, statTypes));
+                        formatPartDetails(canonicalMaterials, statTypes));
                 }
                 result.add(stack);
             }
@@ -134,13 +139,14 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         return result.toArray(new ItemStack[0]);
     }
 
-    /** Formats per-part tier details for tooltip, e.g. "wooden-tier Limb, iron-tier Grip, wooden-tier Bowstring". */
-    private static String formatPartDetails(List<String> tiers, List<MaterialStatsId> statTypes) {
+    /** Formats per-part tier details for tooltip, e.g. "tier 0 Limb, tier 2 Grip, tier 0 Bowstring". */
+    private static String formatPartDetails(List<String> materials, List<MaterialStatsId> statTypes) {
         StringBuilder sb = new StringBuilder();
-        int count = Math.min(tiers.size(), statTypes.size());
+        int count = Math.min(materials.size(), statTypes.size());
         for (int i = 0; i < count; i++) {
             if (i > 0) sb.append(", ");
-            sb.append(tiers.get(i)).append("-tier ").append(formatPartName(statTypes.get(i).getPath()));
+            int tier = resolveCanonicalTier(materials.get(i));
+            sb.append("tier ").append(tier).append(' ').append(formatPartName(statTypes.get(i).getPath()));
         }
         return sb.toString();
     }
@@ -167,31 +173,31 @@ public record RangedMode(String rangedType, List<String> partTiers) implements I
         json.addProperty("type", "nomorevanillatools:tinker_material");
         json.addProperty("mode", "ranged");
         json.addProperty("ranged_type", rangedType);
-        JsonArray tiers = new JsonArray();
-        for (String t : partTiers) tiers.add(t);
-        json.add("part_tiers", tiers);
+        JsonArray materials = new JsonArray();
+        for (String m : canonicalMaterials) materials.add(m);
+        json.add("canonical_materials", materials);
         return json;
     }
 
     @Override
     public void write(FriendlyByteBuf buffer) {
-        buffer.writeUtf(rangedType); // stores rangedType
-        buffer.writeVarInt(partTiers.size());
-        for (String tier : partTiers) buffer.writeUtf(tier);
+        buffer.writeUtf(rangedType);
+        buffer.writeVarInt(canonicalMaterials.size());
+        for (String mat : canonicalMaterials) buffer.writeUtf(mat);
     }
 
     static RangedMode fromJson(JsonObject json) {
         String rangedType = json.get("ranged_type").getAsString();
-        List<String> partTiers = new ArrayList<>();
-        json.getAsJsonArray("part_tiers").forEach(e -> partTiers.add(e.getAsString()));
-        return new RangedMode(rangedType, partTiers);
+        List<String> canonicalMaterials = new ArrayList<>();
+        json.getAsJsonArray("canonical_materials").forEach(e -> canonicalMaterials.add(e.getAsString()));
+        return new RangedMode(rangedType, canonicalMaterials);
     }
 
     static RangedMode fromBuffer(FriendlyByteBuf buffer) {
         String rangedType = buffer.readUtf();
         int count = buffer.readVarInt();
-        List<String> partTiers = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) partTiers.add(buffer.readUtf());
-        return new RangedMode(rangedType, partTiers);
+        List<String> canonicalMaterials = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) canonicalMaterials.add(buffer.readUtf());
+        return new RangedMode(rangedType, canonicalMaterials);
     }
 }

@@ -291,7 +291,7 @@ public class GenerateRecipesCommand {
         } else if (info instanceof VanillaItemMappings.ArmorInfo a) {
             return new ArmorMode(a.slot(), null, a.minTier(), a.maxTier());
         } else if (info instanceof VanillaItemMappings.RangedInfo r) {
-            return new RangedMode(r.rangedType(), r.partTiers());
+            return new RangedMode(r.rangedType(), r.canonicalMaterials());
         }
         throw new IllegalStateException("Unknown ReplacementInfo type: " + info.getClass());
     }
