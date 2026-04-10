@@ -15,14 +15,24 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.registries.ForgeRegistries;
+import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
+import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
 import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
+import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
+import slimeknights.tconstruct.library.tools.helper.ToolBuildHandler;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
+import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public record ToolMode(String tier, String toolType) implements IngredientMode {
+
+    /** Basic material for non-head display parts. Parsed once, reused across all display builds. */
+    private static final MaterialVariantId BASIC_VARIANT = MaterialVariantId.parse("tconstruct:wood");
 
     @Override
     public String modeName() {
@@ -73,14 +83,39 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return toolId == null || !ToolExclusionConfig.isExcluded(toolType, toolId.toString());
     }
 
-    /** Builds JEI display stacks from eligible tools for this ToolAction + canonical material for the tier. */
+    /** Builds JEI display stacks with canonical head material + wooden other parts. Config-aware: respects requireAllPartsMatch threshold. */
     @Override
     public ItemStack[] computeDisplayItems() {
         ToolAction action = VanillaItemMappings.getToolAction(toolType);
         if (action == null) return new ItemStack[0];
-        return IngredientMode.buildDisplayItems(
-            MaterialMappingConfig.getCanonicalToolMaterial(tier), tier,
-            TcItemRegistry.getEligibleTools(action, toolType));
+
+        String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(tier);
+        if (canonicalId == null) return new ItemStack[0];
+        MaterialVariantId canonical = MaterialVariantId.tryParse(canonicalId);
+        if (canonical == null) return new ItemStack[0];
+
+        List<IModifiable> eligible = TcItemRegistry.getEligibleTools(action, toolType);
+        List<ItemStack> result = new ArrayList<>();
+        for (IModifiable item : eligible) {
+            ToolDefinition def = item.getToolDefinition();
+            if (!def.isDataLoaded()) continue;
+            List<MaterialStatsId> statTypes = ToolMaterialHook.stats(def);
+            int partCount = statTypes.size();
+            int tierParts = Config.requireAllPartsMatch
+                ? Math.max(1, (int) Math.ceil(Config.allPartsThreshold * partCount))
+                : 1;
+
+            MaterialNBT.Builder builder = MaterialNBT.builder();
+            for (int i = 0; i < partCount; i++)
+                builder.add(i < tierParts ? canonical : BASIC_VARIANT);
+
+            ItemStack stack = ToolBuildHandler.buildItemFromMaterials(item, builder.build());
+            if (!stack.isEmpty()) {
+                stack.getOrCreateTag().putString("nmvt_required_tier", tier);
+                result.add(stack);
+            }
+        }
+        return result.toArray(new ItemStack[0]);
     }
 
     @Override
