@@ -48,9 +48,6 @@ public class TinkerToolBuilder {
     /** Probability of selecting the canonical (first-in-config) material for primary parts. */
     public static final float CANONICAL_WEIGHT = 0.80f;
 
-    /** Maps vanilla tier name to IMaterial.getTier() int for tier-based filtering. */
-    public static final Map<String, Integer> TIER_NAME_TO_INT = VanillaItemMappings.TIER_NAME_TO_INT;
-
     // ── Strategy dispatch ────────────────────────────────────────────────
 
     private static final Map<Class<? extends VanillaItemMappings.ReplacementInfo>, ReplacementStrategy> STRATEGIES = Map.of(
@@ -155,18 +152,22 @@ public class TinkerToolBuilder {
     // ── Single-tier shared selection (used by ranged, shield, and future single-tier strategies) ──
 
     /**
-     * Selects materials for all parts of a single-tier item. Each part selected independently via {@link #selectByPartTier}.
+     * Selects materials for all parts of a single-tier item from canonical material IDs.
+     * Each canonical material defines both the 80% default and the tier for variance selection.
      *
-     * @param partTiers per-part tier names from ReplacementInfo (e.g., ["wooden","wooden","iron","wooden"])
-     * @param statTypes stat type IDs per part slot from the tool definition
-     * @param random    random source
+     * @param canonicalMaterials per-part canonical material IDs (e.g., ["tconstruct:wood","tconstruct:iron","tconstruct:string"])
+     * @param statTypes          stat type IDs per part slot from the tool definition
+     * @param random             random source
      * @return ordered list of materials, or null if any part selection fails
      */
-    public static @Nullable List<MaterialVariantId> selectMaterialsByPartTiers(List<String> partTiers, List<MaterialStatsId> statTypes, RandomSource random) {
+    public static @Nullable List<MaterialVariantId> selectMaterialsByCanonicals(List<String> canonicalMaterials, List<MaterialStatsId> statTypes, RandomSource random) {
         List<MaterialVariantId> materials = new ArrayList<>();
         for (int i = 0; i < statTypes.size(); i++) {
-            String tierName = i < partTiers.size() ? partTiers.get(i) : partTiers.get(partTiers.size() - 1);
-            MaterialVariantId partMaterial = selectByPartTier(tierName, statTypes.get(i), random);
+            String canonicalId = i < canonicalMaterials.size() ? canonicalMaterials.get(i) : canonicalMaterials.get(canonicalMaterials.size() - 1);
+            MaterialVariantId canonical = MaterialVariantId.tryParse(canonicalId);
+            if (canonical == null) return null;
+            int baseTier = MaterialRegistry.getInstance().getMaterial(canonical.getId()).getTier();
+            MaterialVariantId partMaterial = selectByPartTier(baseTier, canonical, statTypes.get(i), random);
             if (partMaterial == null) return null;
             materials.add(partMaterial);
         }
@@ -176,33 +177,25 @@ public class TinkerToolBuilder {
     /**
      * Selects a material for one part slot. 80% canonical, 10% same-tier random, 10% any-tier variance (configurable).
      *
-     * @param baseTierName tier name for this part (e.g., "wooden", "iron")
-     * @param statType     the stat type ID for this part slot
-     * @param random       random source
+     * @param baseTier  TC material tier int for this part
+     * @param canonical canonical material for 80% weight selection
+     * @param statType  the stat type ID for this part slot
+     * @param random    random source
      * @return selected material, or null if no compatible materials exist
      */
-    public static @Nullable MaterialVariantId selectByPartTier(String baseTierName, MaterialStatsId statType, RandomSource random) {
-        Integer baseTcTier = TIER_NAME_TO_INT.get(baseTierName.toLowerCase());
-        if (baseTcTier == null) return null;
-
+    public static @Nullable MaterialVariantId selectByPartTier(int baseTier, MaterialVariantId canonical, MaterialStatsId statType, RandomSource random) {
         List<IMaterial> compatible = getCompatibleMaterials(statType);
         if (compatible.isEmpty()) return null;
 
-        List<IMaterial> sameTierPool = compatible.stream().filter(mat -> mat.getTier() == baseTcTier).toList();
+        List<IMaterial> sameTierPool = compatible.stream().filter(mat -> mat.getTier() == baseTier).toList();
         if (sameTierPool.isEmpty()) sameTierPool = compatible;
 
         float roll = random.nextFloat();
 
-        // 80%: canonical material at base tier: fallback goes to same-tier random branch
+        // 80%: canonical material if compatible with this stat type
         if (roll < CANONICAL_WEIGHT) {
-            String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(baseTierName);
-            if (canonicalId != null) {
-                MaterialVariantId canonicalVariant = MaterialVariantId.tryParse(canonicalId);
-                if (canonicalVariant != null) {
-                    boolean inPool = sameTierPool.stream().anyMatch(mat -> mat.getIdentifier().equals(canonicalVariant.getId()));
-                    if (inPool) return canonicalVariant;
-                }
-            }
+            boolean inPool = sameTierPool.stream().anyMatch(mat -> mat.getIdentifier().equals(canonical.getId()));
+            if (inPool) return canonical;
         }
 
         // 10% (configurable): random from any tier up to maxLootVarianceTier

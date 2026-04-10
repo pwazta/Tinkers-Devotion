@@ -32,6 +32,6 @@ public final class RangedReplacementStrategy implements ReplacementStrategy {
             List<MaterialStatsId> statTypes,
             RandomSource random) {
         VanillaItemMappings.RangedInfo rangedInfo = (VanillaItemMappings.RangedInfo) info;
-        return TinkerToolBuilder.selectMaterialsByPartTiers(rangedInfo.partTiers(), statTypes, random);
+        return TinkerToolBuilder.selectMaterialsByCanonicals(rangedInfo.canonicalMaterials(), statTypes, random);
     }
 }

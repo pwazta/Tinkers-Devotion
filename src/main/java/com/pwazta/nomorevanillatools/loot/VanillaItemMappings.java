@@ -27,14 +27,8 @@ public class VanillaItemMappings {
     // ── Record types ─────────────────────────────────────────────────────
     public record ToolInfo(String tier, String toolType) implements ReplacementInfo {}
     public record ArmorInfo(List<String> sets, String slot, int minTier, int maxTier) implements ReplacementInfo {}
-    /** Per-part tier list matches the tool definition's stat type order (e.g., limb, limb, grip, bowstring). */
-    public record RangedInfo(String rangedType, List<String> partTiers) implements ReplacementInfo {}
-
-    // ── Shared tier mapping ─────────────────────────────────────────────
-
-    /** Maps vanilla tier name to IMaterial.getTier() int for tier-based filtering. */
-    public static final Map<String, Integer> TIER_NAME_TO_INT = Map.of(
-        "wooden", 0, "stone", 1, "iron", 2, "golden", 1, "diamond", 3, "netherite", 4);
+    /** Per-part canonical material IDs in tool definition stat type order (e.g., limb, limb, grip, bowstring). Tiers derived via IMaterial.getTier(). */
+    public record RangedInfo(String rangedType, List<String> canonicalMaterials) implements ReplacementInfo {}
 
     // ── Tier/type arrays ─────────────────────────────────────────────────
 
@@ -76,11 +70,11 @@ public class VanillaItemMappings {
             REPLACEMENTS_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 4, 4));
         }
 
-        // Ranged weapons — per-part tiers match TC tool definition stat type order
-        // Bow: 4 parts (limb, limb, grip, bowstring) — all wooden tier
-        REPLACEMENTS_BY_ID.put("minecraft:bow", new RangedInfo("bow", List.of("wooden", "wooden", "wooden", "wooden")));
+        // Ranged weapons — canonical materials per part in TC tool definition stat type order
+        // Bow: 4 parts (limb, limb, grip, bowstring)
+        REPLACEMENTS_BY_ID.put("minecraft:bow", new RangedInfo("bow", List.of("tconstruct:wood", "tconstruct:wood", "tconstruct:wood", "tconstruct:string")));
         // Crossbow: 3 parts (limb, grip, bowstring) — iron grip matches vanilla iron ingot ingredient
-        REPLACEMENTS_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow", List.of("wooden", "iron", "wooden")));
+        REPLACEMENTS_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow", List.of("tconstruct:wood", "tconstruct:iron", "tconstruct:string")));
     }
 
     // ── Item-keyed map (lazy-initialized on first access) ────────────────
