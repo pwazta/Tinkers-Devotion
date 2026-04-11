@@ -15,16 +15,11 @@ import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 import slimeknights.tconstruct.library.materials.definition.IMaterial;
 import slimeknights.tconstruct.library.materials.definition.MaterialId;
-import slimeknights.tconstruct.library.materials.definition.MaterialVariant;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
 import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
-import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
-import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
-import slimeknights.tconstruct.library.tools.helper.ToolBuildHandler;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
-import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -95,8 +90,8 @@ public record RangedMode(String rangedType, List<String> canonicalMaterials) imp
     public ItemStack[] computeDisplayItems() {
         if (canonicalMaterials.isEmpty()) return new ItemStack[0];
 
-        // Parse canonical material IDs
-        List<MaterialVariantId> partMaterials = new ArrayList<>();
+        // Parse canonical material IDs once
+        List<MaterialVariantId> partMaterials = new ArrayList<>(canonicalMaterials.size());
         for (String canonicalId : canonicalMaterials) {
             MaterialVariantId variant = MaterialVariantId.tryParse(canonicalId);
             if (variant == null) return new ItemStack[0];
@@ -104,39 +99,29 @@ public record RangedMode(String rangedType, List<String> canonicalMaterials) imp
         }
 
         boolean uniform = canonicalMaterials.stream().allMatch(canonicalMaterials.get(0)::equals);
+        String firstTierLabel = String.valueOf(resolveCanonicalTier(canonicalMaterials.get(0)));
 
         List<IModifiable> eligible = TcItemRegistry.getEligibleRanged(rangedType);
-        List<ItemStack> result = new ArrayList<>();
-        for (IModifiable item : eligible) {
-            ToolDefinition def = item.getToolDefinition();
-            if (!def.isDataLoaded()) continue;
-            List<MaterialStatsId> statTypes = ToolMaterialHook.stats(def);
-            int partCount = statTypes.size();
 
-            MaterialNBT.Builder builder = MaterialNBT.builder();
-            for (int i = 0; i < partCount; i++) {
-                MaterialVariantId mat = i < partMaterials.size()
-                    ? partMaterials.get(i)
-                    : partMaterials.get(partMaterials.size() - 1);
-                builder.add(mat);
-            }
-
-            ItemStack stack = ToolBuildHandler.buildItemFromMaterials(item, builder.build());
-            if (stack.isEmpty()) {
-                stack = ToolBuildHandler.createSingleMaterial(item, MaterialVariant.of(partMaterials.get(0)));
-            }
-            if (!stack.isEmpty()) {
-                stack.getOrCreateTag().putString("nmvt_match_mode", "ranged");
-                int firstTier = resolveCanonicalTier(canonicalMaterials.get(0));
-                stack.getOrCreateTag().putString("nmvt_required_tier", String.valueOf(firstTier));
-                if (!uniform) {
-                    stack.getOrCreateTag().putString("nmvt_part_details",
-                        formatPartDetails(canonicalMaterials, statTypes));
+        return IngredientMode.buildMixedDisplayItems(
+            eligible,
+            (item, stats) -> {
+                List<MaterialVariantId> mats = new ArrayList<>(stats.size());
+                for (int i = 0; i < stats.size(); i++) {
+                    int idx = Math.min(i, partMaterials.size() - 1);
+                    mats.add(partMaterials.get(idx));
                 }
-                result.add(stack);
+                return mats;
+            },
+            (stack, stats) -> {
+                CompoundTag tag = stack.getOrCreateTag();
+                tag.putString("nmvt_match_mode", "ranged");
+                tag.putString("nmvt_required_tier", firstTierLabel);
+                if (!uniform) {
+                    tag.putString("nmvt_part_details", formatPartDetails(canonicalMaterials, stats));
+                }
             }
-        }
-        return result.toArray(new ItemStack[0]);
+        );
     }
 
     /** Formats per-part tier details for tooltip, e.g. "tier 0 Limb, tier 2 Grip, tier 0 Bowstring". */

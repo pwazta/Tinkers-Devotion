@@ -17,6 +17,8 @@ import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 import slimeknights.tconstruct.library.materials.definition.IMaterial;
 import slimeknights.tconstruct.library.materials.definition.MaterialId;
+import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
+import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
 
 import java.util.List;
@@ -71,19 +73,32 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
     public ItemStack[] computeDisplayItems() {
         ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
         if (armorType == null) return new ItemStack[0];
+
         String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(minTier, maxTier);
+        if (canonicalId == null) return new ItemStack[0];
+        MaterialVariantId platingVariant = MaterialVariantId.tryParse(canonicalId);
+        if (platingVariant == null) return new ItemStack[0];
+
         String displayLabel = (minTier == maxTier)
             ? String.valueOf(minTier)
             : minTier + "-" + maxTier;
+
         // Null armorSet = recipe mode: show all eligible armor at this tier/slot regardless of set
-        var eligible = armorSet == null
+        List<? extends IModifiable> eligible = armorSet == null
             ? TcItemRegistry.getAllEligibleArmor(armorType, slot)
             : TcItemRegistry.getEligibleArmor(armorType, List.of(armorSet), slot);
-        ItemStack[] items = IngredientMode.buildDisplayItems(canonicalId, displayLabel, eligible);
-        for (ItemStack item : items) {
-            item.getOrCreateTag().putString("nmvt_match_mode", "armor_slot");
-        }
-        return items;
+
+        return IngredientMode.buildMixedDisplayItems(
+            eligible,
+            // Single-element list = use TC's smart per-slot validation: applies plating to the
+            // plating slot, default per-slot material to maille/etc. Matches pre-refactor behavior.
+            (item, stats) -> List.of(platingVariant),
+            (stack, stats) -> {
+                CompoundTag tag = stack.getOrCreateTag();
+                tag.putString("nmvt_required_tier", displayLabel);
+                tag.putString("nmvt_match_mode", "armor_slot");
+            }
+        );
     }
 
     @Override

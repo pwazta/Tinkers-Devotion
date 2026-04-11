@@ -15,15 +15,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.registries.ForgeRegistries;
-import slimeknights.tconstruct.library.materials.definition.MaterialVariant;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
-import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
 import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
-import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
-import slimeknights.tconstruct.library.tools.helper.ToolBuildHandler;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
-import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 import java.util.ArrayList;
@@ -96,31 +91,19 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         if (canonical == null) return new ItemStack[0];
 
         List<IModifiable> eligible = TcItemRegistry.getEligibleTools(action, toolType);
-        List<ItemStack> result = new ArrayList<>();
-        for (IModifiable item : eligible) {
-            ToolDefinition def = item.getToolDefinition();
-            if (!def.isDataLoaded()) continue;
-            List<MaterialStatsId> statTypes = ToolMaterialHook.stats(def);
-            int partCount = statTypes.size();
-            int tierParts = Config.requireAllPartsMatch
-                ? Math.max(1, (int) Math.ceil(Config.allPartsThreshold * partCount))
-                : 1;
-
-            MaterialNBT.Builder builder = MaterialNBT.builder();
-            for (int i = 0; i < partCount; i++)
-                builder.add(i < tierParts ? canonical : BASIC_VARIANT);
-
-            ItemStack stack = ToolBuildHandler.buildItemFromMaterials(item, builder.build());
-            if (stack.isEmpty()) {
-                // Fallback: addon tool with unexpected parts — use single-material display
-                stack = ToolBuildHandler.createSingleMaterial(item, MaterialVariant.of(canonical));
-            }
-            if (!stack.isEmpty()) {
-                stack.getOrCreateTag().putString("nmvt_required_tier", tier);
-                result.add(stack);
-            }
-        }
-        return result.toArray(new ItemStack[0]);
+        return IngredientMode.buildMixedDisplayItems(
+            eligible,
+            (item, stats) -> {
+                int tierParts = Config.requireAllPartsMatch
+                    ? Math.max(1, (int) Math.ceil(Config.allPartsThreshold * stats.size()))
+                    : 1;
+                List<MaterialVariantId> mats = new ArrayList<>(stats.size());
+                for (int i = 0; i < stats.size(); i++)
+                    mats.add(i < tierParts ? canonical : BASIC_VARIANT);
+                return mats;
+            },
+            (stack, stats) -> stack.getOrCreateTag().putString("nmvt_required_tier", tier)
+        );
     }
 
     @Override
