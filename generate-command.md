@@ -1,23 +1,23 @@
 # `/nomorevanillatools generate` Command
 
-Replaces vanilla tool ingredients in crafting recipes with Tinker's Construct material-checked equivalents. Detects new mods/materials, updates configs, cleans stale recipes, and reloads datapacks — all in one command.
+Replaces vanilla tool/armor/ranged ingredients in crafting recipes with Tinker's Construct material-checked equivalents. Reloads exclusion configs, scans loaded crafting recipes, writes replacements, cleans stale files, and triggers a datapack reload — all in one command.
 
 ## Command Flow
 
 ```
 /nomorevanillatools generate
 |
-+-- 1. Detect & merge materials
-|     MaterialMappingConfig.refreshFromRegistry()
-|       a. Reload material_mappings.json from disk (picks up user edits)
-|       b. Scan TC MaterialRegistry for all materials with HeadMaterialStats
-|       c. If config was empty/corrupt: generate fresh from registry
-|       d. Otherwise: merge new materials, preserve user tier overrides
-|       e. Save updated config, return counts for feedback
++-- 1. Capture unmapped tool materials (diagnostic only)
+|     TiersToTcMaterials.getUnmappedToolMaterials()
+|       - Reads the list of materials dropped from the last rebuildToolCaches() pass
+|         because their vanilla Tier isn't in TIER_NAME_MAP. NOT user exclusions.
+|       - Tool tier state itself was built on MaterialsLoadedEvent, not here
 |
-+-- 2. Reload tool exclusions
++-- 2. Reload disk-backed configs
 |     ToolExclusionConfig.reload()
 |       - Re-reads tool_exclusions.json from disk
+|     ModifierSkipListConfig.reload()
+|       - Re-reads modifier_skip_list.json from disk
 |
 +-- 3. Collect existing generated files
 |     DatapackHelper.listGeneratedRecipeFiles()
@@ -27,10 +27,10 @@ Replaces vanilla tool ingredients in crafting recipes with Tinker's Construct ma
 +-- 4. Generate replacement recipes
 |     GenerateRecipesCommand.doGenerate()
 |       a. Write pack.mcmeta
-|       b. Disable vanilla tool crafting (FalseCondition overrides)
+|       b. Disable vanilla tool/armor/ranged crafting (FalseCondition overrides)
 |       c. Scan all CraftingRecipes in RecipeManager
-|       d. Find ingredients matching vanilla tools (25 items: 5 tiers x 5 types)
-|       e. Build replacement JSON with TinkerMaterialIngredient
+|       d. Find ingredients matching vanilla tools/armor/ranged via VanillaItemMappings
+|       e. Build replacement JSON with TinkerMaterialIngredient (ToolMode / ArmorMode / RangedMode)
 |       f. Save to world/datapacks/nomorevanillatools_generated/
 |       g. Track all written file paths
 |
@@ -39,7 +39,7 @@ Replaces vanilla tool ingredients in crafting recipes with Tinker's Construct ma
 |     (from uninstalled mods / removed recipes)
 |
 +-- 6. Send feedback
-|     Chat messages with material counts, recipe counts, warnings, errors
+|     Chat messages with unmapped-material warnings, recipe counts, cleanup counts, errors
 |
 +-- 7. Reload datapacks (async)
       server.reloadResources() — recipes active immediately
@@ -49,21 +49,21 @@ Replaces vanilla tool ingredients in crafting recipes with Tinker's Construct ma
 
 | Scenario | Action |
 |----------|--------|
-| First world load | Runs automatically (if `autoGenerateRecipes=true`) |
+| First world load | Runs automatically (`ServerAboutToStartEvent`) |
 | Installed new mod with TC materials | Run `/nomorevanillatools generate` |
 | Uninstalled a mod | Run `/nomorevanillatools generate` (cleans stale recipes) |
-| Edited material_mappings.json | Run `/nomorevanillatools generate` |
-| Edited tool_exclusions.json | Run `/nomorevanillatools generate` |
+| Edited `tool_exclusions.json` | Run `/nomorevanillatools generate` |
+| Edited `modifier_skip_list.json` | Run `/nomorevanillatools generate` |
 | Changed forge config options | Run `/nomorevanillatools generate` |
 
-No server restart needed. No new world needed.
+No server restart needed. New TC materials are picked up automatically on the next `MaterialsLoadedEvent` (world load / `/reload`).
 
 ## Material Detection
 
-The command scans TC's `MaterialRegistry` for materials with `HeadMaterialStats` and maps their harvest tier to vanilla tiers:
+Tool materials are resolved live via `TiersToTcMaterials`, which scans TC's `MaterialRegistry` for materials with `HeadMaterialStats` and maps their harvest tier to vanilla tiers on every `MaterialsLoadedEvent`:
 
-| Forge Tier | Config Name | Example Materials |
-|------------|-------------|-------------------|
+| Vanilla Tier | Config Name | Example Materials |
+|--------------|-------------|-------------------|
 | minecraft:wood | wooden | tconstruct:wood |
 | minecraft:stone | stone | tconstruct:rock, tconstruct:flint |
 | minecraft:iron | iron | tconstruct:iron, tconstruct:copper |
@@ -71,37 +71,38 @@ The command scans TC's `MaterialRegistry` for materials with `HeadMaterialStats`
 | minecraft:diamond | diamond | tconstruct:cobalt, tconstruct:slimesteel |
 | minecraft:netherite | netherite | tconstruct:hepatizon, tconstruct:manyullyn |
 
-Materials with modded tiers (not in the table above) are skipped with a warning in chat.
+Materials with modded tiers (not in the table above) are dropped from the tool tier pool and surfaced as warnings in the command output. To add support for a modded tier, expand `TIER_NAME_MAP` in `TiersToTcMaterials.java`.
 
-### User Overrides
-
-If you manually move a material to a different tier in `material_mappings.json`, the merge will preserve your choice. The command never removes materials from your config — it only adds new ones.
+Armor plating and ranged weapon tiers are resolved live via `IMaterial.getTier()` — no tier-name mapping required.
 
 ## Config Files
 
 | File | Purpose |
 |------|---------|
-| `config/nomorevanillatools/material_mappings.json` | Tier -> material ID mappings (auto-generated, user-editable) |
-| `config/nomorevanillatools/tool_exclusions.json` | Per-action tool blacklist (e.g., dagger excluded from sword recipes) |
+| `config/nomorevanillatools/tool_exclusions.json` | Per-action/slot/type tool blacklist (e.g., dagger excluded from sword recipes) |
+| `config/nomorevanillatools/modifier_skip_list.json` | Modifiers excluded from enchantment→modifier conversion pool |
+
+There is no `material_mappings.json` — tool tier state is derived live from the TC registry.
 
 ## Forge Config Options
 
 | Option | Default | Effect on Generate |
 |--------|---------|--------------------|
-| `autoGenerateRecipes` | true | Auto-run on first world load |
 | `removeVanillaToolCrafting` | true | Disable vanilla tool crafting recipes |
-| `forceRegenerateMaterialConfig` | false | Force material merge on next boot (not needed with generate command) |
+| `removeVanillaArmorCrafting` | true | Disable vanilla armor crafting recipes |
+| `removeVanillaRangedCrafting` | true | Disable vanilla bow/crossbow crafting recipes |
 
 ## Output Example
 
 ```
 === Recipe Generation Complete ===
-  Materials: 3 new materials detected and added
-  Materials: 1 kept in user-assigned tiers
-  Warning: 2 materials have unsupported modded tiers (skipped)
+  Warning: 2 tool materials have unmapped modded tiers (dropped from pool)
     - mythicmetals:adamantite (tier: mythicmetals:adamantite)
+    - mythicmetals:carmot (tier: mythicmetals:carmot)
   Recipes: 47 replacement recipes generated
   Recipes: 25 vanilla tool recipes disabled
+  Recipes: 16 vanilla armor recipes disabled
+  Recipes: 2 vanilla ranged recipes disabled
   Cleanup: 2 stale recipes removed (from uninstalled mods)
 Reloading datapacks...
 Datapack reload complete! Recipes are now active.
@@ -116,7 +117,7 @@ world/datapacks/nomorevanillatools_generated/
   data/
     minecraft/recipes/
       wooden_sword.json               (FalseCondition — disables vanilla crafting)
-      iron_pickaxe.json               (... 25 total)
+      iron_pickaxe.json               (... 25 tool + 16 armor + 2 ranged total)
     <namespace>/recipes/
       <recipe>_tinker_replacement.json (replacement with TinkerMaterialIngredient)
 ```

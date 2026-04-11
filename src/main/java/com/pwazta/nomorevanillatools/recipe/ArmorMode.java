@@ -2,7 +2,7 @@ package com.pwazta.nomorevanillatools.recipe;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
@@ -74,7 +74,7 @@ public record ArmorMode(String slot, String armorSet, int minTier, int maxTier) 
         ArmorItem.Type armorType = VanillaItemMappings.getArmorType(slot);
         if (armorType == null) return new ItemStack[0];
 
-        String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(minTier, maxTier);
+        String canonicalId = TiersToTcMaterials.getCanonicalArmorMaterial(minTier, maxTier);
         if (canonicalId == null) return new ItemStack[0];
         MaterialVariantId platingVariant = MaterialVariantId.tryParse(canonicalId);
         if (platingVariant == null) return new ItemStack[0];

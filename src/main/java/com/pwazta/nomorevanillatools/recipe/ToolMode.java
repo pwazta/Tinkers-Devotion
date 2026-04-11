@@ -3,7 +3,7 @@ package com.pwazta.nomorevanillatools.recipe;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pwazta.nomorevanillatools.Config;
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
@@ -23,7 +23,7 @@ import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.Locale;
 
 public record ToolMode(String tier, String toolType) implements IngredientMode {
 
@@ -35,7 +35,7 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return "tool_action";
     }
 
-    /** Checks head material (index 0) matches config tier, optional all-parts % threshold, then validates ToolAction + exclusions. */
+    /** Checks head material (index 0) matches the required tier via live TC registry, optional all-parts % threshold, then validates ToolAction + exclusions. */
     @Override
     public boolean test(ItemStack stack) {
         CompoundTag nbt = stack.getTag();
@@ -44,17 +44,17 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
         if (materialsList.isEmpty()) return false;
 
-        Set<String> allowedMaterials = MaterialMappingConfig.getMaterialsForTier(tier);
-        if (allowedMaterials == null || allowedMaterials.isEmpty()) return false;
+        // Normalize once — cache values are lowercase, recipe JSON may not be.
+        String requiredTier = tier.toLowerCase(Locale.ROOT);
 
-        // HEAD material (index 0) MUST match
-        if (!allowedMaterials.contains(materialsList.getString(0))) return false;
+        // HEAD material (index 0) MUST match the required tier (live lookup, no config)
+        if (!requiredTier.equals(TiersToTcMaterials.getToolTierName(materialsList.getString(0)))) return false;
 
         // Optional: check percentage of all parts (including head)
         if (Config.requireAllPartsMatch && materialsList.size() > 1) {
             int matchingCount = 1; // head already verified
             for (int i = 1; i < materialsList.size(); i++) {
-                if (allowedMaterials.contains(materialsList.getString(i))) matchingCount++;
+                if (requiredTier.equals(TiersToTcMaterials.getToolTierName(materialsList.getString(i)))) matchingCount++;
             }
             if ((double) matchingCount / materialsList.size() < Config.allPartsThreshold) return false;
         }
@@ -85,7 +85,7 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         ToolAction action = VanillaItemMappings.getToolAction(toolType);
         if (action == null) return new ItemStack[0];
 
-        String canonicalId = MaterialMappingConfig.getCanonicalToolMaterial(tier);
+        String canonicalId = TiersToTcMaterials.getCanonicalToolMaterial(tier);
         if (canonicalId == null) return new ItemStack[0];
         MaterialVariantId canonical = MaterialVariantId.tryParse(canonicalId);
         if (canonical == null) return new ItemStack[0];
