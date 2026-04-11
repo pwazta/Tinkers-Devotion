@@ -3,7 +3,7 @@ package com.pwazta.nomorevanillatools.event;
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.ExampleMod;
 import com.pwazta.nomorevanillatools.command.GenerateRecipesCommand;
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
 import net.minecraft.server.MinecraftServer;
@@ -16,7 +16,7 @@ import slimeknights.tconstruct.library.events.MaterialsLoadedEvent;
 
 /**
  * Forge event handlers for server-side events.
- * Handles material config auto-generation and recipe auto-generation on first world load.
+ * Rebuilds tool tier caches on materials load and auto-generates recipes on first world load.
  */
 @Mod.EventBusSubscriber(modid = ExampleMod.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ForgeEventHandlers {
@@ -27,13 +27,12 @@ public class ForgeEventHandlers {
     private static boolean needsReloadAfterStart = false;
 
     /**
-     * Auto-generates material mappings when TC materials are loaded.
-     * Fires on both client and server — after datapack reload (server) or after sync (client).
-     * This is Phase 2 of MaterialMappingConfig initialization.
+     * Rebuilds tool tier caches from the TC registry and clears loot/ingredient caches.
+     * Fires on both client and server after TC materials sync/reload.
      */
     @SubscribeEvent
     public static void onMaterialsLoaded(MaterialsLoadedEvent event) {
-        MaterialMappingConfig.generateIfNeeded(true);
+        TiersToTcMaterials.rebuildToolCaches();
         TinkerToolBuilder.clearCaches();
     }
 

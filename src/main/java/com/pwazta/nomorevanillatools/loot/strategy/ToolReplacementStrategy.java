@@ -1,6 +1,6 @@
 package com.pwazta.nomorevanillatools.loot.strategy;
 
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
@@ -66,15 +66,15 @@ public final class ToolReplacementStrategy implements ReplacementStrategy {
 
     /**
      * Selects head material for tools using weighted algorithm:
-     * 80% canonical (from MaterialMappingConfig), 20% random from tier pool.
+     * 80% canonical, 20% random from the live tier pool.
      */
     private static @Nullable MaterialVariantId selectHeadMaterial(String tier, RandomSource random) {
-        Set<String> materials = MaterialMappingConfig.getMaterialsForTier(tier);
-        if (materials == null || materials.isEmpty()) return null;
+        Set<String> materials = TiersToTcMaterials.getToolMaterialsForTier(tier);
+        if (materials.isEmpty()) return null;
 
         String selectedId;
         if (random.nextFloat() < TinkerToolBuilder.CANONICAL_WEIGHT) {
-            selectedId = MaterialMappingConfig.getCanonicalToolMaterial(tier);
+            selectedId = TiersToTcMaterials.getCanonicalToolMaterial(tier);
         } else {
             selectedId = materials.stream().skip(random.nextInt(materials.size())).findFirst().orElse(null);
         }

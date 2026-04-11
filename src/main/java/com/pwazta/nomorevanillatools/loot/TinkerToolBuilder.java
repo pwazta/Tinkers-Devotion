@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.Config;
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.loot.strategy.ArmorReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.RangedReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ReplacementStrategy;
@@ -61,10 +61,14 @@ public class TinkerToolBuilder {
     /** Compatible materials per stat type. Cleared on materials reload. */
     private static final Map<MaterialStatsId, List<IMaterial>> MATERIAL_CACHE = new ConcurrentHashMap<>();
 
-    /** Clears all caches. Called from MaterialMappingConfig and ToolExclusionConfig reload paths. */
+    /**
+     * Clears lazy caches that are safe to rebuild on demand.
+     * Tool tier state is intentionally NOT cleared here — it's owned by
+     * {@link TiersToTcMaterials#rebuildToolCaches} which only fires on MaterialsLoadedEvent.
+     */
     public static void clearCaches() {
         MATERIAL_CACHE.clear();
-        MaterialMappingConfig.clearArmorCaches();
+        TiersToTcMaterials.clearArmorCaches();
         TcItemRegistry.clearCaches();
         EnchantmentConverter.clearCache();
     }

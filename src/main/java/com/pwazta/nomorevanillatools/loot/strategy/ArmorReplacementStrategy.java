@@ -1,6 +1,6 @@
 package com.pwazta.nomorevanillatools.loot.strategy;
 
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
+import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
@@ -61,11 +61,11 @@ public final class ArmorReplacementStrategy implements ReplacementStrategy {
      * 80% canonical, 20% random from tier-filtered pool.
      */
     private static @Nullable MaterialVariantId selectPlatingMaterial(int minTier, int maxTier, RandomSource random) {
-        List<IMaterial> pool = MaterialMappingConfig.getPlatingMaterialsInTierRange(minTier, maxTier);
+        List<IMaterial> pool = TiersToTcMaterials.getPlatingMaterialsInTierRange(minTier, maxTier);
         if (pool.isEmpty()) return null;
 
         if (random.nextFloat() < TinkerToolBuilder.CANONICAL_WEIGHT) {
-            String canonicalId = MaterialMappingConfig.getCanonicalArmorMaterial(minTier, maxTier);
+            String canonicalId = TiersToTcMaterials.getCanonicalArmorMaterial(minTier, maxTier);
             if (canonicalId != null) {
                 MaterialVariantId canonicalVariant = MaterialVariantId.tryParse(canonicalId);
                 if (canonicalVariant != null) {

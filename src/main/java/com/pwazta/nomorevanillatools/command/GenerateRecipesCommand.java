@@ -7,8 +7,8 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.Config;
-import com.pwazta.nomorevanillatools.config.MaterialMappingConfig;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
+import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
@@ -30,7 +30,6 @@ import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,8 +39,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Command to generate datapack recipes replacing vanilla tools with TC material checking.
- * Detects new materials from TC registry, updates configs, cleans stale recipes, and provides feedback.
+ * Command to generate datapack recipes replacing vanilla tool/armor/ranged ingredients with TC equivalents.
+ * Reloads exclusion configs, scans loaded crafting recipes, writes replacements, cleans stale files, and triggers a datapack reload.
  */
 public class GenerateRecipesCommand {
 
@@ -56,9 +55,7 @@ public class GenerateRecipesCommand {
         int vanillaArmorRecipesRemoved = 0;
         int vanillaRangedRecipesRemoved = 0;
         int staleRecipesCleaned = 0;
-        int materialsAdded = 0;
-        int materialsSkippedOverrides = 0;
-        List<String> skippedTiers = List.of();
+        List<String> unmappedToolMaterials = List.of();
         final List<String> errors = new ArrayList<>();
     }
 
@@ -69,8 +66,8 @@ public class GenerateRecipesCommand {
 
     /**
      * Executes the generate command. Full flow:
-     * 1. Detect & merge new materials from TC registry
-     * 2. Reload tool exclusions from disk
+     * 1. Capture any tool materials skipped during the last cache rebuild (addon-pack feedback)
+     * 2. Reload exclusion + modifier skip list configs from disk
      * 3. Collect existing generated files (for stale detection)
      * 4. Generate replacement recipes
      * 5. Clean stale recipes from uninstalled mods
@@ -84,15 +81,10 @@ public class GenerateRecipesCommand {
         try {
             GenerationResult result = new GenerationResult();
 
-            // Step 1: Refresh tool materials (reload disk + merge with TC registry)
-            MaterialMappingConfig.MergeResult mergeResult = MaterialMappingConfig.refreshFromRegistry();
-            if (mergeResult != null) {
-                result.materialsAdded = mergeResult.addedCount;
-                result.materialsSkippedOverrides = mergeResult.skippedOverrides;
-                result.skippedTiers = mergeResult.skippedTiers;
-            } else {
-                MaterialMappingConfig.reload();
-            }
+            // Step 1: Capture tool materials dropped from the last cache rebuild because their
+            // vanilla Tier is unmappable. Diagnostic feedback for addon-pack authors — not user
+            // exclusions. The cache itself is rebuilt on MaterialsLoadedEvent, not here.
+            result.unmappedToolMaterials = TiersToTcMaterials.getUnmappedToolMaterials();
 
             // Step 2: Reload tool/armor exclusions and modifier skip list from disk
             ToolExclusionConfig.reload();
@@ -137,32 +129,20 @@ public class GenerateRecipesCommand {
     // ── Reset subcommand ──────────────────────────────────────────────────────
 
     /**
-     * Resets all configs to defaults and regenerates everything from scratch.
-     * Deletes tool material mappings and tool exclusions, then runs full generation.
+     * Resets all disk-backed configs to defaults and regenerates everything from scratch.
+     * Tool tier state lives in the TC registry (no file to delete).
      */
     public static int runReset(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         CommandSourceStack source = context.getSource();
         source.sendSuccess(() -> Component.literal("Resetting all configs to defaults..."), true);
 
-        // Delete tool material mapping config (refreshFromRegistry in run() will regenerate from TC registry)
-        deleteIfExists(MaterialMappingConfig.getConfigFile());
-
-        // Reset tool exclusions and modifier skip list to defaults
+        // Reset tool exclusions and modifier skip list to defaults.
+        // Tool tier state lives in the TC registry — no config file to delete.
         ToolExclusionConfig.resetToDefaults();
         ModifierSkipListConfig.resetToDefaults();
 
         source.sendSuccess(() -> Component.literal("Configs reset. Regenerating..."), false);
         return run(context);
-    }
-
-    private static void deleteIfExists(File file) {
-        if (file != null && file.exists()) {
-            if (file.delete()) {
-                LOGGER.info("Deleted config file: {}", file.getAbsolutePath());
-            } else {
-                LOGGER.warn("Failed to delete config file: {}", file.getAbsolutePath());
-            }
-        }
     }
 
     // ── Auto-boot entry point (backward compat for ForgeEventHandlers) ────────
@@ -408,20 +388,11 @@ public class GenerateRecipesCommand {
     private static void sendFeedback(CommandSourceStack source, GenerationResult result) {
         source.sendSuccess(() -> Component.literal("=== Recipe Generation Complete ==="), true);
 
-        // Tool materials
-        if (result.materialsAdded > 0) {
+        if (!result.unmappedToolMaterials.isEmpty()) {
             source.sendSuccess(() -> Component.literal(
-                "  Tool materials: " + result.materialsAdded + " new materials detected and added"), false);
-        }
-        if (result.materialsSkippedOverrides > 0) {
-            source.sendSuccess(() -> Component.literal(
-                "  Tool materials: " + result.materialsSkippedOverrides + " kept in user-assigned tiers"), false);
-        }
-        if (!result.skippedTiers.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(
-                "  Warning: " + result.skippedTiers.size() + " tool materials have unsupported modded tiers (skipped)"), false);
-            for (String skipped : result.skippedTiers) {
-                source.sendSuccess(() -> Component.literal("    - " + skipped), false);
+                "  Warning: " + result.unmappedToolMaterials.size() + " tool materials have unmapped modded tiers (dropped from pool)"), false);
+            for (String unmapped : result.unmappedToolMaterials) {
+                source.sendSuccess(() -> Component.literal("    - " + unmapped), false);
             }
         }
 
