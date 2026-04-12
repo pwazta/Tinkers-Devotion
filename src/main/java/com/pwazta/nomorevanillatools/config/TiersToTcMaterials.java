@@ -25,46 +25,22 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Tier ↔ TC material resolution helper. Named for the primary direction (tier → materials),
- * but also supports the reverse lookup (material → tier name) via {@link #getToolTierName}.
+ * Resolves vanilla tiers to pools of compatible TC materials, and vice versa. Live cache, no disk state.
+ * Used by loot replacement (material selection), recipe matching (tier validation), and JEI display (canonical lookup).
  *
- * <p>Pure live cache over {@link MaterialRegistry} plus two hardcoded curation tables
- * ({@link #CANONICAL_TOOL_MATERIALS}, {@link #CANONICAL_ARMOR_BY_TIER}) — no disk state.
+ * <p><b>Tools</b>: cache rebuilt on {@code MaterialsLoadedEvent} via {@link VanillaTier} lookup.
+ * Immutable snapshots swapped atomically via volatile write — readers never see partial state.
  *
- * <p><b>Tools</b>: rebuilt from {@link HeadMaterialStats#tier()} on {@code MaterialsLoadedEvent}
- * via {@link #rebuildToolCaches}. Stored as immutable map references and swapped atomically via
- * volatile write — readers always see either the old snapshot or the new one, never partial state.
- *
- * <p><b>Armor</b>: built lazily from {@link IMaterial#getTier()} on first query per tier range.
- * Cleared via {@link #clearArmorCaches} from {@code TinkerToolBuilder.clearCaches()}.
+ * <p><b>Armor</b>: lazy cache per tier range via {@link IMaterial#getTier()}, cleared on reload.
  */
 public class TiersToTcMaterials {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Maps vanilla Tier ResourceLocations to our string tier names. Modded tiers not listed here are skipped during scan. */
-    private static final Map<ResourceLocation, String> TIER_NAME_MAP = Map.of(
-        new ResourceLocation("minecraft", "wood"),      "wooden",
-        new ResourceLocation("minecraft", "stone"),     "stone",
-        new ResourceLocation("minecraft", "iron"),      "iron",
-        new ResourceLocation("minecraft", "gold"),      "golden",
-        new ResourceLocation("minecraft", "diamond"),   "diamond",
-        new ResourceLocation("minecraft", "netherite"), "netherite"
-    );
-
-    /** Canonical tool material per vanilla tier — representative TC material for loot weight and JEI display. */
-    private static final Map<String, String> CANONICAL_TOOL_MATERIALS = Map.of(
-        "wooden",    "tconstruct:wood",
-        "stone",     "tconstruct:rock",
-        "iron",      "tconstruct:iron",
-        "golden",    "tconstruct:rose_gold",
-        "diamond",   "tconstruct:cobalt",
-        "netherite", "tconstruct:hepatizon"
-    );
-
     /** Canonical armor material per tier range. Unified across all armor sets. Key format: "minTier-maxTier". */
     private static final Map<String, String> CANONICAL_ARMOR_BY_TIER = Map.of(
         "0-1", "tconstruct:copper",
+        "1-2", "tconstruct:gold",
         "2-2", "tconstruct:iron",
         "3-3", "tconstruct:cobalt",
         "4-4", "tconstruct:hepatizon"
@@ -78,7 +54,7 @@ public class TiersToTcMaterials {
     /** tier name → immutable set of material ids. Immutable snapshot; replaced via volatile write. */
     private static volatile Map<String, Set<String>> toolMaterialsByTier = Map.of();
 
-    /** Materials dropped during last rebuild because their vanilla Tier isn't in TIER_NAME_MAP. Diagnostic feedback only — these are NOT user exclusions. */
+    /** Materials dropped during last rebuild because their vanilla Tier isn't in {@link VanillaTier}. Diagnostic feedback only — these are NOT user exclusions. */
     private static volatile List<String> unmappedToolMaterials = List.of();
 
     // ── Armor plating cache (lazy per tier range) ─────────────────────
@@ -115,7 +91,8 @@ public class TiersToTcMaterials {
                 continue;
             }
 
-            String tierName = TIER_NAME_MAP.get(tierId);
+            VanillaTier vanillaTier = VanillaTier.fromResourceLocation(tierId);
+            String tierName = vanillaTier != null ? vanillaTier.itemPrefix() : null;
             if (tierName == null) {
                 newUnmapped.add(materialId + " (tier: " + tierId + ")");
                 continue;
@@ -151,7 +128,7 @@ public class TiersToTcMaterials {
 
     /**
      * Materials dropped from the last tool cache rebuild because their vanilla Tier is unknown or
-     * not in TIER_NAME_MAP. NOT user exclusions — these are materials the mod literally cannot bucket.
+     * not in {@link VanillaTier}. NOT user exclusions — these are materials the mod literally cannot bucket.
      * Surfaced via {@code /nomorevanillatools generate} as a diagnostic hint for addon-pack authors.
      */
     public static List<String> getUnmappedToolMaterials() {
@@ -164,7 +141,8 @@ public class TiersToTcMaterials {
      */
     public static @Nullable String getCanonicalToolMaterial(String tier) {
         String tierKey = tier.toLowerCase(Locale.ROOT);
-        String canonical = CANONICAL_TOOL_MATERIALS.get(tierKey);
+        VanillaTier vt = VanillaTier.fromItemPrefix(tierKey);
+        String canonical = vt != null ? vt.canonicalToolMaterial() : null;
         Set<String> pool = toolMaterialsByTier.get(tierKey);
         if (canonical != null && pool != null && pool.contains(canonical)) return canonical;
         return (pool != null && !pool.isEmpty()) ? pool.iterator().next() : null;

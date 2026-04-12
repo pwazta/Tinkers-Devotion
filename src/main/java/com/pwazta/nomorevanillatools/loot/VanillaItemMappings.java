@@ -1,5 +1,6 @@
 package com.pwazta.nomorevanillatools.loot;
 
+import com.pwazta.nomorevanillatools.config.VanillaTier;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
@@ -13,11 +14,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Single source of truth for vanilla tool/armor/ranged -> tier/type mappings.
+ * Maps vanilla items to their TC replacement info — which items get replaced and how.
  * Used by loot replacement (GLM, mob spawn), recipe generation, and FalseCondition overrides.
  *
- * String-keyed maps for recipe generation (available at any time).
- * Item-keyed maps for loot replacement (lazy-initialized after registry loads).
+ * <p>String-keyed map for recipe generation (available at any time).
+ * Item-keyed map for loot replacement (lazy-initialized after registry loads).
  */
 public class VanillaItemMappings {
 
@@ -30,18 +31,12 @@ public class VanillaItemMappings {
     /** Per-part canonical material IDs in tool definition stat type order (e.g., limb, limb, grip, bowstring). Tiers derived via IMaterial.getTier(). */
     public record RangedInfo(String rangedType, List<String> canonicalMaterials) implements ReplacementInfo {}
 
-    // ── Tier/type arrays ─────────────────────────────────────────────────
-
-    /** All tool tiers including netherite (for loot replacement scope). */
-    public static final String[] ALL_TOOL_TIERS = {"wooden", "stone", "iron", "golden", "diamond", "netherite"};
-
-    /** Tool tiers for recipe generation — no netherite (smithing recipe, not crafting). */
-    public static final String[] RECIPE_TOOL_TIERS = {"wooden", "stone", "iron", "golden", "diamond"};
+    // ── Type/slot arrays ──────────────────────────────────────────────────
 
     public static final String[] TOOL_TYPES = {"sword", "pickaxe", "axe", "shovel", "hoe"};
 
-    /** Armor tiers for recipe generation — no netherite (smithing), no chainmail (no recipe). */
-    public static final String[] RECIPE_ARMOR_TIERS = {"leather", "iron", "golden", "diamond"};
+    /** Vanilla armor item prefixes for FalseCondition recipe removal. Includes chainmail/netherite (harmless no-op — no crafting recipe). */
+    public static final String[] ARMOR_TIER_PREFIXES = {"leather", "chainmail", "iron", "golden", "diamond", "netherite"};
 
     public static final String[] ARMOR_SLOTS = {"helmet", "chestplate", "leggings", "boots"};
 
@@ -52,9 +47,9 @@ public class VanillaItemMappings {
     private static final Map<String, ReplacementInfo> REPLACEMENTS_BY_ID = new HashMap<>();
 
     static {
-        for (String tier : ALL_TOOL_TIERS) {
+        for (VanillaTier tier : VanillaTier.values()) {
             for (String tool : TOOL_TYPES) {
-                REPLACEMENTS_BY_ID.put("minecraft:" + tier + "_" + tool, new ToolInfo(tier, tool));
+                REPLACEMENTS_BY_ID.put("minecraft:" + tier.itemPrefix() + "_" + tool, new ToolInfo(tier.itemPrefix(), tool));
             }
         }
         // Armor: mapped by allowed TC sets (full namespace) + IMaterial.getTier() range.
@@ -64,7 +59,7 @@ public class VanillaItemMappings {
         for (String slot : ARMOR_SLOTS) {
             REPLACEMENTS_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:makeshift"), slot, 0, 1));
             REPLACEMENTS_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:laminar"), slot, 2, 2));
-            REPLACEMENTS_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:travelers", "tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
+            REPLACEMENTS_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:travelers", "tconstruct:plate", "tinkers_things:laminar"), slot, 1, 2));
             REPLACEMENTS_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
             REPLACEMENTS_BY_ID.put("minecraft:diamond_" + slot,    new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 3, 3));
             REPLACEMENTS_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 4, 4));
