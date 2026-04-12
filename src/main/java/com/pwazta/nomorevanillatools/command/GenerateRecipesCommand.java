@@ -10,6 +10,7 @@ import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
 import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
+import com.pwazta.nomorevanillatools.config.VanillaTier;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.recipe.ArmorMode;
@@ -176,13 +177,13 @@ public class GenerateRecipesCommand {
         // Remove vanilla tool crafting recipes if configured
         if (Config.removeVanillaToolCrafting) {
             removeVanillaToolRecipes(dataPath);
-            result.vanillaToolRecipesRemoved = VanillaItemMappings.RECIPE_TOOL_TIERS.length * VanillaItemMappings.TOOL_TYPES.length;
+            result.vanillaToolRecipesRemoved = VanillaTier.values().length * VanillaItemMappings.TOOL_TYPES.length;
         }
 
         // Remove vanilla armor crafting recipes if configured
         if (Config.removeVanillaArmorCrafting) {
             removeVanillaArmorRecipes(dataPath);
-            result.vanillaArmorRecipesRemoved = VanillaItemMappings.RECIPE_ARMOR_TIERS.length * VanillaItemMappings.ARMOR_SLOTS.length;
+            result.vanillaArmorRecipesRemoved = VanillaItemMappings.ARMOR_TIER_PREFIXES.length * VanillaItemMappings.ARMOR_SLOTS.length;
         }
 
         // Remove vanilla ranged weapon crafting recipes if configured
@@ -223,15 +224,15 @@ public class GenerateRecipesCommand {
     // ── Vanilla tool detection ────────────────────────────────────────────────
 
     private static void removeVanillaToolRecipes(Path dataPath) throws Exception {
-        for (String tier : VanillaItemMappings.RECIPE_TOOL_TIERS) {
+        for (VanillaTier tier : VanillaTier.values()) {
             for (String tool : VanillaItemMappings.TOOL_TYPES) {
-                DatapackHelper.removeRecipe(dataPath, "minecraft", tier + "_" + tool);
+                DatapackHelper.removeRecipe(dataPath, "minecraft", tier.itemPrefix() + "_" + tool);
             }
         }
     }
 
     private static void removeVanillaArmorRecipes(Path dataPath) throws Exception {
-        for (String tier : VanillaItemMappings.RECIPE_ARMOR_TIERS) {
+        for (String tier : VanillaItemMappings.ARMOR_TIER_PREFIXES) {
             for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
                 DatapackHelper.removeRecipe(dataPath, "minecraft", tier + "_" + slot);
             }
