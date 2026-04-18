@@ -1,6 +1,7 @@
 package com.pwazta.nomorevanillatools.command;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.context.CommandContext;
@@ -22,13 +23,16 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
+import net.minecraft.world.item.crafting.SmithingTransformRecipe;
 import net.minecraftforge.registries.ForgeRegistries;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
@@ -194,9 +198,10 @@ public class GenerateRecipesCommand {
 
         // Scan all recipes and generate replacements
         for (Recipe<?> recipe : recipeManager.getRecipes()) {
-            if (!(recipe instanceof CraftingRecipe)) continue;
+            List<Ingredient> ingredients = extractScannableIngredients(recipe);
+            if (ingredients == null) continue;
 
-            List<ReplacementEntry> replacements = findVanillaItems(recipe);
+            List<ReplacementEntry> replacements = findVanillaItems(ingredients);
             if (replacements.isEmpty()) continue;
 
             try {
@@ -223,18 +228,26 @@ public class GenerateRecipesCommand {
 
     // ── Vanilla tool detection ────────────────────────────────────────────────
 
+    /** Vanilla tool recipes: crafting for wood→diamond, smithing upgrade for netherite. */
     private static void removeVanillaToolRecipes(Path dataPath) throws Exception {
         for (VanillaTier tier : VanillaTier.values()) {
             for (String tool : VanillaItemMappings.TOOL_TYPES) {
-                DatapackHelper.removeRecipe(dataPath, "minecraft", tier.itemPrefix() + "_" + tool);
+                String name = tier == VanillaTier.NETHERITE
+                    ? "netherite_" + tool + "_smithing"
+                    : tier.itemPrefix() + "_" + tool;
+                DatapackHelper.removeRecipe(dataPath, "minecraft", name);
             }
         }
     }
 
+    /** Vanilla armor recipes: crafting for leather/iron/gold/diamond (chainmail is mob-drop no-op), smithing upgrade for netherite. */
     private static void removeVanillaArmorRecipes(Path dataPath) throws Exception {
         for (String tier : VanillaItemMappings.ARMOR_TIER_PREFIXES) {
             for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
-                DatapackHelper.removeRecipe(dataPath, "minecraft", tier + "_" + slot);
+                String name = "netherite".equals(tier)
+                    ? "netherite_" + slot + "_smithing"
+                    : tier + "_" + slot;
+                DatapackHelper.removeRecipe(dataPath, "minecraft", name);
             }
         }
     }
@@ -245,23 +258,40 @@ public class GenerateRecipesCommand {
         }
     }
 
-    private static List<ReplacementEntry> findVanillaItems(Recipe<?> recipe) {
-        List<ReplacementEntry> replacements = new ArrayList<>();
-        NonNullList<Ingredient> ingredients = recipe.getIngredients();
-
-        for (int i = 0; i < ingredients.size(); i++) {
-            for (var stack : ingredients.get(i).getItems()) {
-                ResourceLocation itemKey = ForgeRegistries.ITEMS.getKey(stack.getItem());
-                if (itemKey == null) continue;
-
-                VanillaItemMappings.ReplacementInfo info = VanillaItemMappings.getReplacementInfoById(itemKey.toString());
-                if (info != null) {
-                    replacements.add(new ReplacementEntry(i, toIngredientMode(info)));
-                    break;
-                }
-            }
+    /**
+     * Returns the list of ingredients to scan for a supported recipe type, or null for unsupported types.
+     * {@code SmithingRecipe} does not override {@code getIngredients()} (default returns empty),
+     * so smithing recipes need explicit per-slot extraction via AT-exposed fields.
+     */
+    private static @Nullable List<Ingredient> extractScannableIngredients(Recipe<?> recipe) {
+        if (recipe instanceof CraftingRecipe) {
+            return recipe.getIngredients();
         }
+        if (recipe instanceof SmithingTransformRecipe t) {
+            return List.of(t.template, t.base, t.addition);
+        }
+        // SmithingTrimRecipe intentionally skipped — base is always the `minecraft:trimmable_armor` tag,
+        // which the tag-safety guard below would reject anyway. TC armor is not in that tag.
+        return null;
+    }
 
+    /**
+     * Scans an ingredient list and returns replacement entries for slots holding a single tracked vanilla item.
+     *
+     * <p>Tag safety: only single-item ingredients ({@code getItems().length == 1}) are candidates for replacement.
+     * Tag-based or compound ingredients (e.g. {@code forge:tools/bows}, {@code minecraft:trimmable_armor}) are
+     * preserved verbatim — replacing them would narrow their semantics and silently drop accepted items.
+     */
+    private static List<ReplacementEntry> findVanillaItems(List<Ingredient> ingredients) {
+        List<ReplacementEntry> replacements = new ArrayList<>();
+        for (int i = 0; i < ingredients.size(); i++) {
+            ItemStack[] stacks = ingredients.get(i).getItems();
+            if (stacks.length != 1) continue;
+            ResourceLocation itemKey = ForgeRegistries.ITEMS.getKey(stacks[0].getItem());
+            if (itemKey == null) continue;
+            VanillaItemMappings.ReplacementInfo info = VanillaItemMappings.getReplacementInfoById(itemKey.toString());
+            if (info != null) replacements.add(new ReplacementEntry(i, toIngredientMode(info)));
+        }
         return replacements;
     }
 
@@ -284,6 +314,8 @@ public class GenerateRecipesCommand {
             return buildShapedReplacement(shaped, replacements, server);
         } else if (recipe instanceof ShapelessRecipe shapeless) {
             return buildShapelessReplacement(shapeless, replacements, server);
+        } else if (recipe instanceof SmithingTransformRecipe transform) {
+            return buildSmithingTransformReplacement(transform, replacements, server);
         }
         return null;
     }
@@ -337,14 +369,7 @@ public class GenerateRecipesCommand {
         JsonObject key = new JsonObject();
         for (Map.Entry<Integer, String> entry : keyMap.entrySet()) {
             int index = entry.getKey();
-            String keyChar = entry.getValue();
-
-            ReplacementEntry replacement = findReplacementForIndex(replacements, index);
-            if (replacement != null) {
-                key.add(keyChar, createTinkerIngredientJson(replacement));
-            } else {
-                key.add(keyChar, ingredients.get(index).toJson());
-            }
+            key.add(entry.getValue(), ingredientJsonFor(ingredients.get(index), index, replacements));
         }
         recipeJson.add("key", key);
 
@@ -363,17 +388,35 @@ public class GenerateRecipesCommand {
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
 
         for (int i = 0; i < ingredients.size(); i++) {
-            ReplacementEntry replacement = findReplacementForIndex(replacements, i);
-            if (replacement != null) {
-                ingredientsArray.add(createTinkerIngredientJson(replacement));
-            } else {
-                ingredientsArray.add(ingredients.get(i).toJson());
-            }
+            ingredientsArray.add(ingredientJsonFor(ingredients.get(i), i, replacements));
         }
         recipeJson.add("ingredients", ingredientsArray);
 
         recipeJson.add("result", createResultJson(recipe, server));
         return recipeJson;
+    }
+
+    /**
+     * Smithing transform has three named slots (template, base, addition) matching the scan order
+     * emitted by {@link #extractScannableIngredients}. Per-slot replacement preserves template/addition
+     * when not tracked (e.g. modded upgrade templates).
+     */
+    private static JsonObject buildSmithingTransformReplacement(SmithingTransformRecipe recipe, List<ReplacementEntry> replacements, MinecraftServer server) {
+        JsonObject recipeJson = new JsonObject();
+        recipeJson.addProperty("type", "minecraft:smithing_transform");
+
+        recipeJson.add("template", ingredientJsonFor(recipe.template, 0, replacements));
+        recipeJson.add("base",     ingredientJsonFor(recipe.base,     1, replacements));
+        recipeJson.add("addition", ingredientJsonFor(recipe.addition, 2, replacements));
+
+        recipeJson.add("result", createResultJson(recipe, server));
+        return recipeJson;
+    }
+
+    /** Emits the replacement ingredient if this index was tracked; otherwise preserves the original. */
+    private static JsonElement ingredientJsonFor(Ingredient original, int index, List<ReplacementEntry> replacements) {
+        ReplacementEntry replacement = findReplacementForIndex(replacements, index);
+        return replacement != null ? createTinkerIngredientJson(replacement) : original.toJson();
     }
 
     /** Finds the replacement for a given ingredient index, or null. */
