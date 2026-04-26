@@ -35,9 +35,6 @@ public class VanillaItemMappings {
 
     public static final String[] TOOL_TYPES = {"sword", "pickaxe", "axe", "shovel", "hoe"};
 
-    /** Vanilla armor item prefixes for FalseCondition recipe removal. Includes chainmail/netherite (harmless no-op — no crafting recipe). */
-    public static final String[] ARMOR_TIER_PREFIXES = {"leather", "chainmail", "iron", "golden", "diamond", "netherite"};
-
     public static final String[] ARMOR_SLOTS = {"helmet", "chestplate", "leggings", "boots"};
 
     public static final String[] RANGED_TYPES = {"bow", "crossbow"};

@@ -15,20 +15,11 @@ public class Config {
 
     // === No More Vanilla Tools Config Options ===
 
-    private static final ForgeConfigSpec.BooleanValue REMOVE_VANILLA_TOOL_CRAFTING = BUILDER
-            .comment("Remove vanilla tool crafting recipes (prevents crafting wooden/stone/iron/gold/diamond tools).",
-                     "Recommended to keep enabled when using this mod.")
-            .define("removeVanillaToolCrafting", true);
-
-    private static final ForgeConfigSpec.BooleanValue REMOVE_VANILLA_ARMOR_CRAFTING = BUILDER
-            .comment("Remove vanilla armor crafting recipes (leather/iron/gold/diamond armor).",
-                     "Recommended when extending TC immersion to armor.")
-            .define("removeVanillaArmorCrafting", true);
-
-    private static final ForgeConfigSpec.BooleanValue REMOVE_VANILLA_RANGED_CRAFTING = BUILDER
-            .comment("Remove vanilla ranged weapon crafting recipes (bow, crossbow).",
-                     "Recommended when using this mod.")
-            .define("removeVanillaRangedCrafting", true);
+    private static final ForgeConfigSpec.BooleanValue DISABLE_VANILLA_CRAFTING = BUILDER
+            .comment("Disable vanilla crafting via Mantle's tag-based scan.",
+                     "Covers tools, armor, bow, crossbow, shield, fishing rod, flint & steel, shears, brush, netherite smithing.",
+                     "Also catches modded recipes producing vanilla items.")
+            .define("disableVanillaCrafting", true);
 
     private static final ForgeConfigSpec.BooleanValue REQUIRE_ALL_PARTS_MATCH = BUILDER
             .comment("Require all parts (including head) to meet a percentage-based match threshold.",
@@ -93,9 +84,7 @@ public class Config {
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // Config values
-    public static boolean removeVanillaToolCrafting;
-    public static boolean removeVanillaArmorCrafting;
-    public static boolean removeVanillaRangedCrafting;
+    public static boolean disableVanillaCrafting;
     public static boolean requireAllPartsMatch;
     public static double allPartsThreshold;
     public static boolean replaceLootTableItems;
@@ -109,9 +98,7 @@ public class Config {
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
-        removeVanillaToolCrafting = REMOVE_VANILLA_TOOL_CRAFTING.get();
-        removeVanillaArmorCrafting = REMOVE_VANILLA_ARMOR_CRAFTING.get();
-        removeVanillaRangedCrafting = REMOVE_VANILLA_RANGED_CRAFTING.get();
+        disableVanillaCrafting = DISABLE_VANILLA_CRAFTING.get();
         requireAllPartsMatch = REQUIRE_ALL_PARTS_MATCH.get();
         allPartsThreshold = ALL_PARTS_THRESHOLD.get();
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();

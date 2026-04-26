@@ -60,14 +60,16 @@ public class ForgeEventHandlers {
     }
 
     /**
-     * Reloads datapacks after server start if recipes were just auto-generated.
-     * This fixes the P1 issue where generated recipes aren't active until manual /reload.
+     * Dispatches Mantle's vanilla-recipe disable (overworld must exist; not yet at ServerAboutToStart),
+     * then reloads datapacks so both our generated pack and Mantle's SlimeKnightsGenerated pack take effect.
      */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
         if (needsReloadAfterStart) {
             needsReloadAfterStart = false;
             MinecraftServer server = event.getServer();
+            int disabled = GenerateRecipesCommand.disableVanillaRecipes(server);
+            LOGGER.info("Mantle disabled {} vanilla recipes", disabled);
             LOGGER.info("Reloading datapacks to activate auto-generated recipes...");
             server.reloadResources(server.getPackRepository().getSelectedIds()).exceptionally(e -> {
                 LOGGER.error("Failed to reload datapacks after auto-generation", e);
