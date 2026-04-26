@@ -5,9 +5,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
-import net.minecraftforge.common.crafting.CraftingHelper;
-import net.minecraftforge.common.crafting.conditions.FalseCondition;
-import net.minecraftforge.common.crafting.conditions.ICondition;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,22 +53,6 @@ public class DatapackHelper {
         Path recipeFile = recipesDir.resolve(recipeName + ".json");
         Files.writeString(recipeFile, GSON.toJson(recipe));
         return recipeFile;
-    }
-
-    /**
-     * Disables a recipe using Forge's FalseCondition pattern.
-     * Creates a JSON with {@code "forge:conditions": [{"type": "forge:false"}]} which Forge
-     * recognizes and skips during recipe loading (no parse errors, unlike empty {}).
-     */
-    public static void removeRecipe(Path dataPath, String namespace, String recipeName) throws IOException {
-        Path recipesDir = dataPath.resolve(namespace).resolve("recipes");
-        Files.createDirectories(recipesDir);
-
-        JsonObject json = new JsonObject();
-        json.add("forge:conditions", CraftingHelper.serialize(new ICondition[]{FalseCondition.INSTANCE}));
-
-        Path recipeFile = recipesDir.resolve(recipeName + ".json");
-        Files.writeString(recipeFile, GSON.toJson(json));
     }
 
     /**

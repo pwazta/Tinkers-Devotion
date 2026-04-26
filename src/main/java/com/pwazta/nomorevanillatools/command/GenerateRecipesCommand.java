@@ -11,7 +11,6 @@ import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.ModifierSkipListConfig;
 import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
-import com.pwazta.nomorevanillatools.config.VanillaTier;
 import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.recipe.ArmorMode;
@@ -56,9 +55,7 @@ public class GenerateRecipesCommand {
     /** Tracks everything that happened during generation for player feedback. */
     private static class GenerationResult {
         int recipesGenerated = 0;
-        int vanillaToolRecipesRemoved = 0;
-        int vanillaArmorRecipesRemoved = 0;
-        int vanillaRangedRecipesRemoved = 0;
+        int vanillaRecipesRemoved = 0;
         int staleRecipesCleaned = 0;
         List<String> unmappedToolMaterials = List.of();
         final List<String> errors = new ArrayList<>();
@@ -100,6 +97,9 @@ public class GenerateRecipesCommand {
 
             // Step 4: Generate all replacement recipes
             Set<Path> writtenFiles = doGenerate(server, result);
+
+            // Step 4b: Disable vanilla output recipes via Mantle (writes to its own datapack)
+            result.vanillaRecipesRemoved = disableVanillaRecipes(server);
 
             // Step 5: Clean stale recipes (files that exist but weren't regenerated)
             for (Path existing : existingFiles) {
@@ -160,7 +160,7 @@ public class GenerateRecipesCommand {
     public static int generate(MinecraftServer server) throws Exception {
         GenerationResult result = new GenerationResult();
         doGenerate(server, result);
-        return result.recipesGenerated + result.vanillaToolRecipesRemoved + result.vanillaArmorRecipesRemoved + result.vanillaRangedRecipesRemoved;
+        return result.recipesGenerated + result.vanillaRecipesRemoved;
     }
 
     // ── Core generation logic ─────────────────────────────────────────────────
@@ -177,24 +177,6 @@ public class GenerateRecipesCommand {
         Path dataPath = datapackPath.resolve("data");
 
         DatapackHelper.saveMcmeta(datapackPath);
-
-        // Remove vanilla tool crafting recipes if configured
-        if (Config.removeVanillaToolCrafting) {
-            removeVanillaToolRecipes(dataPath);
-            result.vanillaToolRecipesRemoved = VanillaTier.values().length * VanillaItemMappings.TOOL_TYPES.length;
-        }
-
-        // Remove vanilla armor crafting recipes if configured
-        if (Config.removeVanillaArmorCrafting) {
-            removeVanillaArmorRecipes(dataPath);
-            result.vanillaArmorRecipesRemoved = VanillaItemMappings.ARMOR_TIER_PREFIXES.length * VanillaItemMappings.ARMOR_SLOTS.length;
-        }
-
-        // Remove vanilla ranged weapon crafting recipes if configured
-        if (Config.removeVanillaRangedCrafting) {
-            removeVanillaRangedRecipes(dataPath);
-            result.vanillaRangedRecipesRemoved = VanillaItemMappings.RANGED_TYPES.length;
-        }
 
         // Scan all recipes and generate replacements
         for (Recipe<?> recipe : recipeManager.getRecipes()) {
@@ -226,37 +208,30 @@ public class GenerateRecipesCommand {
         return writtenFiles;
     }
 
-    // ── Vanilla tool detection ────────────────────────────────────────────────
+    // ── Mantle delegation ─────────────────────────────────────────────────────
 
-    /** Vanilla tool recipes: crafting for wood→diamond, smithing upgrade for netherite. */
-    private static void removeVanillaToolRecipes(Path dataPath) throws Exception {
-        for (VanillaTier tier : VanillaTier.values()) {
-            for (String tool : VanillaItemMappings.TOOL_TYPES) {
-                String name = tier == VanillaTier.NETHERITE
-                    ? "netherite_" + tool + "_smithing"
-                    : tier.itemPrefix() + "_" + tool;
-                DatapackHelper.removeRecipe(dataPath, "minecraft", name);
+    /**
+     * Disables vanilla crafting via Mantle's {@code vanilla_tools} + {@code netherite_smithing} presets
+     * (tag-based, inverted vs {@code tconstruct:modifiable}, catches modded recipes producing vanilla items).
+     * Output goes to Mantle's {@code SlimeKnightsGenerated} datapack — caller's reload picks it up.
+     * Must be called after the overworld is loaded ({@code ServerStartedEvent} or later) — Mantle reads {@code source.getLevel()}.
+     */
+    public static int disableVanillaRecipes(MinecraftServer server) {
+        if (!Config.disableVanillaCrafting) return 0;
+        CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
+        int count = 0;
+        for (String preset : List.of("tconstruct:vanilla_tools", "tconstruct:netherite_smithing")) {
+            try {
+                count += server.getCommands().getDispatcher()
+                    .execute("mantle remove recipes preset " + preset, source);
+            } catch (CommandSyntaxException e) {
+                LOGGER.error("Failed to dispatch Mantle preset '{}' — TC dependency missing or broken?", preset, e);
             }
         }
+        return count;
     }
 
-    /** Vanilla armor recipes: crafting for leather/iron/gold/diamond (chainmail is mob-drop no-op), smithing upgrade for netherite. */
-    private static void removeVanillaArmorRecipes(Path dataPath) throws Exception {
-        for (String tier : VanillaItemMappings.ARMOR_TIER_PREFIXES) {
-            for (String slot : VanillaItemMappings.ARMOR_SLOTS) {
-                String name = "netherite".equals(tier)
-                    ? "netherite_" + slot + "_smithing"
-                    : tier + "_" + slot;
-                DatapackHelper.removeRecipe(dataPath, "minecraft", name);
-            }
-        }
-    }
-
-    private static void removeVanillaRangedRecipes(Path dataPath) throws Exception {
-        for (String type : VanillaItemMappings.RANGED_TYPES) {
-            DatapackHelper.removeRecipe(dataPath, "minecraft", type);
-        }
-    }
+    // ── Recipe scanning ───────────────────────────────────────────────────────
 
     /**
      * Returns the list of ingredients to scan for a supported recipe type, or null for unsupported types.
@@ -444,17 +419,9 @@ public class GenerateRecipesCommand {
         source.sendSuccess(() -> Component.literal(
             "  Recipes: " + result.recipesGenerated + " replacement recipes generated"), false);
 
-        if (result.vanillaToolRecipesRemoved > 0) {
+        if (result.vanillaRecipesRemoved > 0) {
             source.sendSuccess(() -> Component.literal(
-                "  Recipes: " + result.vanillaToolRecipesRemoved + " vanilla tool recipes disabled"), false);
-        }
-        if (result.vanillaArmorRecipesRemoved > 0) {
-            source.sendSuccess(() -> Component.literal(
-                "  Recipes: " + result.vanillaArmorRecipesRemoved + " vanilla armor recipes disabled"), false);
-        }
-        if (result.vanillaRangedRecipesRemoved > 0) {
-            source.sendSuccess(() -> Component.literal(
-                "  Recipes: " + result.vanillaRangedRecipesRemoved + " vanilla ranged recipes disabled"), false);
+                "  Recipes: " + result.vanillaRecipesRemoved + " vanilla recipes disabled (via Mantle)"), false);
         }
 
         if (result.staleRecipesCleaned > 0) {
