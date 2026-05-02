@@ -23,13 +23,15 @@ import java.util.Map;
 public class VanillaItemMappings {
 
     // ── Sealed interface for strategy dispatch ─────────────────────────
-    public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo {}
+    public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo, ShieldInfo {}
 
     // ── Record types ─────────────────────────────────────────────────────
     public record ToolInfo(String tier, String toolType) implements ReplacementInfo {}
     public record ArmorInfo(List<String> sets, String slot, int minTier, int maxTier) implements ReplacementInfo {}
     /** Per-part canonical material IDs in tool definition stat type order (e.g., limb, limb, grip, bowstring). Tiers derived via IMaterial.getTier(). */
     public record RangedInfo(String rangedType, List<String> canonicalMaterials) implements ReplacementInfo {}
+    /** Shield info — same per-part canonical pattern as ranged. Detected via shield_core stat type, not instanceof. */
+    public record ShieldInfo(String shieldType, List<String> canonicalMaterials) implements ReplacementInfo {}
 
     // ── Type/slot arrays ──────────────────────────────────────────────────
 
@@ -38,6 +40,8 @@ public class VanillaItemMappings {
     public static final String[] ARMOR_SLOTS = {"helmet", "chestplate", "leggings", "boots"};
 
     public static final String[] RANGED_TYPES = {"bow", "crossbow"};
+
+    public static final String[] SHIELD_TYPES = {"shield"};
 
     // ── String-keyed map (populated in static init) ────────────────────
 
@@ -67,6 +71,9 @@ public class VanillaItemMappings {
         REPLACEMENTS_BY_ID.put("minecraft:bow", new RangedInfo("bow", List.of("tconstruct:wood", "tconstruct:wood", "tconstruct:wood", "tconstruct:string")));
         // Crossbow: 3 parts (limb, grip, bowstring) — iron grip matches vanilla iron ingot ingredient
         REPLACEMENTS_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow", List.of("tconstruct:wood", "tconstruct:iron", "tconstruct:string")));
+
+        // Shield: 2 parts (shield_core, cuirass/plating_shield) — wood planks + iron ingot
+        REPLACEMENTS_BY_ID.put("minecraft:shield", new ShieldInfo("shield", List.of("tconstruct:wood", "tconstruct:iron")));
     }
 
     // ── Item-keyed map (lazy-initialized on first access) ────────────────

@@ -14,6 +14,7 @@ import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.loot.strategy.ArmorReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.RangedReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ReplacementStrategy;
+import com.pwazta.nomorevanillatools.loot.strategy.ShieldReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ToolReplacementStrategy;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
 
@@ -51,9 +52,10 @@ public class TinkerToolBuilder {
     // ── Strategy dispatch ────────────────────────────────────────────────
 
     private static final Map<Class<? extends VanillaItemMappings.ReplacementInfo>, ReplacementStrategy> STRATEGIES = Map.of(
-        VanillaItemMappings.ToolInfo.class,   ToolReplacementStrategy.INSTANCE,
-        VanillaItemMappings.ArmorInfo.class,  ArmorReplacementStrategy.INSTANCE,
-        VanillaItemMappings.RangedInfo.class, RangedReplacementStrategy.INSTANCE
+        VanillaItemMappings.ToolInfo.class,    ToolReplacementStrategy.INSTANCE,
+        VanillaItemMappings.ArmorInfo.class,   ArmorReplacementStrategy.INSTANCE,
+        VanillaItemMappings.RangedInfo.class,  RangedReplacementStrategy.INSTANCE,
+        VanillaItemMappings.ShieldInfo.class,  ShieldReplacementStrategy.INSTANCE
     );
 
     // ── Caches (ConcurrentHashMap, consistent with codebase pattern) ─────

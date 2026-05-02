@@ -16,6 +16,7 @@ import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.recipe.ArmorMode;
 import com.pwazta.nomorevanillatools.recipe.IngredientMode;
 import com.pwazta.nomorevanillatools.recipe.RangedMode;
+import com.pwazta.nomorevanillatools.recipe.ShieldMode;
 import com.pwazta.nomorevanillatools.recipe.ToolMode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.NonNullList;
@@ -278,6 +279,8 @@ public class GenerateRecipesCommand {
             return new ArmorMode(a.slot(), null, a.minTier(), a.maxTier());
         } else if (info instanceof VanillaItemMappings.RangedInfo r) {
             return new RangedMode(r.rangedType(), r.canonicalMaterials());
+        } else if (info instanceof VanillaItemMappings.ShieldInfo s) {
+            return new ShieldMode(s.shieldType(), s.canonicalMaterials());
         }
         throw new IllegalStateException("Unknown ReplacementInfo type: " + info.getClass());
     }

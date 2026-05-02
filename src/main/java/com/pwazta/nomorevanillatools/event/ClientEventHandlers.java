@@ -28,8 +28,10 @@ public class ClientEventHandlers {
         if (tag == null || !tag.contains("nmvt_required_tier")) return;
 
         String tier = tag.getString("nmvt_required_tier");
-        boolean isArmor = "armor_slot".equals(tag.getString("nmvt_match_mode"));
-        boolean isRanged = "ranged".equals(tag.getString("nmvt_match_mode"));
+        String matchMode = tag.getString("nmvt_match_mode");
+        boolean isArmor = "armor_slot".equals(matchMode);
+        boolean isRanged = "ranged".equals(matchMode);
+        boolean isShield = "shield".equals(matchMode);
 
         if (isArmor) {
             // Armor: plating tier requirement. Label is "3" (single) or "0-1" (range).
@@ -53,6 +55,18 @@ public class ClientEventHandlers {
             } else {
                 event.getToolTip().add(Component.translatable(
                         "tooltip.nomorevanillatools.required_ranged", tier)
+                        .withStyle(ChatFormatting.GOLD));
+            }
+        } else if (isShield) {
+            // Shield: per-part tier details if mixed, otherwise single tier
+            String partDetails = tag.getString("nmvt_part_details");
+            if (!partDetails.isEmpty()) {
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_shield_parts", partDetails)
+                        .withStyle(ChatFormatting.GOLD));
+            } else {
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_shield", tier)
                         .withStyle(ChatFormatting.GOLD));
             }
         } else {
