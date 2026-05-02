@@ -24,7 +24,7 @@ import java.util.function.BiFunction;
  * Each implementation encapsulates the test/display/serialization logic for one category
  * (tools, armor, ranged weapons).
  */
-public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode {
+public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, ShieldMode {
 
     /** Test whether an ItemStack matches this mode's requirements. */
     boolean test(ItemStack stack);
@@ -53,6 +53,7 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode {
             case "tool_action" -> ToolMode.fromJson(json);
             case "armor_slot"  -> ArmorMode.fromJson(json);
             case "ranged"      -> RangedMode.fromJson(json);
+            case "shield"      -> ShieldMode.fromJson(json);
             default -> throw new JsonParseException("Unknown ingredient mode: " + mode);
         };
     }
@@ -64,6 +65,7 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode {
             case "tool_action" -> ToolMode.fromBuffer(buffer);
             case "armor_slot"  -> ArmorMode.fromBuffer(buffer);
             case "ranged"      -> RangedMode.fromBuffer(buffer);
+            case "shield"      -> ShieldMode.fromBuffer(buffer);
             default -> throw new IllegalStateException("Unknown ingredient mode: " + mode);
         };
     }

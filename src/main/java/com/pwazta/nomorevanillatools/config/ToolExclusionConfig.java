@@ -101,6 +101,9 @@ public class ToolExclusionConfig {
         for (String ranged : VanillaItemMappings.RANGED_TYPES) {
             EXCLUSIONS.put(ranged, new LinkedHashSet<>(DEFAULT_EXCLUDED_RANGED));
         }
+        for (String shield : VanillaItemMappings.SHIELD_TYPES) {
+            EXCLUSIONS.put(shield, new LinkedHashSet<>());
+        }
     }
 
     /** Checks if an item is excluded from the given action/slot/type key. */
@@ -124,6 +127,10 @@ public class ToolExclusionConfig {
         for (String ranged : VanillaItemMappings.RANGED_TYPES) {
             Set<String> excluded = EXCLUSIONS.get(ranged);
             toSave.put(ranged, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
+        }
+        for (String shield : VanillaItemMappings.SHIELD_TYPES) {
+            Set<String> excluded = EXCLUSIONS.get(shield);
+            toSave.put(shield, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
         }
 
         // Append any user-defined actions not in known types

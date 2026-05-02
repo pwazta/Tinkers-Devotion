@@ -7,8 +7,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.registries.ForgeRegistries;
+import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
 import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
+import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
@@ -44,11 +46,15 @@ public final class TcItemRegistry {
     /** Eligible TC ranged weapons per type name. */
     private static final Map<String, List<IModifiable>> RANGED_CACHE = new ConcurrentHashMap<>();
 
+    /** Eligible TC shields per type name. */
+    private static final Map<String, List<IModifiable>> SHIELD_CACHE = new ConcurrentHashMap<>();
+
     /** Clears all cached scan results. Called on config/material reload. */
     public static void clearCaches() {
         TOOL_CACHE.clear();
         ARMOR_CACHE.clear();
         RANGED_CACHE.clear();
+        SHIELD_CACHE.clear();
     }
 
     /**
@@ -157,6 +163,34 @@ public final class TcItemRegistry {
                 ranged.add(modifiable);
             }
             return ranged;
+        });
+    }
+
+    // ── Shield scanning (stat-type-based, not instanceof) ───────────────
+
+    private static final MaterialStatsId SHIELD_CORE_STAT = new MaterialStatsId("tconstruct", "shield_core");
+
+    /**
+     * Returns all TC shields (items with shield_core stat type), excluding items
+     * in {@link ToolExclusionConfig}. Results are cached per type name.
+     */
+    public static List<IModifiable> getEligibleShields(String shieldType) {
+        return SHIELD_CACHE.computeIfAbsent(shieldType, k -> {
+            List<IModifiable> shields = new ArrayList<>();
+            for (Item item : ForgeRegistries.ITEMS) {
+                if (!(item instanceof IModifiable modifiable)) continue;
+
+                ToolDefinition def = modifiable.getToolDefinition();
+                if (!def.isDataLoaded()) continue;
+
+                if (!ToolMaterialHook.stats(def).contains(SHIELD_CORE_STAT)) continue;
+
+                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
+                if (itemId != null && ToolExclusionConfig.isExcluded(shieldType, itemId.toString())) continue;
+
+                shields.add(modifiable);
+            }
+            return shields;
         });
     }
 }
