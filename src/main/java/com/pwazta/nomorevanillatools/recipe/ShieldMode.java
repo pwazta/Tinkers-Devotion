@@ -21,6 +21,7 @@ import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
 import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
+import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,6 +68,7 @@ public record ShieldMode(String shieldType, List<String> canonicalMaterials) imp
     private boolean matchesShieldType(ItemStack stack) {
         Item item = stack.getItem();
         if (!(item instanceof IModifiable modifiable)) return false;
+        if (item instanceof ModifiableArmorItem) return false;
 
         ToolDefinition def = modifiable.getToolDefinition();
         if (!def.isDataLoaded()) return false;

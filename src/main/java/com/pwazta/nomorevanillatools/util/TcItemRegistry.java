@@ -179,6 +179,8 @@ public final class TcItemRegistry {
             List<IModifiable> shields = new ArrayList<>();
             for (Item item : ForgeRegistries.ITEMS) {
                 if (!(item instanceof IModifiable modifiable)) continue;
+                // Laminar armor has shield_core as a sub-part — exclude armor items
+                if (item instanceof ModifiableArmorItem) continue;
 
                 ToolDefinition def = modifiable.getToolDefinition();
                 if (!def.isDataLoaded()) continue;
