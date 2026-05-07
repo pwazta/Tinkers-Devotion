@@ -12,6 +12,7 @@ import com.mojang.logging.LogUtils;
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.loot.strategy.ArmorReplacementStrategy;
+import com.pwazta.nomorevanillatools.loot.strategy.FishingRodReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.RangedReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ShieldReplacementStrategy;
@@ -52,10 +53,11 @@ public class TinkerToolBuilder {
     // ── Strategy dispatch ────────────────────────────────────────────────
 
     private static final Map<Class<? extends VanillaItemMappings.ReplacementInfo>, ReplacementStrategy> STRATEGIES = Map.of(
-        VanillaItemMappings.ToolInfo.class,    ToolReplacementStrategy.INSTANCE,
-        VanillaItemMappings.ArmorInfo.class,   ArmorReplacementStrategy.INSTANCE,
-        VanillaItemMappings.RangedInfo.class,  RangedReplacementStrategy.INSTANCE,
-        VanillaItemMappings.ShieldInfo.class,  ShieldReplacementStrategy.INSTANCE
+        VanillaItemMappings.ToolInfo.class,       ToolReplacementStrategy.INSTANCE,
+        VanillaItemMappings.ArmorInfo.class,      ArmorReplacementStrategy.INSTANCE,
+        VanillaItemMappings.RangedInfo.class,     RangedReplacementStrategy.INSTANCE,
+        VanillaItemMappings.ShieldInfo.class,     ShieldReplacementStrategy.INSTANCE,
+        VanillaItemMappings.FishingRodInfo.class, FishingRodReplacementStrategy.INSTANCE
     );
 
     // ── Caches (ConcurrentHashMap, consistent with codebase pattern) ─────

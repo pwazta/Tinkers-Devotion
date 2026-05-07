@@ -32,6 +32,7 @@ public class ClientEventHandlers {
         boolean isArmor = "armor_slot".equals(matchMode);
         boolean isRanged = "ranged".equals(matchMode);
         boolean isShield = "shield".equals(matchMode);
+        boolean isFishingRod = "fishing_rod".equals(matchMode);
 
         if (isArmor) {
             // Armor: plating tier requirement. Label is "3" (single) or "0-1" (range).
@@ -67,6 +68,18 @@ public class ClientEventHandlers {
             } else {
                 event.getToolTip().add(Component.translatable(
                         "tooltip.nomorevanillatools.required_shield", tier)
+                        .withStyle(ChatFormatting.GOLD));
+            }
+        } else if (isFishingRod) {
+            // Fishing rod: per-part tier details if mixed, otherwise single tier
+            String partDetails = tag.getString("nmvt_part_details");
+            if (!partDetails.isEmpty()) {
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_fishing_rod_parts", partDetails)
+                        .withStyle(ChatFormatting.GOLD));
+            } else {
+                event.getToolTip().add(Component.translatable(
+                        "tooltip.nomorevanillatools.required_fishing_rod", tier)
                         .withStyle(ChatFormatting.GOLD));
             }
         } else {

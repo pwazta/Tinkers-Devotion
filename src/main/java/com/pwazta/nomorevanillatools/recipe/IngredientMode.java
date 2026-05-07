@@ -3,8 +3,14 @@ package com.pwazta.nomorevanillatools.recipe;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.ItemStack;
+import slimeknights.tconstruct.library.materials.MaterialRegistry;
+import slimeknights.tconstruct.library.materials.definition.IMaterial;
+import slimeknights.tconstruct.library.materials.definition.MaterialId;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariant;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
 import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
@@ -24,7 +30,7 @@ import java.util.function.BiFunction;
  * Each implementation encapsulates the test/display/serialization logic for one category
  * (tools, armor, ranged weapons).
  */
-public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, ShieldMode {
+public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, ShieldMode, FishingRodMode {
 
     /** Test whether an ItemStack matches this mode's requirements. */
     boolean test(ItemStack stack);
@@ -50,10 +56,11 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
     static IngredientMode fromJson(JsonObject json) {
         String mode = json.get("mode").getAsString().toLowerCase();
         return switch (mode) {
-            case "tool_action" -> ToolMode.fromJson(json);
-            case "armor_slot"  -> ArmorMode.fromJson(json);
-            case "ranged"      -> RangedMode.fromJson(json);
-            case "shield"      -> ShieldMode.fromJson(json);
+            case "tool_action"  -> ToolMode.fromJson(json);
+            case "armor_slot"   -> ArmorMode.fromJson(json);
+            case "ranged"       -> RangedMode.fromJson(json);
+            case "shield"       -> ShieldMode.fromJson(json);
+            case "fishing_rod"  -> FishingRodMode.fromJson(json);
             default -> throw new JsonParseException("Unknown ingredient mode: " + mode);
         };
     }
@@ -62,10 +69,11 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
     static IngredientMode fromBuffer(FriendlyByteBuf buffer) {
         String mode = buffer.readUtf();
         return switch (mode) {
-            case "tool_action" -> ToolMode.fromBuffer(buffer);
-            case "armor_slot"  -> ArmorMode.fromBuffer(buffer);
-            case "ranged"      -> RangedMode.fromBuffer(buffer);
-            case "shield"      -> ShieldMode.fromBuffer(buffer);
+            case "tool_action"  -> ToolMode.fromBuffer(buffer);
+            case "armor_slot"   -> ArmorMode.fromBuffer(buffer);
+            case "ranged"       -> RangedMode.fromBuffer(buffer);
+            case "shield"       -> ShieldMode.fromBuffer(buffer);
+            case "fishing_rod"  -> FishingRodMode.fromBuffer(buffer);
             default -> throw new IllegalStateException("Unknown ingredient mode: " + mode);
         };
     }
@@ -123,5 +131,111 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
             result.add(stack);
         }
         return result.toArray(new ItemStack[0]);
+    }
+
+    // ── Canonical-list shared helpers (RangedMode / ShieldMode / FishingRodMode) ──
+
+    /** Resolves a canonical material ID to its IMaterial.getTier() int. Returns -1 if unresolvable. */
+    static int resolveCanonicalTier(String canonicalId) {
+        MaterialId matId = MaterialId.tryParse(canonicalId);
+        if (matId == null) return -1;
+        IMaterial material = MaterialRegistry.getInstance().getMaterial(matId);
+        return material == IMaterial.UNKNOWN ? -1 : material.getTier();
+    }
+
+    /** Capitalizes a snake_case stat type path, e.g. "bow_grip" → "Bow Grip". */
+    static String formatPartName(String path) {
+        String[] words = path.split("_");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            if (i > 0) sb.append(' ');
+            if (!words[i].isEmpty()) sb.append(Character.toUpperCase(words[i].charAt(0))).append(words[i].substring(1));
+        }
+        return sb.toString();
+    }
+
+    /** Formats per-part tier details for tooltip, e.g. "tier 0 Limb, tier 2 Grip, tier 0 Bowstring". */
+    static String formatPartDetails(List<String> materials, List<MaterialStatsId> statTypes) {
+        StringBuilder sb = new StringBuilder();
+        int count = Math.min(materials.size(), statTypes.size());
+        for (int i = 0; i < count; i++) {
+            if (i > 0) sb.append(", ");
+            int tier = resolveCanonicalTier(materials.get(i));
+            sb.append("tier ").append(tier).append(' ').append(formatPartName(statTypes.get(i).getPath()));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Per-part tier check shared by all canonical-list modes.
+     * Reads {@code tic_materials} from the stack and verifies each part's
+     * {@link IMaterial#getTier()} equals the tier of the corresponding canonical.
+     * Caller must check item-type eligibility separately.
+     */
+    static boolean testCanonicalTiers(ItemStack stack, List<String> canonicalMaterials) {
+        if (canonicalMaterials.isEmpty()) return false;
+
+        CompoundTag nbt = stack.getTag();
+        if (nbt == null || !nbt.contains("tic_materials", Tag.TAG_LIST)) return false;
+
+        ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
+        if (materialsList.isEmpty()) return false;
+
+        for (int i = 0; i < canonicalMaterials.size() && i < materialsList.size(); i++) {
+            int requiredTier = resolveCanonicalTier(canonicalMaterials.get(i));
+            if (requiredTier < 0) return false;
+
+            MaterialId materialId = MaterialId.tryParse(materialsList.getString(i));
+            if (materialId == null) return false;
+
+            IMaterial material = MaterialRegistry.getInstance().getMaterial(materialId);
+            if (material == IMaterial.UNKNOWN) return false;
+
+            if (material.getTier() != requiredTier) return false;
+        }
+        return true;
+    }
+
+    /**
+     * JEI display builder for canonical-list modes (Ranged / Shield / FishingRod).
+     * Produces one display stack per eligible item with per-part canonical materials applied,
+     * tagging each with {@code nmvt_match_mode}, {@code nmvt_required_tier}, and (if mixed-tier)
+     * {@code nmvt_part_details}.
+     */
+    static ItemStack[] buildCanonicalDisplayItems(
+            List<String> canonicalMaterials,
+            List<? extends IModifiable> eligible,
+            String matchMode) {
+        if (canonicalMaterials.isEmpty()) return new ItemStack[0];
+
+        List<MaterialVariantId> partMaterials = new ArrayList<>(canonicalMaterials.size());
+        for (String canonicalId : canonicalMaterials) {
+            MaterialVariantId variant = MaterialVariantId.tryParse(canonicalId);
+            if (variant == null) return new ItemStack[0];
+            partMaterials.add(variant);
+        }
+
+        boolean uniform = canonicalMaterials.stream().allMatch(canonicalMaterials.get(0)::equals);
+        String firstTierLabel = String.valueOf(resolveCanonicalTier(canonicalMaterials.get(0)));
+
+        return buildMixedDisplayItems(
+            eligible,
+            (item, stats) -> {
+                List<MaterialVariantId> mats = new ArrayList<>(stats.size());
+                for (int i = 0; i < stats.size(); i++) {
+                    int idx = Math.min(i, partMaterials.size() - 1);
+                    mats.add(partMaterials.get(idx));
+                }
+                return mats;
+            },
+            (stack, stats) -> {
+                CompoundTag tag = stack.getOrCreateTag();
+                tag.putString("nmvt_match_mode", matchMode);
+                tag.putString("nmvt_required_tier", firstTierLabel);
+                if (!uniform) {
+                    tag.putString("nmvt_part_details", formatPartDetails(canonicalMaterials, stats));
+                }
+            }
+        );
     }
 }
