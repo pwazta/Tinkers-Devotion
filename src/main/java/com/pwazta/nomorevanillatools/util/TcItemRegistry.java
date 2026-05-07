@@ -1,10 +1,13 @@
 package com.pwazta.nomorevanillatools.util;
 
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.Tags;
 import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
@@ -49,12 +52,16 @@ public final class TcItemRegistry {
     /** Eligible TC shields per type name. */
     private static final Map<String, List<IModifiable>> SHIELD_CACHE = new ConcurrentHashMap<>();
 
+    /** Eligible TC fishing rods per type name. */
+    private static final Map<String, List<IModifiable>> FISHING_ROD_CACHE = new ConcurrentHashMap<>();
+
     /** Clears all cached scan results. Called on config/material reload. */
     public static void clearCaches() {
         TOOL_CACHE.clear();
         ARMOR_CACHE.clear();
         RANGED_CACHE.clear();
         SHIELD_CACHE.clear();
+        FISHING_ROD_CACHE.clear();
     }
 
     /**
@@ -193,6 +200,38 @@ public final class TcItemRegistry {
                 shields.add(modifiable);
             }
             return shields;
+        });
+    }
+
+    // ── Fishing rod scanning (tag-based via Forge convention) ──
+
+    /**
+     * Returns all TC fishing rods, excluding items in {@link ToolExclusionConfig}.
+     * Results are cached per type name.
+     *
+     * <p>Detection iterates {@link Tags.Items#TOOLS_FISHING_RODS} (the Forge convention tag
+     * that TC and any addon fishing rod populate). The {@code instanceof IModifiable} filter
+     * excludes vanilla {@code minecraft:fishing_rod} from the result.
+     *
+     * <p>This avoids action-based detection entirely: {@code FISHING_ROD_CAST} is granted by
+     * TC's {@code fishing} trait modifier — only visible after {@code rebuildStats()} populates
+     * {@code tic_modifiers} — so action checks would require building a ToolStack per item.
+     * The tag is the same mechanism TC uses internally to enumerate fishing rods (see
+     * {@code ItemTagProvider.java:339}).
+     */
+    public static List<IModifiable> getEligibleFishingRods(String fishingRodType) {
+        return FISHING_ROD_CACHE.computeIfAbsent(fishingRodType, k -> {
+            List<IModifiable> rods = new ArrayList<>();
+            for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(Tags.Items.TOOLS_FISHING_RODS)) {
+                Item item = holder.value();
+                if (!(item instanceof IModifiable modifiable)) continue;
+
+                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
+                if (itemId != null && ToolExclusionConfig.isExcluded(fishingRodType, itemId.toString())) continue;
+
+                rods.add(modifiable);
+            }
+            return rods;
         });
     }
 }

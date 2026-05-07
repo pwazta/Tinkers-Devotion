@@ -23,7 +23,7 @@ import java.util.Map;
 public class VanillaItemMappings {
 
     // ── Sealed interface for strategy dispatch ─────────────────────────
-    public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo, ShieldInfo {}
+    public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo, ShieldInfo, FishingRodInfo {}
 
     // ── Record types ─────────────────────────────────────────────────────
     public record ToolInfo(String tier, String toolType) implements ReplacementInfo {}
@@ -32,6 +32,8 @@ public class VanillaItemMappings {
     public record RangedInfo(String rangedType, List<String> canonicalMaterials) implements ReplacementInfo {}
     /** Shield info — same per-part canonical pattern as ranged. Detected via shield_core stat type, not instanceof. */
     public record ShieldInfo(String shieldType, List<String> canonicalMaterials) implements ReplacementInfo {}
+    /** Fishing rod info — same per-part canonical pattern. Detected via ToolActions.FISHING_ROD_CAST (action granted by the `fishing` trait, not the definition). */
+    public record FishingRodInfo(String fishingRodType, List<String> canonicalMaterials) implements ReplacementInfo {}
 
     // ── Type/slot arrays ──────────────────────────────────────────────────
 
@@ -42,6 +44,8 @@ public class VanillaItemMappings {
     public static final String[] RANGED_TYPES = {"bow", "crossbow"};
 
     public static final String[] SHIELD_TYPES = {"shield"};
+
+    public static final String[] FISHING_ROD_TYPES = {"fishing_rod"};
 
     // ── String-keyed map (populated in static init) ────────────────────
 
@@ -74,6 +78,9 @@ public class VanillaItemMappings {
 
         // Shield: 2 parts (shield_core, cuirass/plating_shield) — wood planks + iron ingot
         REPLACEMENTS_BY_ID.put("minecraft:shield", new ShieldInfo("shield", List.of("tconstruct:wood", "tconstruct:iron")));
+
+        // Fishing rod: 3 parts (limb, bowstring, arrow_head) — wood limb + string + flint hook
+        REPLACEMENTS_BY_ID.put("minecraft:fishing_rod", new FishingRodInfo("fishing_rod", List.of("tconstruct:wood", "tconstruct:string", "tconstruct:flint")));
     }
 
     // ── Item-keyed map (lazy-initialized on first access) ────────────────

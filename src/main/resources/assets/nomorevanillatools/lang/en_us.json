@@ -8,5 +8,7 @@
     "tooltip.nomorevanillatools.required_ranged": "Requires %s-tier ranged weapon",
     "tooltip.nomorevanillatools.required_ranged_parts": "Requires %s",
     "tooltip.nomorevanillatools.required_shield": "Requires %s-tier shield",
-    "tooltip.nomorevanillatools.required_shield_parts": "Requires %s"
+    "tooltip.nomorevanillatools.required_shield_parts": "Requires %s",
+    "tooltip.nomorevanillatools.required_fishing_rod": "Requires %s-tier fishing rod",
+    "tooltip.nomorevanillatools.required_fishing_rod_parts": "Requires %s"
 }
