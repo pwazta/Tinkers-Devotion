@@ -5,7 +5,6 @@ import com.pwazta.nomorevanillatools.loot.TinkerToolBuilder;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
 import net.minecraft.util.RandomSource;
-import net.minecraftforge.common.ToolAction;
 import org.jetbrains.annotations.Nullable;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 import slimeknights.tconstruct.library.materials.definition.IMaterial;
@@ -36,9 +35,7 @@ public final class ToolReplacementStrategy implements ReplacementStrategy {
     @Override
     public List<IModifiable> findEligible(VanillaItemMappings.ReplacementInfo info) {
         VanillaItemMappings.ToolInfo toolInfo = (VanillaItemMappings.ToolInfo) info;
-        ToolAction action = VanillaItemMappings.getToolAction(toolInfo.toolType());
-        if (action == null) return List.of();
-        return TcItemRegistry.getEligibleTools(action, toolInfo.toolType());
+        return TcItemRegistry.getEligibleTools(toolInfo.toolType());
     }
 
     @Override

@@ -5,21 +5,18 @@ import com.google.gson.JsonObject;
 import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
-import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.util.TcItemRegistry;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
-import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
-import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
-import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +32,7 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return "tool_action";
     }
 
-    /** Checks head material (index 0) matches the required tier via live TC registry, optional all-parts % threshold, then validates ToolAction + exclusions. */
+    /** Checks head material (index 0) matches the required tier via live TC registry, optional all-parts % threshold, then verifies tool-type tag membership + exclusions. */
     @Override
     public boolean test(ItemStack stack) {
         CompoundTag nbt = stack.getTag();
@@ -62,18 +59,13 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return matchesToolType(stack);
     }
 
-    /** Verifies item supports the required ToolAction via ToolDefinition hook, then checks exclusion list. */
+    /** Verifies item is in the per-action item tag (TC populates these from each tool's static ToolActionsModule), then checks exclusion list. */
     private boolean matchesToolType(ItemStack stack) {
         if (toolType.isEmpty()) return true;
-        ToolAction requiredAction = VanillaItemMappings.getToolAction(toolType);
-        if (requiredAction == null) return true;
-
-        if (!(stack.getItem() instanceof IModifiable modifiable)) return false;
-        ToolDefinition definition = modifiable.getToolDefinition();
-        if (!definition.isDataLoaded()) return false;
-
-        boolean supportsAction = definition.getData().getHook(ToolHooks.TOOL_ACTION).canPerformAction(ToolStack.from(stack), requiredAction);
-        if (!supportsAction) return false;
+        TagKey<Item> tag = TcItemRegistry.getToolTag(toolType);
+        if (tag == null) return true;
+        if (!(stack.getItem() instanceof IModifiable)) return false;
+        if (!stack.is(tag)) return false;
 
         ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return toolId == null || !ToolExclusionConfig.isExcluded(toolType, toolId.toString());
@@ -82,15 +74,12 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
     /** Builds JEI display stacks with canonical head material + wooden other parts. Config-aware: respects requireAllPartsMatch threshold. */
     @Override
     public ItemStack[] computeDisplayItems() {
-        ToolAction action = VanillaItemMappings.getToolAction(toolType);
-        if (action == null) return new ItemStack[0];
-
         String canonicalId = TiersToTcMaterials.getCanonicalToolMaterial(tier);
         if (canonicalId == null) return new ItemStack[0];
         MaterialVariantId canonical = MaterialVariantId.tryParse(canonicalId);
         if (canonical == null) return new ItemStack[0];
 
-        List<IModifiable> eligible = TcItemRegistry.getEligibleTools(action, toolType);
+        List<IModifiable> eligible = TcItemRegistry.getEligibleTools(toolType);
         return IngredientMode.buildMixedDisplayItems(
             eligible,
             (item, stats) -> {
