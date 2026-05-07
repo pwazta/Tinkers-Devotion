@@ -4,8 +4,6 @@ import com.pwazta.nomorevanillatools.config.VanillaTier;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.common.ToolAction;
-import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
@@ -115,19 +113,7 @@ public class VanillaItemMappings {
         return REPLACEMENTS_BY_ID.get(registryId);
     }
 
-    // ── ToolAction / ArmorItem.Type resolution ───────────────────────────
-
-    /** Maps tool type name to the ToolAction used for TC tool scanning. */
-    public static @Nullable ToolAction getToolAction(String toolType) {
-        return switch (toolType.toLowerCase()) {
-            case "sword"   -> ToolActions.SWORD_DIG;
-            case "pickaxe" -> ToolActions.PICKAXE_DIG;
-            case "axe"     -> ToolActions.AXE_DIG;
-            case "shovel"  -> ToolActions.SHOVEL_DIG;
-            case "hoe"     -> ToolActions.HOE_DIG;
-            default        -> null;
-        };
-    }
+    // ── ArmorItem.Type resolution ────────────────────────────────────────
 
     /** Maps armor slot name to ArmorItem.Type. */
     public static @Nullable ArmorItem.Type getArmorType(String slot) {

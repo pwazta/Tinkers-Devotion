@@ -4,55 +4,75 @@ import com.pwazta.nomorevanillatools.config.ToolExclusionConfig;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.Tags;
-import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.registries.ForgeRegistries;
-import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
-import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
-import slimeknights.tconstruct.library.tools.definition.module.ToolHooks;
-import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
+import slimeknights.tconstruct.common.TinkerTags;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
-import slimeknights.tconstruct.library.tools.item.IModifiableDisplay;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
-import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
-import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
-import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
- * Cached registry scanner for eligible TC tools, armor, and ranged weapons.
+ * Cached tag-based scanner for eligible TC tools, armor, ranged weapons, shields, and fishing rods.
  *
- * <p>Shared by {@link com.pwazta.nomorevanillatools.loot.TinkerToolBuilder TinkerToolBuilder}
- * (loot replacement) and {@link com.pwazta.nomorevanillatools.recipe.TinkerMaterialIngredient
- * TinkerMaterialIngredient} (recipe matching / JEI display) to avoid duplicating the same
- * registry scan and exclusion filtering logic.
+ * <p>All methods iterate a TC- or Forge-populated item tag and apply an {@code instanceof IModifiable}
+ * filter to exclude vanilla items. This is {@code O(M)} (M = tag size, ~30–80 with addons) versus
+ * the prior {@code O(N)} full-registry scan.
  *
- * <p>Caches are cleared on config reload via {@link #clearCaches()}.
+ * <p>Tag choice per type (verified TC-populated):
+ * <ul>
+ *   <li>Tools: {@link ItemTags#SWORDS}/{@code PICKAXES}/{@code AXES}/{@code SHOVELS}/{@code HOES} —
+ *       TC tags items into these per their static {@code ToolActionsModule} declaration, so tag
+ *       membership is equivalent to the prior {@code ToolHooks.TOOL_ACTION} static check.</li>
+ *   <li>Ranged: {@link TinkerTags.Items#LONGBOWS}/{@code CROSSBOWS} — also catches addon launchers
+ *       that don't extend {@code ModifiableBowItem}/{@code ModifiableCrossbowItem} directly
+ *       (e.g. Tinkers-Thinking's repeating crossbow).</li>
+ *   <li>Shields: {@link TinkerTags.Items#SHIELDS}.</li>
+ *   <li>Armor: {@link TinkerTags.Items#HELMETS}/{@code CHESTPLATES}/{@code LEGGINGS}/{@code BOOTS}.</li>
+ *   <li>Fishing rods: {@link Tags.Items#TOOLS_FISHING_RODS} (Forge convention; equivalent set).</li>
+ * </ul>
+ *
+ * <p>Caches are cleared on config / material reload via {@link #clearCaches()}.
  */
 public final class TcItemRegistry {
 
     private TcItemRegistry() {}
 
-    /** Eligible TC tools per action name. */
+    /** Per–tool-action tag (TC populates {@link ItemTags} from each tool's static {@code ToolActionsModule}). */
+    private static final Map<String, TagKey<Item>> TOOL_TAGS = Map.of(
+        "sword",   ItemTags.SWORDS,
+        "pickaxe", ItemTags.PICKAXES,
+        "axe",     ItemTags.AXES,
+        "shovel",  ItemTags.SHOVELS,
+        "hoe",     ItemTags.HOES
+    );
+
+    /** Per-slot armor tag (TC populates these via {@code addArmorTags}). */
+    private static final Map<ArmorItem.Type, TagKey<Item>> ARMOR_TAGS = Map.of(
+        ArmorItem.Type.HELMET,     TinkerTags.Items.HELMETS,
+        ArmorItem.Type.CHESTPLATE, TinkerTags.Items.CHESTPLATES,
+        ArmorItem.Type.LEGGINGS,   TinkerTags.Items.LEGGINGS,
+        ArmorItem.Type.BOOTS,      TinkerTags.Items.BOOTS
+    );
+
+    /** Per–ranged-type tag. */
+    private static final Map<String, TagKey<Item>> RANGED_TAGS = Map.of(
+        "bow",      TinkerTags.Items.LONGBOWS,
+        "crossbow", TinkerTags.Items.CROSSBOWS
+    );
+
     private static final Map<String, List<IModifiable>> TOOL_CACHE = new ConcurrentHashMap<>();
-
-    /** Eligible TC armor per slot name. */
     private static final Map<String, List<IModifiable>> ARMOR_CACHE = new ConcurrentHashMap<>();
-
-    /** Eligible TC ranged weapons per type name. */
     private static final Map<String, List<IModifiable>> RANGED_CACHE = new ConcurrentHashMap<>();
-
-    /** Eligible TC shields per type name. */
     private static final Map<String, List<IModifiable>> SHIELD_CACHE = new ConcurrentHashMap<>();
-
-    /** Eligible TC fishing rods per type name. */
     private static final Map<String, List<IModifiable>> FISHING_ROD_CACHE = new ConcurrentHashMap<>();
 
     /** Clears all cached scan results. Called on config/material reload. */
@@ -65,173 +85,128 @@ public final class TcItemRegistry {
     }
 
     /**
-     * Returns all TC tools that support the given {@link ToolAction}, excluding items in
-     * {@link ToolExclusionConfig}. Results are cached per action name.
+     * Returns all TC tools tagged for the given action name (sword/pickaxe/axe/shovel/hoe),
+     * excluding items in {@link ToolExclusionConfig}. Cached per action name.
      */
-    public static List<IModifiable> getEligibleTools(ToolAction action, String actionName) {
+    public static List<IModifiable> getEligibleTools(String actionName) {
         return TOOL_CACHE.computeIfAbsent(actionName, k -> {
-            List<IModifiable> tools = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof IModifiableDisplay display)) continue;
-                if (!(item instanceof IModifiable modifiable)) continue;
-                ToolDefinition definition = display.getToolDefinition();
-                if (!definition.isDataLoaded()) continue;
-
-                ItemStack renderStack = display.getRenderTool();
-                boolean supportsAction = definition.getData().getHook(ToolHooks.TOOL_ACTION)
-                    .canPerformAction(ToolStack.from(renderStack), action);
-                if (!supportsAction) continue;
-
-                ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(item);
-                if (toolId != null && ToolExclusionConfig.isExcluded(actionName, toolId.toString())) continue;
-
-                tools.add(modifiable);
-            }
-            return tools;
+            TagKey<Item> tag = TOOL_TAGS.get(actionName);
+            if (tag == null) return List.of();
+            return collect(tag, actionName, null);
         });
     }
 
+    /** Returns the per–tool-action item tag, or null for unknown action names. Used by {@link com.pwazta.nomorevanillatools.recipe.ToolMode} for runtime stack-membership checks. */
+    public static TagKey<Item> getToolTag(String actionName) {
+        return TOOL_TAGS.get(actionName);
+    }
+
     /**
-     * Returns all TC armor pieces matching the given {@link ArmorItem.Type} and any of the allowed
-     * armor set prefixes, excluding items in {@link ToolExclusionConfig}. Results are cached.
+     * Returns all TC armor pieces matching the given slot and any of the allowed armor set
+     * prefixes, excluding items in {@link ToolExclusionConfig}. Cached per (sets, slot).
      *
-     * @param armorType the ArmorItem.Type to match (HELMET, CHESTPLATE, etc.)
-     * @param sets      allowed armor set prefixes with full namespace (e.g., "tconstruct:plate", "tinkers_things:laminar")
-     * @param slotName  the slot name for exclusion checking and cache key
+     * @param sets allowed armor set prefixes with full namespace (e.g., {@code "tconstruct:plate"},
+     *             {@code "tinkers_things:laminar"})
      */
     public static List<IModifiable> getEligibleArmor(ArmorItem.Type armorType, List<String> sets, String slotName) {
-        String cacheKey = sets + ":" + slotName;
-        return ARMOR_CACHE.computeIfAbsent(cacheKey, k -> {
-            List<IModifiable> armor = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof ModifiableArmorItem armorItem)) continue;
-                if (armorItem.getType() != armorType) continue;
-
-                ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(item);
-                if (armorId == null) continue;
-                String idStr = armorId.toString();
-                if (ToolExclusionConfig.isExcluded(slotName, idStr)) continue;
-
-                boolean matchesSet = false;
-                for (String set : sets) {
-                    if (idStr.startsWith(set + "_")) { matchesSet = true; break; }
-                }
-                if (!matchesSet) continue;
-
-                armor.add(armorItem);
-            }
-            return armor;
-        });
+        return ARMOR_CACHE.computeIfAbsent(sets + ":" + slotName,
+            k -> collectArmor(armorType, sets, slotName));
     }
 
     /**
-     * Returns all TC armor pieces matching the given {@link ArmorItem.Type} regardless of set,
-     * excluding items in {@link ToolExclusionConfig}. Used by recipe JEI display (any set at matching tier).
+     * Returns all TC armor pieces in the given slot regardless of set, excluding items in
+     * {@link ToolExclusionConfig}. Used by recipe JEI display (any set at matching tier).
      */
     public static List<IModifiable> getAllEligibleArmor(ArmorItem.Type armorType, String slotName) {
-        String cacheKey = "all:" + slotName;
-        return ARMOR_CACHE.computeIfAbsent(cacheKey, k -> {
-            List<IModifiable> armor = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof ModifiableArmorItem armorItem)) continue;
-                if (armorItem.getType() != armorType) continue;
-
-                ResourceLocation armorId = ForgeRegistries.ITEMS.getKey(item);
-                if (armorId == null) continue;
-                if (ToolExclusionConfig.isExcluded(slotName, armorId.toString())) continue;
-
-                armor.add(armorItem);
-            }
-            return armor;
-        });
+        return ARMOR_CACHE.computeIfAbsent("all:" + slotName,
+            k -> collectArmor(armorType, null, slotName));
     }
 
     /**
      * Returns all TC ranged weapons matching the given type ("bow" or "crossbow"), excluding
-     * items in {@link ToolExclusionConfig}. Results are cached per type name.
+     * items in {@link ToolExclusionConfig}. Cached per type.
      */
     public static List<IModifiable> getEligibleRanged(String rangedType) {
         return RANGED_CACHE.computeIfAbsent(rangedType, k -> {
-            Class<?> targetClass = switch (rangedType) {
-                case "bow"      -> ModifiableBowItem.class;
-                case "crossbow" -> ModifiableCrossbowItem.class;
-                default         -> null;
-            };
-            if (targetClass == null) return List.of();
-
-            List<IModifiable> ranged = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!targetClass.isInstance(item)) continue;
-                if (!(item instanceof IModifiable modifiable)) continue;
-
-                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
-                if (itemId != null && ToolExclusionConfig.isExcluded(rangedType, itemId.toString())) continue;
-
-                ranged.add(modifiable);
-            }
-            return ranged;
+            TagKey<Item> tag = RANGED_TAGS.get(rangedType);
+            if (tag == null) return List.of();
+            return collect(tag, rangedType, null);
         });
     }
 
-    // ── Shield scanning (stat-type-based, not instanceof) ───────────────
-
-    private static final MaterialStatsId SHIELD_CORE_STAT = new MaterialStatsId("tconstruct", "shield_core");
-
     /**
-     * Returns all TC shields (items with shield_core stat type), excluding items
-     * in {@link ToolExclusionConfig}. Results are cached per type name.
+     * Returns all TC shields, excluding items in {@link ToolExclusionConfig}. Cached per type.
+     *
+     * <p>The {@code !ModifiableArmorItem} guard is defensive — {@link TinkerTags.Items#SHIELDS}
+     * shouldn't contain armor items, but laminar armor has {@code shield_core} as a sub-part stat
+     * type and could conceivably leak in via addon mistagging.
      */
     public static List<IModifiable> getEligibleShields(String shieldType) {
-        return SHIELD_CACHE.computeIfAbsent(shieldType, k -> {
-            List<IModifiable> shields = new ArrayList<>();
-            for (Item item : ForgeRegistries.ITEMS) {
-                if (!(item instanceof IModifiable modifiable)) continue;
-                // Laminar armor has shield_core as a sub-part — exclude armor items
-                if (item instanceof ModifiableArmorItem) continue;
-
-                ToolDefinition def = modifiable.getToolDefinition();
-                if (!def.isDataLoaded()) continue;
-
-                if (!ToolMaterialHook.stats(def).contains(SHIELD_CORE_STAT)) continue;
-
-                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
-                if (itemId != null && ToolExclusionConfig.isExcluded(shieldType, itemId.toString())) continue;
-
-                shields.add(modifiable);
-            }
-            return shields;
-        });
+        return SHIELD_CACHE.computeIfAbsent(shieldType, k -> collect(
+            TinkerTags.Items.SHIELDS,
+            shieldType,
+            item -> !(item instanceof ModifiableArmorItem)
+        ));
     }
 
-    // ── Fishing rod scanning (tag-based via Forge convention) ──
-
     /**
-     * Returns all TC fishing rods, excluding items in {@link ToolExclusionConfig}.
-     * Results are cached per type name.
+     * Returns all TC fishing rods, excluding items in {@link ToolExclusionConfig}. Cached per type.
      *
-     * <p>Detection iterates {@link Tags.Items#TOOLS_FISHING_RODS} (the Forge convention tag
-     * that TC and any addon fishing rod populate). The {@code instanceof IModifiable} filter
-     * excludes vanilla {@code minecraft:fishing_rod} from the result.
-     *
-     * <p>This avoids action-based detection entirely: {@code FISHING_ROD_CAST} is granted by
-     * TC's {@code fishing} trait modifier — only visible after {@code rebuildStats()} populates
-     * {@code tic_modifiers} — so action checks would require building a ToolStack per item.
-     * The tag is the same mechanism TC uses internally to enumerate fishing rods (see
-     * {@code ItemTagProvider.java:339}).
+     * <p>Uses the Forge convention tag {@link Tags.Items#TOOLS_FISHING_RODS} — equivalent set to
+     * {@link TinkerTags.Items#FISHING_RODS} since TC populates both.
      */
     public static List<IModifiable> getEligibleFishingRods(String fishingRodType) {
-        return FISHING_ROD_CACHE.computeIfAbsent(fishingRodType, k -> {
-            List<IModifiable> rods = new ArrayList<>();
-            for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(Tags.Items.TOOLS_FISHING_RODS)) {
-                Item item = holder.value();
-                if (!(item instanceof IModifiable modifiable)) continue;
+        return FISHING_ROD_CACHE.computeIfAbsent(fishingRodType, k -> collect(
+            Tags.Items.TOOLS_FISHING_RODS,
+            fishingRodType,
+            null
+        ));
+    }
 
-                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
-                if (itemId != null && ToolExclusionConfig.isExcluded(fishingRodType, itemId.toString())) continue;
+    /** Iterates a tag, requires {@link IModifiable} (excludes vanilla), applies optional extra filter + exclusion config. */
+    private static List<IModifiable> collect(TagKey<Item> tag, String exclusionKey, Predicate<Item> extraFilter) {
+        List<IModifiable> result = new ArrayList<>();
+        for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
+            Item item = holder.value();
+            if (!(item instanceof IModifiable modifiable)) continue;
+            if (extraFilter != null && !extraFilter.test(item)) continue;
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
+            if (id != null && ToolExclusionConfig.isExcluded(exclusionKey, id.toString())) continue;
+            result.add(modifiable);
+        }
+        return result;
+    }
 
-                rods.add(modifiable);
-            }
-            return rods;
-        });
+    /**
+     * Tag-iteration variant of {@link #collect} for armor: keeps the {@code instanceof
+     * ModifiableArmorItem} cast, applies the optional set-prefix filter, and skips redundant
+     * {@code getType()} matching since the slot tag already enforces it.
+     */
+    private static List<IModifiable> collectArmor(ArmorItem.Type armorType, List<String> sets, String slotName) {
+        TagKey<Item> tag = ARMOR_TAGS.get(armorType);
+        if (tag == null) return List.of();
+
+        List<IModifiable> result = new ArrayList<>();
+        for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
+            Item item = holder.value();
+            if (!(item instanceof ModifiableArmorItem armorItem)) continue;
+
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
+            if (id == null) continue;
+            String idStr = id.toString();
+            if (ToolExclusionConfig.isExcluded(slotName, idStr)) continue;
+
+            if (sets != null && !matchesSet(idStr, sets)) continue;
+
+            result.add(armorItem);
+        }
+        return result;
+    }
+
+    private static boolean matchesSet(String idStr, List<String> sets) {
+        for (String set : sets) {
+            if (idStr.startsWith(set + "_")) return true;
+        }
+        return false;
     }
 }
