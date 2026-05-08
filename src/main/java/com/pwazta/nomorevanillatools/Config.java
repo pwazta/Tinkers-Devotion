@@ -81,6 +81,14 @@ public class Config {
                      "Can be disabled independently from replaceMobEquipment for debugging.")
             .define("replaceMobRangedAI", true);
 
+    private static final ForgeConfigSpec.BooleanValue REPLACE_VILLAGER_TRADES = BUILDER
+            .comment("Replace vanilla tools/armor/ranged/shields/fishing-rods/flint-and-steel",
+                     "in villager and wandering-trader trade outputs with TC equivalents.",
+                     "The rolled trade is persisted on the villager, so each villager keeps the",
+                     "same trade across save/load — different villagers will roll different ones.",
+                     "Trade INPUTS are intentionally left untouched (see CONTEXT.md).")
+            .define("replaceVillagerTrades", true);
+
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // Config values
@@ -90,6 +98,7 @@ public class Config {
     public static boolean replaceLootTableItems;
     public static boolean replaceMobEquipment;
     public static boolean replaceMobRangedAI;
+    public static boolean replaceVillagerTrades;
     public static double levelUpChance;
     public static double modifierWeightFalloff;
     public static double lootVarianceChance;
@@ -104,6 +113,7 @@ public class Config {
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
         replaceMobRangedAI = REPLACE_MOB_RANGED_AI.get();
+        replaceVillagerTrades = REPLACE_VILLAGER_TRADES.get();
         levelUpChance = LEVEL_UP_CHANCE.get();
         modifierWeightFalloff = MODIFIER_WEIGHT_FALLOFF.get();
         lootVarianceChance = LOOT_VARIANCE_CHANCE.get();
