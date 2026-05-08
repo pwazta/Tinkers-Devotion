@@ -76,7 +76,7 @@ public class CraftingContainerConfigLoader {
             config.close();
 
         } catch (Exception e) {
-            LOGGER.error("Failed to load extra container configs from {}: {}",
+            LOGGER.debug("No extra container configs loaded from {}: {}",
                     CONFIG_FILE_NAME, e.getMessage());
         }
     }
