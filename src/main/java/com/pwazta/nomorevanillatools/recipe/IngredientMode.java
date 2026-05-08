@@ -30,7 +30,7 @@ import java.util.function.BiFunction;
  * Each implementation encapsulates the test/display/serialization logic for one category
  * (tools, armor, ranged weapons).
  */
-public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, ShieldMode, FishingRodMode {
+public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, ShieldMode, FishingRodMode, FlintAndSteelMode {
 
     /** Test whether an ItemStack matches this mode's requirements. */
     boolean test(ItemStack stack);
@@ -56,11 +56,12 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
     static IngredientMode fromJson(JsonObject json) {
         String mode = json.get("mode").getAsString().toLowerCase();
         return switch (mode) {
-            case "tool_action"  -> ToolMode.fromJson(json);
-            case "armor_slot"   -> ArmorMode.fromJson(json);
-            case "ranged"       -> RangedMode.fromJson(json);
-            case "shield"       -> ShieldMode.fromJson(json);
-            case "fishing_rod"  -> FishingRodMode.fromJson(json);
+            case "tool_action"     -> ToolMode.fromJson(json);
+            case "armor_slot"      -> ArmorMode.fromJson(json);
+            case "ranged"          -> RangedMode.fromJson(json);
+            case "shield"          -> ShieldMode.fromJson(json);
+            case "fishing_rod"     -> FishingRodMode.fromJson(json);
+            case "flint_and_steel" -> FlintAndSteelMode.fromJson(json);
             default -> throw new JsonParseException("Unknown ingredient mode: " + mode);
         };
     }
@@ -69,11 +70,12 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
     static IngredientMode fromBuffer(FriendlyByteBuf buffer) {
         String mode = buffer.readUtf();
         return switch (mode) {
-            case "tool_action"  -> ToolMode.fromBuffer(buffer);
-            case "armor_slot"   -> ArmorMode.fromBuffer(buffer);
-            case "ranged"       -> RangedMode.fromBuffer(buffer);
-            case "shield"       -> ShieldMode.fromBuffer(buffer);
-            case "fishing_rod"  -> FishingRodMode.fromBuffer(buffer);
+            case "tool_action"     -> ToolMode.fromBuffer(buffer);
+            case "armor_slot"      -> ArmorMode.fromBuffer(buffer);
+            case "ranged"          -> RangedMode.fromBuffer(buffer);
+            case "shield"          -> ShieldMode.fromBuffer(buffer);
+            case "fishing_rod"     -> FishingRodMode.fromBuffer(buffer);
+            case "flint_and_steel" -> FlintAndSteelMode.fromBuffer(buffer);
             default -> throw new IllegalStateException("Unknown ingredient mode: " + mode);
         };
     }

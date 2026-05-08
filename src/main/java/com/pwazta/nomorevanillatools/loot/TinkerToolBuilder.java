@@ -13,6 +13,7 @@ import com.pwazta.nomorevanillatools.Config;
 import com.pwazta.nomorevanillatools.config.TiersToTcMaterials;
 import com.pwazta.nomorevanillatools.loot.strategy.ArmorReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.FishingRodReplacementStrategy;
+import com.pwazta.nomorevanillatools.loot.strategy.FlintAndSteelReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.RangedReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ReplacementStrategy;
 import com.pwazta.nomorevanillatools.loot.strategy.ShieldReplacementStrategy;
@@ -35,11 +36,12 @@ import slimeknights.tconstruct.library.tools.nbt.MaterialNBT;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 /**
- * Orchestrator for building randomized TC tools, armor, and ranged weapons for loot replacement.
- * Delegates category-specific logic (eligible items, material selection) to {@link ReplacementStrategy}
- * implementations while owning the shared pipeline (stat types, build, enchant, damage transfer).
+ * Orchestrator for building TC replacements (tools, armor, ranged, shields, fishing rods,
+ * flint and steel). Picks an eligible TC item via the strategy and delegates building to
+ * {@link ReplacementStrategy#buildReplacement} — material-based strategies share the pipeline
+ * exposed via {@link #materialBasedBuild}; material-less strategies override directly.
  *
- * Shared by VanillaLootReplacer (GLM) and MobEquipmentReplacer (spawn event).
+ * <p>Shared by VanillaLootReplacer (GLM) and MobEquipmentReplacer (spawn event).
  */
 public class TinkerToolBuilder {
 
@@ -53,11 +55,12 @@ public class TinkerToolBuilder {
     // ── Strategy dispatch ────────────────────────────────────────────────
 
     private static final Map<Class<? extends VanillaItemMappings.ReplacementInfo>, ReplacementStrategy> STRATEGIES = Map.of(
-        VanillaItemMappings.ToolInfo.class,       ToolReplacementStrategy.INSTANCE,
-        VanillaItemMappings.ArmorInfo.class,      ArmorReplacementStrategy.INSTANCE,
-        VanillaItemMappings.RangedInfo.class,     RangedReplacementStrategy.INSTANCE,
-        VanillaItemMappings.ShieldInfo.class,     ShieldReplacementStrategy.INSTANCE,
-        VanillaItemMappings.FishingRodInfo.class, FishingRodReplacementStrategy.INSTANCE
+        VanillaItemMappings.ToolInfo.class,           ToolReplacementStrategy.INSTANCE,
+        VanillaItemMappings.ArmorInfo.class,          ArmorReplacementStrategy.INSTANCE,
+        VanillaItemMappings.RangedInfo.class,         RangedReplacementStrategy.INSTANCE,
+        VanillaItemMappings.ShieldInfo.class,         ShieldReplacementStrategy.INSTANCE,
+        VanillaItemMappings.FishingRodInfo.class,     FishingRodReplacementStrategy.INSTANCE,
+        VanillaItemMappings.FlintAndSteelInfo.class,  FlintAndSteelReplacementStrategy.INSTANCE
     );
 
     // ── Caches (ConcurrentHashMap, consistent with codebase pattern) ─────
@@ -80,10 +83,10 @@ public class TinkerToolBuilder {
     // ── Main entry point ─────────────────────────────────────────────────
 
     /**
-     * Attempts to replace a vanilla tool/armor/ranged ItemStack with a TC equivalent.
+     * Attempts to replace a vanilla item with a TC equivalent.
      *
      * @param original the original vanilla ItemStack
-     * @param random   random source for material selection
+     * @param random   random source for selection
      * @return a TC replacement ItemStack, or null if no replacement applies
      */
     public static @Nullable ItemStack tryReplace(ItemStack original, RandomSource random) {
@@ -98,19 +101,8 @@ public class TinkerToolBuilder {
         try {
             List<IModifiable> eligible = strategy.findEligible(info);
             if (eligible.isEmpty()) return null;
-
             IModifiable selected = eligible.get(random.nextInt(eligible.size()));
-
-            ToolDefinition definition = selected.getToolDefinition();
-            if (!definition.isDataLoaded()) return null;
-
-            List<MaterialStatsId> statTypes = getStatTypes(selected, definition);
-            if (statTypes == null) return null;
-
-            List<MaterialVariantId> materials = strategy.selectMaterials(info, statTypes, random);
-            if (materials == null) return null;
-
-            return buildFromMaterials(selected, definition, materials, original, random);
+            return strategy.buildReplacement(info, selected, original, random);
         } catch (Exception e) {
             LOGGER.warn("Failed to build TC replacement: {}", e.getMessage());
             return null;
@@ -119,19 +111,34 @@ public class TinkerToolBuilder {
 
     // ── Shared build logic ───────────────────────────────────────────────
 
-    /** Returns stat types for a tool definition, or null with warning if empty. */
-    private static @Nullable List<MaterialStatsId> getStatTypes(IModifiable modifiable, ToolDefinition definition) {
+    /**
+     * Material-based build pipeline used by {@link ReplacementStrategy#buildReplacement}'s
+     * default implementation: resolves stat types, calls {@link ReplacementStrategy#selectMaterials},
+     * and assembles the tool. Bails (with a diagnostic warn) if the definition has no
+     * material stats — that case is reserved for material-less strategies which override
+     * {@code buildReplacement} directly.
+     */
+    public static @Nullable ItemStack materialBasedBuild(
+            ReplacementStrategy strategy, VanillaItemMappings.ReplacementInfo info,
+            IModifiable selected, ItemStack original, RandomSource random) {
+        ToolDefinition definition = selected.getToolDefinition();
+        if (!definition.isDataLoaded()) return null;
+
         List<MaterialStatsId> statTypes = ToolMaterialHook.stats(definition);
         if (statTypes.isEmpty()) {
-            LOGGER.warn("No material stats for tool definition {}, skipping loot replacement",
-                ForgeRegistries.ITEMS.getKey((Item) modifiable));
+            LOGGER.warn("No material stats for tool definition {}, skipping replacement",
+                ForgeRegistries.ITEMS.getKey((Item) selected));
             return null;
         }
-        return statTypes;
+
+        List<MaterialVariantId> materials = strategy.selectMaterials(info, statTypes, random);
+        if (materials == null) return null;
+
+        return buildFromMaterials(selected, definition, materials, original, random);
     }
 
-    /** Builds a TC item from pre-selected materials. Converts enchantments to modifiers and transfers damage. */
-    private static ItemStack buildFromMaterials(IModifiable modifiable, ToolDefinition definition,
+    /** Builds a TC item from pre-selected materials, applies modifier conversion, and transfers damage. */
+    public static ItemStack buildFromMaterials(IModifiable modifiable, ToolDefinition definition,
             List<MaterialVariantId> materials, ItemStack original, RandomSource random) {
         MaterialNBT.Builder materialsBuilder = MaterialNBT.builder();
         for (MaterialVariantId material : materials) materialsBuilder.add(material);
@@ -149,7 +156,7 @@ public class TinkerToolBuilder {
     // ── Damage transfer ──────────────────────────────────────────────────
 
     /** Transfers damage proportionally from original to replacement. */
-    private static void transferDamage(ItemStack original, ItemStack replacement) {
+    public static void transferDamage(ItemStack original, ItemStack replacement) {
         if (!original.isDamaged() || original.getMaxDamage() <= 0 || replacement.getMaxDamage() <= 0) return;
 
         float ratio = (float) original.getDamageValue() / original.getMaxDamage();

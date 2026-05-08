@@ -107,6 +107,9 @@ public class ToolExclusionConfig {
         for (String rod : VanillaItemMappings.FISHING_ROD_TYPES) {
             EXCLUSIONS.put(rod, new LinkedHashSet<>());
         }
+        for (String fs : VanillaItemMappings.FLINT_AND_STEEL_TYPES) {
+            EXCLUSIONS.put(fs, new LinkedHashSet<>());
+        }
     }
 
     /** Checks if an item is excluded from the given action/slot/type key. */
@@ -138,6 +141,10 @@ public class ToolExclusionConfig {
         for (String rod : VanillaItemMappings.FISHING_ROD_TYPES) {
             Set<String> excluded = EXCLUSIONS.get(rod);
             toSave.put(rod, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
+        }
+        for (String fs : VanillaItemMappings.FLINT_AND_STEEL_TYPES) {
+            Set<String> excluded = EXCLUSIONS.get(fs);
+            toSave.put(fs, excluded != null ? new ArrayList<>(excluded) : new ArrayList<>());
         }
 
         // Append any user-defined actions not in known types
