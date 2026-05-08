@@ -324,39 +324,39 @@ public class GenerateRecipesCommand {
         if (!recipe.getGroup().isEmpty()) recipeJson.addProperty("group", recipe.getGroup());
         recipeJson.addProperty("category", recipe.category().getSerializedName());
 
-        // Build pattern and key mapping
-        JsonArray pattern = new JsonArray();
         int width = recipe.getWidth();
         int height = recipe.getHeight();
         NonNullList<Ingredient> ingredients = recipe.getIngredients();
 
-        Map<Integer, String> keyMap = new HashMap<>();
-        char currentKey = 'A';
+        // Dedupe by serialized ingredient JSON: identical slots share one key char.
+        JsonArray pattern = new JsonArray();
+        JsonObject key = new JsonObject();
+        Map<String, String> keyByJson = new HashMap<>();
+        char nextKey = 'A';
 
         for (int row = 0; row < height; row++) {
             StringBuilder rowPattern = new StringBuilder();
             for (int col = 0; col < width; col++) {
                 int index = row * width + col;
-                if (index < ingredients.size() && !ingredients.get(index).isEmpty()) {
-                    keyMap.put(index, String.valueOf(currentKey));
-                    rowPattern.append(currentKey);
-                    currentKey++;
-                } else {
+                if (index >= ingredients.size() || ingredients.get(index).isEmpty()) {
                     rowPattern.append(' ');
+                    continue;
                 }
+                JsonElement ingJson = ingredientJsonFor(ingredients.get(index), index, replacements);
+                String jsonStr = ingJson.toString();
+                String keyChar = keyByJson.get(jsonStr);
+                if (keyChar == null) {
+                    keyChar = String.valueOf(nextKey++);
+                    keyByJson.put(jsonStr, keyChar);
+                    key.add(keyChar, ingJson);
+                }
+                rowPattern.append(keyChar);
             }
             pattern.add(rowPattern.toString());
         }
+
         recipeJson.add("pattern", pattern);
-
-        // Build key with replacements
-        JsonObject key = new JsonObject();
-        for (Map.Entry<Integer, String> entry : keyMap.entrySet()) {
-            int index = entry.getKey();
-            key.add(entry.getValue(), ingredientJsonFor(ingredients.get(index), index, replacements));
-        }
         recipeJson.add("key", key);
-
         recipeJson.add("result", createResultJson(recipe, server));
         return recipeJson;
     }
