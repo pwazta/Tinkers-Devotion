@@ -118,7 +118,7 @@ public class GenerateRecipesCommand {
 
             // Step 7: Reload datapacks
             source.sendSuccess(() -> Component.literal("Reloading datapacks..."), false);
-            server.reloadResources(server.getPackRepository().getSelectedIds()).exceptionally(e -> {
+            DatapackHelper.discoverAndReload(server).exceptionally(e -> {
                 LOGGER.error("Failed to reload datapacks after recipe generation", e);
                 source.sendFailure(Component.literal("Recipes generated but datapack reload failed. Run /reload manually."));
                 return null;

@@ -4,13 +4,18 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 /**
@@ -25,6 +30,29 @@ public class DatapackHelper {
 
     public static Path getDatapackPath(MinecraftServer server) {
         return server.getWorldPath(LevelResource.ROOT).resolve("datapacks").resolve(DATAPACK_NAME);
+    }
+
+    /**
+     * Reloads the pack repository to discover newly written world datapacks (e.g., our generated
+     * recipes pack and Mantle's {@code SlimeKnightsGenerated}), unions them into the selected
+     * list (excluding any in the world's disabled list), and triggers a server resource reload.
+     *
+     * <p>Mirrors vanilla {@code ReloadCommand.discoverNewPacks} — necessary because
+     * {@link MinecraftServer#reloadResources(Collection)} only reloads packs already in the
+     * selected list and won't auto-enable packs added to {@code world/datapacks/} mid-session
+     * or post-world-creation.
+     */
+    public static CompletableFuture<Void> discoverAndReload(MinecraftServer server) {
+        PackRepository packRepository = server.getPackRepository();
+        packRepository.reload();
+        Collection<String> disabled = server.getWorldData().getDataConfiguration().dataPacks().getDisabled();
+        List<String> selected = new ArrayList<>(packRepository.getSelectedIds());
+        for (String id : packRepository.getAvailableIds()) {
+            if (!disabled.contains(id) && !selected.contains(id)) {
+                selected.add(id);
+            }
+        }
+        return server.reloadResources(selected);
     }
 
     /**

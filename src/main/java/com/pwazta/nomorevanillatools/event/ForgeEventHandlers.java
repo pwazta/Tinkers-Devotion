@@ -71,7 +71,7 @@ public class ForgeEventHandlers {
             int disabled = GenerateRecipesCommand.disableVanillaRecipes(server);
             LOGGER.info("Mantle disabled {} vanilla recipes", disabled);
             LOGGER.info("Reloading datapacks to activate auto-generated recipes...");
-            server.reloadResources(server.getPackRepository().getSelectedIds()).exceptionally(e -> {
+            DatapackHelper.discoverAndReload(server).exceptionally(e -> {
                 LOGGER.error("Failed to reload datapacks after auto-generation", e);
                 return null;
             });
