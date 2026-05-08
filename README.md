@@ -6,7 +6,12 @@ This mod is designed to be extensible, so the replacements system should work au
 
 ---
 
+<details open>
+<summary>
+
 ## Features
+
+</summary>
 
 ### 1. Mob Equipment
 
@@ -26,9 +31,16 @@ I highly suggest you use JEI, as it shows candidate TC tools per slot with tier 
 
 All villager trades involving such items (e.g: armorer, toolsmith, fisherman) have these trades replaced with a deterministic trade on spawn (e.g: iron-sword from a toolsmith will be replaced with a tier-2 TC sword equivalent). Wandering traders are also handled in the same way.
 
+</details>
+
 ---
 
+<details>
+<summary>
+
 ## Nerdy Stuff
+
+</summary>
 
 > Skip to [Configuration](#configuration) if you just want to play.
 
@@ -87,9 +99,16 @@ A skip list in the config keeps unwanted modifiers out (defaults include `nether
 - **JEI:** integrated. Replacement ingredient cycles through valid TC tools per slot. Recipe transfer works on the vanilla 3×3, player inventory grid, TC crafting station, and any container declared in the user-extensible config.
   - NOTE: Other crafting interfaces may need special handling which I haven't specifically accounted for! Please let me know if there are any issues.
 
+</details>
+
 ---
 
+<details open>
+<summary>
+
 ## Configuration
+
+</summary>
 
 Drop the jar in your mods folder and load a world.
 
@@ -110,9 +129,16 @@ The defaults are quite sensible but if you want to tune, three files appear unde
 
 The recipe datapack auto-generates on first world load, so the command is only needed if you change your mod list.
 
+</details>
+
 ---
 
+<details open>
+<summary>
+
 ## Issues & Feedback
+
+</summary>
 
 Any bug reports, feature requests / suggestions (e.g: "this addon mod isn't getting picked up correctly"), please leave a comment or go on the [GitHub issue tracker](https://github.com/pwazta/Tinkers-Devotion/issues).
 
@@ -120,9 +146,16 @@ Any bug reports, feature requests / suggestions (e.g: "this addon mod isn't gett
 
 - FAQ COMING SOON.
 
+</details>
+
 ---
 
+<details open>
+<summary>
+
 ## Requirements & Compatibility
+
+</summary>
 
 - Minecraft **1.20.1**, Forge **47.4+**
 - [Tinkers' Construct](https://www.curseforge.com/minecraft/mc-mods/tinkers-construct) **3.11+**
@@ -131,9 +164,16 @@ Any bug reports, feature requests / suggestions (e.g: "this addon mod isn't gett
 
 Tested with Tinkers' Things, TCIntegrations, Tinkers Levelling Addon, and Tinkers' Thinking. Should be friendly to any other TC addon that uses standard tags and registers its modifiers via TC's recipe system.
 
+</details>
+
 ---
 
+<details open>
+<summary>
+
 ## Credits & License
+
+</summary>
 
 **Tinkers' Construct** and **Mantle** by [SlimeKnights](https://github.com/SlimeKnights). Without them this mod would have nothing to integrate.
 
@@ -144,3 +184,5 @@ Tested with Tinkers' Things, TCIntegrations, Tinkers Levelling Addon, and Tinker
 - Not allowed: modification, forks, re-uploads, or porting without written permission.
 
 Full terms in [LICENSE.md](LICENSE.md). For permission requests, open a [GitHub issue](https://github.com/pwazta/Tinkers-Devotion/issues).
+
+</details>
