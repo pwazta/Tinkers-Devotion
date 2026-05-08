@@ -207,6 +207,10 @@ tasks.named('processResources', ProcessResources).configure {
 // We don't use MixinGradle's `mixin { config }` block (triggers JPMS split-package in dev),
 // so the refmap must be included manually.
 tasks.named('jar', Jar).configure {
+    // Dev-only test recipes — kept on disk for `runClient`/`runServer` (which use the resources dir,
+    // not the jar) but stripped from the released artifact.
+    exclude 'data/nomorevanillatools/recipes/test_*_recipe.json'
+
     from("${buildDir}/tmp/compileJava") {
         include 'nomorevanillatools.refmap.json'
     }
