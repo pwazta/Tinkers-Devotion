@@ -1,0 +1,15 @@
+{
+    "tooltip.tinkersdevotion.required_tier": "Requires %s-tier head",
+    "tooltip.tinkersdevotion.any_other_parts": "Other parts can be any material",
+    "tooltip.tinkersdevotion.pct_other_parts": "%s%% of total parts must be %s-tier",
+    "tooltip.tinkersdevotion.all_parts": "All parts must be %s-tier",
+    "tooltip.tinkersdevotion.required_plating_tier": "Requires tier %s plating",
+    "tooltip.tinkersdevotion.required_plating_tier_range": "Requires tier %s or %s plating",
+    "tooltip.tinkersdevotion.required_ranged": "Requires %s-tier ranged weapon",
+    "tooltip.tinkersdevotion.required_ranged_parts": "Requires %s",
+    "tooltip.tinkersdevotion.required_shield": "Requires %s-tier shield",
+    "tooltip.tinkersdevotion.required_shield_parts": "Requires %s",
+    "tooltip.tinkersdevotion.required_fishing_rod": "Requires %s-tier fishing rod",
+    "tooltip.tinkersdevotion.required_fishing_rod_parts": "Requires %s",
+    "tooltip.tinkersdevotion.required_flint_and_steel": "Requires TC Flint and Brick"
+}
