@@ -15,6 +15,7 @@ import com.pwazta.nomorevanillatools.datagen.DatapackHelper;
 import com.pwazta.nomorevanillatools.loot.VanillaItemMappings;
 import com.pwazta.nomorevanillatools.recipe.ArmorMode;
 import com.pwazta.nomorevanillatools.recipe.FishingRodMode;
+import com.pwazta.nomorevanillatools.recipe.FlintAndSteelMode;
 import com.pwazta.nomorevanillatools.recipe.IngredientMode;
 import com.pwazta.nomorevanillatools.recipe.RangedMode;
 import com.pwazta.nomorevanillatools.recipe.ShieldMode;
@@ -284,6 +285,8 @@ public class GenerateRecipesCommand {
             return new ShieldMode(s.shieldType(), s.canonicalMaterials());
         } else if (info instanceof VanillaItemMappings.FishingRodInfo f) {
             return new FishingRodMode(f.fishingRodType(), f.canonicalMaterials());
+        } else if (info instanceof VanillaItemMappings.FlintAndSteelInfo fs) {
+            return new FlintAndSteelMode(fs.flintAndSteelType(), fs.tcItemIds());
         }
         throw new IllegalStateException("Unknown ReplacementInfo type: " + info.getClass());
     }

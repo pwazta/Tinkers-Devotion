@@ -18,14 +18,15 @@ import net.minecraftforge.fml.common.Mod;
 public class ClientEventHandlers {
 
     /**
-     * Adds tooltip lines to JEI display stacks tagged with nmvt_required_tier.
-     * Line 1 (gold): the head tier requirement.
-     * Line 2 (gray): clarifies parts matching requirement — varies by config.
+     * Adds tooltip lines to JEI display stacks tagged with {@code nmvt_required_tier} or
+     * {@code nmvt_match_mode}. Tier-bearing modes (tool/armor/ranged/shield/fishing_rod) show
+     * the tier requirement; tierless modes (flint_and_steel) show a static line.
      */
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
         CompoundTag tag = event.getItemStack().getTag();
-        if (tag == null || !tag.contains("nmvt_required_tier")) return;
+        if (tag == null) return;
+        if (!tag.contains("nmvt_required_tier") && !tag.contains("nmvt_match_mode")) return;
 
         String tier = tag.getString("nmvt_required_tier");
         String matchMode = tag.getString("nmvt_match_mode");
@@ -33,6 +34,7 @@ public class ClientEventHandlers {
         boolean isRanged = "ranged".equals(matchMode);
         boolean isShield = "shield".equals(matchMode);
         boolean isFishingRod = "fishing_rod".equals(matchMode);
+        boolean isFlintAndSteel = "flint_and_steel".equals(matchMode);
 
         if (isArmor) {
             // Armor: plating tier requirement. Label is "3" (single) or "0-1" (range).
@@ -82,6 +84,11 @@ public class ClientEventHandlers {
                         "tooltip.nomorevanillatools.required_fishing_rod", tier)
                         .withStyle(ChatFormatting.GOLD));
             }
+        } else if (isFlintAndSteel) {
+            // Flint and steel: tierless static line — TC flint_and_brick has no material composition.
+            event.getToolTip().add(Component.translatable(
+                    "tooltip.nomorevanillatools.required_flint_and_steel")
+                    .withStyle(ChatFormatting.GOLD));
         } else {
             // Tool: head requirement + all-parts match clarification
             event.getToolTip().add(Component.translatable(

@@ -21,7 +21,7 @@ import java.util.Map;
 public class VanillaItemMappings {
 
     // ── Sealed interface for strategy dispatch ─────────────────────────
-    public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo, ShieldInfo, FishingRodInfo {}
+    public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo, ShieldInfo, FishingRodInfo, FlintAndSteelInfo {}
 
     // ── Record types ─────────────────────────────────────────────────────
     public record ToolInfo(String tier, String toolType) implements ReplacementInfo {}
@@ -32,6 +32,8 @@ public class VanillaItemMappings {
     public record ShieldInfo(String shieldType, List<String> canonicalMaterials) implements ReplacementInfo {}
     /** Fishing rod info — same per-part canonical pattern. Detected via ToolActions.FISHING_ROD_CAST (action granted by the `fishing` trait, not the definition). */
     public record FishingRodInfo(String fishingRodType, List<String> canonicalMaterials) implements ReplacementInfo {}
+    /** Flint-and-steel info — material-less 1:1 swap. {@code tcItemIds} are the registry IDs of eligible TC fire-starters (only {@code tconstruct:flint_and_brick} in core TC). */
+    public record FlintAndSteelInfo(String flintAndSteelType, List<String> tcItemIds) implements ReplacementInfo {}
 
     // ── Type/slot arrays ──────────────────────────────────────────────────
 
@@ -44,6 +46,8 @@ public class VanillaItemMappings {
     public static final String[] SHIELD_TYPES = {"shield"};
 
     public static final String[] FISHING_ROD_TYPES = {"fishing_rod"};
+
+    public static final String[] FLINT_AND_STEEL_TYPES = {"flint_and_steel"};
 
     // ── String-keyed map (populated in static init) ────────────────────
 
@@ -79,6 +83,9 @@ public class VanillaItemMappings {
 
         // Fishing rod: 3 parts (limb, bowstring, arrow_head) — wood limb + string + flint hook
         REPLACEMENTS_BY_ID.put("minecraft:fishing_rod", new FishingRodInfo("fishing_rod", List.of("tconstruct:wood", "tconstruct:string", "tconstruct:flint")));
+
+        // Flint and steel: material-less 1:1 swap to flint_and_brick. No TC sub-tag exists for this category, so the TC item list is hardcoded.
+        REPLACEMENTS_BY_ID.put("minecraft:flint_and_steel", new FlintAndSteelInfo("flint_and_steel", List.of("tconstruct:flint_and_brick")));
     }
 
     // ── Item-keyed map (lazy-initialized on first access) ────────────────

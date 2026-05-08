@@ -74,6 +74,7 @@ public final class TcItemRegistry {
     private static final Map<String, List<IModifiable>> RANGED_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, List<IModifiable>> SHIELD_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, List<IModifiable>> FISHING_ROD_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, List<IModifiable>> FLINT_AND_STEEL_CACHE = new ConcurrentHashMap<>();
 
     /** Clears all cached scan results. Called on config/material reload. */
     public static void clearCaches() {
@@ -82,6 +83,7 @@ public final class TcItemRegistry {
         RANGED_CACHE.clear();
         SHIELD_CACHE.clear();
         FISHING_ROD_CACHE.clear();
+        FLINT_AND_STEEL_CACHE.clear();
     }
 
     /**
@@ -161,6 +163,27 @@ public final class TcItemRegistry {
             fishingRodType,
             null
         ));
+    }
+
+    /**
+     * Returns the resolved TC items for the given flint-and-steel type from the supplied id list,
+     * excluding items in {@link ToolExclusionConfig}. Cached per type.
+     *
+     * <p>No tag exists for the flint-and-steel category in TC ({@code flint_and_brick} carries only
+     * generic tags), so the strategy/mode pass the hardcoded id list from
+     * {@link com.pwazta.nomorevanillatools.loot.VanillaItemMappings.FlintAndSteelInfo}.
+     */
+    public static List<IModifiable> getEligibleFlintAndSteel(String flintAndSteelType, List<String> tcItemIds) {
+        return FLINT_AND_STEEL_CACHE.computeIfAbsent(flintAndSteelType, k -> {
+            List<IModifiable> result = new ArrayList<>(tcItemIds.size());
+            for (String id : tcItemIds) {
+                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+                if (!(item instanceof IModifiable modifiable)) continue;
+                if (ToolExclusionConfig.isExcluded(flintAndSteelType, id)) continue;
+                result.add(modifiable);
+            }
+            return result;
+        });
     }
 
     /** Iterates a tag, requires {@link IModifiable} (excludes vanilla), applies optional extra filter + exclusion config. */
