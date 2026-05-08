@@ -73,9 +73,15 @@ public class ToolExclusionConfig {
         "tconstruct:minotaur_axe"
     );
 
-    /** Ranged weapons excluded from all ranged types by default. War pick is an uncraftable ancient crossbow-hybrid. */
+    /** Ranged excluded from all ranged types. war_pick: uncraftable ancient. blowpipe: defensive — JSON tool with 0 material parts; mistagging into ranged/crossbows would silently no-op replacement. */
     private static final List<String> DEFAULT_EXCLUDED_RANGED = List.of(
-        "tconstruct:war_pick"
+        "tconstruct:war_pick",
+        "tinkers_things:blowpipe"
+    );
+
+    /** Shields excluded from shield slot. Cutlass has shield_core stats but is sword-shaped — visually confusing as a vanilla-shield replacement. */
+    private static final List<String> DEFAULT_EXCLUDED_SHIELDS = List.of(
+        "tinkers_thinking:cutlass"
     );
 
     /** Armor excluded from all armor slots by default. Slimesuit uses fixed stats, not material-based plating. */
@@ -102,7 +108,7 @@ public class ToolExclusionConfig {
             EXCLUSIONS.put(ranged, new LinkedHashSet<>(DEFAULT_EXCLUDED_RANGED));
         }
         for (String shield : VanillaItemMappings.SHIELD_TYPES) {
-            EXCLUSIONS.put(shield, new LinkedHashSet<>());
+            EXCLUSIONS.put(shield, new LinkedHashSet<>(DEFAULT_EXCLUDED_SHIELDS));
         }
         for (String rod : VanillaItemMappings.FISHING_ROD_TYPES) {
             EXCLUSIONS.put(rod, new LinkedHashSet<>());
