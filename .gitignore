@@ -30,6 +30,9 @@ run
 .claude/
 CLAUDE.md
 
+# local notes
+docs/
+
 # Files from Forge MDK
 forge*changelog.txt
 
