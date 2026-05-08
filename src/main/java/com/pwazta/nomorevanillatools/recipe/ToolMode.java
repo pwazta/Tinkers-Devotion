@@ -47,13 +47,13 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         // HEAD material (index 0) MUST match the required tier (live lookup, no config)
         if (!requiredTier.equals(TiersToTcMaterials.getToolTierName(materialsList.getString(0)))) return false;
 
-        // Optional: check percentage of all parts (including head)
-        if (Config.requireAllPartsMatch && materialsList.size() > 1) {
-            int matchingCount = 1; // head already verified
+        // Optional: require a percentage of parts (including head) to match the tier
+        if (Config.partsMatchThreshold > 0.0 && materialsList.size() > 1) {
+            int matchingCount = 1; // head already verified above
             for (int i = 1; i < materialsList.size(); i++) {
                 if (requiredTier.equals(TiersToTcMaterials.getToolTierName(materialsList.getString(i)))) matchingCount++;
             }
-            if ((double) matchingCount / materialsList.size() < Config.allPartsThreshold) return false;
+            if ((double) matchingCount / materialsList.size() < Config.partsMatchThreshold) return false;
         }
 
         return matchesToolType(stack);
@@ -71,7 +71,7 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return toolId == null || !ToolExclusionConfig.isExcluded(toolType, toolId.toString());
     }
 
-    /** Builds JEI display stacks with canonical head material + wooden other parts. Config-aware: respects requireAllPartsMatch threshold. */
+    /** Builds JEI display stacks with canonical head material + wooden other parts. Respects partsMatchThreshold. */
     @Override
     public ItemStack[] computeDisplayItems() {
         String canonicalId = TiersToTcMaterials.getCanonicalToolMaterial(tier);
@@ -83,8 +83,8 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return IngredientMode.buildMixedDisplayItems(
             eligible,
             (item, stats) -> {
-                int tierParts = Config.requireAllPartsMatch
-                    ? Math.max(1, (int) Math.ceil(Config.allPartsThreshold * stats.size()))
+                int tierParts = Config.partsMatchThreshold > 0.0
+                    ? Math.max(1, (int) Math.ceil(Config.partsMatchThreshold * stats.size()))
                     : 1;
                 List<MaterialVariantId> mats = new ArrayList<>(stats.size());
                 for (int i = 0; i < stats.size(); i++)

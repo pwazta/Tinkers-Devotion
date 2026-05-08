@@ -95,8 +95,8 @@ public class ClientEventHandlers {
                     "tooltip.nomorevanillatools.required_tier", tier)
                     .withStyle(ChatFormatting.GOLD));
 
-            if (Config.requireAllPartsMatch) {
-                int pct = (int) (Config.allPartsThreshold * 100);
+            if (Config.partsMatchThreshold > 0.0) {
+                int pct = (int) (Config.partsMatchThreshold * 100);
                 if (pct >= 100) {
                     event.getToolTip().add(Component.translatable(
                             "tooltip.nomorevanillatools.all_parts", tier)
