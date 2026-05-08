@@ -47,9 +47,14 @@ public final class ArmorReplacementStrategy implements ReplacementStrategy {
 
         IMaterial platingMat = MaterialRegistry.getInstance().getMaterial(platingMaterial.getId());
         int platingTcTier = platingMat.getTier();
+        MaterialStatsId platingStat = statTypes.get(0);
 
         for (int i = 1; i < statTypes.size(); i++) {
-            MaterialVariantId partMaterial = selectArmorInnerMaterial(statTypes.get(i), platingTcTier, random);
+            // Inner parts that share the plating stat type (e.g. laminar's second plating slot) reuse
+            // the plating material to keep the visible armor surfaces consistent.
+            MaterialVariantId partMaterial = statTypes.get(i).equals(platingStat)
+                ? platingMaterial
+                : selectArmorInnerMaterial(statTypes.get(i), platingTcTier, random);
             if (partMaterial == null) return null;
             materials.add(partMaterial);
         }
