@@ -189,6 +189,11 @@ public class GenerateRecipesCommand {
             List<ReplacementEntry> replacements = findVanillaItems(ingredients);
             if (replacements.isEmpty()) continue;
 
+            // Vanilla output: Mantle disables the original, don't add a replacement path.
+            ItemStack out = recipe.getResultItem(server.registryAccess());
+            ResourceLocation outId = ForgeRegistries.ITEMS.getKey(out.getItem());
+            if (outId != null && VanillaItemMappings.getReplacementInfoById(outId.toString()) != null) continue;
+
             try {
                 JsonObject replacementRecipe = buildReplacementRecipe(recipe, replacements, server);
                 if (replacementRecipe != null) {
