@@ -37,25 +37,28 @@ public class ForgeEventHandlers {
     }
 
     /**
-     * Auto-generates replacement recipes on first world load.
-     * Material mappings are already populated by onMaterialsLoaded (fires before this event).
-     * Datapacks are already loaded at this point, so generated recipes need a reload to take effect.
+     * Datapacks are already loaded at this point, so written recipes need the reload triggered
+     * in onServerStarted to take effect.
      */
     @SubscribeEvent
     public static void onServerAboutToStart(ServerAboutToStartEvent event) {
         needsReloadAfterStart = false;
         MinecraftServer server = event.getServer();
 
-        if (!DatapackHelper.isGenerated(server)) {
-            LOGGER.info("First launch detected - auto-generating recipes...");
-            try {
-                int count = GenerateRecipesCommand.generate(server);
-                LOGGER.info("Auto-generation complete! Generated {} recipes.", count);
-                LOGGER.info("Recipes saved to: world/datapacks/tinkersdevotion_generated/");
-                needsReloadAfterStart = true;
-            } catch (Exception e) {
-                LOGGER.error("Failed to auto-generate recipes", e);
-            }
+        String storedHash = DatapackHelper.readStoredHash(server);
+        String currentHash = DatapackHelper.computeHash(server);
+        if (currentHash.equals(storedHash)) return;
+
+        LOGGER.info(storedHash == null
+            ? "No generated datapack found, auto-generating recipes..."
+            : "Mod set or tool_exclusions.json changed, regenerating recipes...");
+        try {
+            int count = GenerateRecipesCommand.generate(server);
+            LOGGER.info("Auto-generation complete! Generated {} recipes.", count);
+            LOGGER.info("Recipes saved to: world/datapacks/tinkersdevotion_generated/");
+            needsReloadAfterStart = true;
+        } catch (Exception e) {
+            LOGGER.error("Failed to auto-generate recipes", e);
         }
     }
 

@@ -105,13 +105,7 @@ public class GenerateRecipesCommand {
             result.vanillaRecipesRemoved = disableVanillaRecipes(server);
 
             // Step 5: Clean stale recipes (files that exist but weren't regenerated)
-            for (Path existing : existingFiles) {
-                if (!writtenFiles.contains(existing)) {
-                    if (DatapackHelper.deleteRecipeFile(existing)) {
-                        result.staleRecipesCleaned++;
-                    }
-                }
-            }
+            result.staleRecipesCleaned = cleanStaleRecipes(existingFiles, writtenFiles);
 
             // Step 6: Send detailed feedback
             sendFeedback(source, result);
@@ -156,14 +150,25 @@ public class GenerateRecipesCommand {
     // ── Auto-boot entry point (backward compat for ForgeEventHandlers) ────────
 
     /**
-     * Generates replacement recipes. Called from ForgeEventHandlers on first server start.
-     *
-     * @return Total number of recipe files written (replacements + vanilla overrides)
+     * Mantle dispatch and datapack reload are caller's responsibility (overworld must exist first).
      */
     public static int generate(MinecraftServer server) throws Exception {
         GenerationResult result = new GenerationResult();
-        doGenerate(server, result);
-        return result.recipesGenerated + result.vanillaRecipesRemoved;
+        Set<Path> existingFiles = DatapackHelper.listGeneratedRecipeFiles(server);
+        Set<Path> writtenFiles = doGenerate(server, result);
+        result.staleRecipesCleaned = cleanStaleRecipes(existingFiles, writtenFiles);
+        if (result.staleRecipesCleaned > 0) {
+            LOGGER.info("Cleaned {} stale recipe(s) from previous generation", result.staleRecipesCleaned);
+        }
+        return result.recipesGenerated;
+    }
+
+    private static int cleanStaleRecipes(Set<Path> existing, Set<Path> written) {
+        int cleaned = 0;
+        for (Path path : existing) {
+            if (!written.contains(path) && DatapackHelper.deleteRecipeFile(path)) cleaned++;
+        }
+        return cleaned;
     }
 
     // ── Core generation logic ─────────────────────────────────────────────────
