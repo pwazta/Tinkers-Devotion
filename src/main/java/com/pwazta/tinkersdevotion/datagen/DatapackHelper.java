@@ -3,30 +3,45 @@ package com.pwazta.tinkersdevotion.datagen;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import com.mojang.logging.LogUtils;
+import com.pwazta.tinkersdevotion.config.ToolExclusionConfig;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.forgespi.language.IModInfo;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 /**
- * Helper class for managing datapack generation.
- * Handles folder creation, pack.mcmeta generation, recipe JSON saving, and stale recipe cleanup.
+ * Folder creation, pack.mcmeta + recipe JSON writing, stale cleanup, and the hash marker
+ * that drives auto-regeneration on mod-set or tool_exclusions.json changes.
  */
 public class DatapackHelper {
 
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String DATAPACK_NAME = "tinkersdevotion_generated";
     private static final String REPLACEMENT_SUFFIX = "_tinker_replacement.json";
+    private static final String HASH_FILE = ".generated.hash";
+    private static final String LEGACY_FLAG = ".generated";
 
     public static Path getDatapackPath(MinecraftServer server) {
         return server.getWorldPath(LevelResource.ROOT).resolve("datapacks").resolve(DATAPACK_NAME);
@@ -113,11 +128,56 @@ public class DatapackHelper {
         }
     }
 
-    public static boolean isGenerated(MinecraftServer server) { return Files.exists(getDatapackPath(server).resolve(".generated")); }
-
+    /** Also deletes the pre-1.0.1 .generated flag if present, so upgraded worlds are clean. */
     public static void markGenerated(MinecraftServer server) throws IOException {
-        Path flagFile = getDatapackPath(server).resolve(".generated");
-        Files.createDirectories(flagFile.getParent());
-        Files.writeString(flagFile, "This file indicates that recipes have been generated. Delete to force regeneration.");
+        Path packPath = getDatapackPath(server);
+        Files.createDirectories(packPath);
+        Files.writeString(packPath.resolve(HASH_FILE), computeHash(server));
+        Files.deleteIfExists(packPath.resolve(LEGACY_FLAG));
+    }
+
+    public static @Nullable String readStoredHash(MinecraftServer server) {
+        Path hashFile = getDatapackPath(server).resolve(HASH_FILE);
+        if (!Files.exists(hashFile)) return null;
+        try {
+            return Files.readString(hashFile).trim();
+        } catch (IOException e) {
+            LOGGER.warn("Failed to read generated-hash file at {}, will treat as stale", hashFile, e);
+            return null;
+        }
+    }
+
+    /**
+     * Hashes every loaded mod (modid:version, sorted) plus the raw bytes of tool_exclusions.json.
+     * Other configs don't feed recipe JSON output, so they're excluded to avoid false-positive regens
+     * on unrelated runtime-only edits.
+     */
+    public static String computeHash(MinecraftServer server) {
+        List<String> parts = new ArrayList<>();
+        for (IModInfo mod : ModList.get().getMods()) {
+            parts.add(mod.getModId() + ":" + mod.getVersion().toString());
+        }
+        Collections.sort(parts);
+        parts.add("--exclusions--");
+        parts.add(readExclusionConfigBytes());
+
+        try {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            byte[] digest = sha.digest(String.join("\n", parts).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    private static String readExclusionConfigBytes() {
+        File configFile = ToolExclusionConfig.getConfigFile();
+        if (configFile == null || !configFile.exists()) return "";
+        try {
+            return new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to read {} for hash, treating as empty", configFile, e);
+            return "";
+        }
     }
 }
