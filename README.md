@@ -142,6 +142,10 @@ The recipe datapack auto-generates on first world load, so the command is only n
 
 Any bug reports, feature requests / suggestions (e.g: "this addon mod isn't getting picked up correctly"), please leave a comment or go on the [GitHub issue tracker](https://github.com/pwazta/Tinkers-Devotion/issues).
 
+Or hop in the Discord if you just want to chat about the mod, ask a question, or hang out:
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?logo=discord&logoColor=white&style=flat-square)](https://discord.gg/qrBcucsTtY)
+
 - I am just one guy!! 
 
 - FAQ COMING SOON.
