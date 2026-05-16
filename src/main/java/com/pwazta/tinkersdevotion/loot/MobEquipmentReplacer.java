@@ -8,6 +8,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
@@ -15,17 +16,14 @@ import slimeknights.tconstruct.library.materials.MaterialRegistry;
 /**
  * Replaces vanilla tools, armor, and ranged weapons on mobs at spawn time with TC equivalents.
  *
- * Uses EntityJoinLevelEvent instead of FinalizeSpawn because FinalizeSpawn fires BEFORE
- * Mob#finalizeSpawn() runs — meaning populateDefaultEquipmentSlots() hasn't assigned
- * equipment yet. EntityJoinLevelEvent fires after all spawning logic is complete.
- *
- * Naturally idempotent on chunk reload: tryReplace only matches vanilla items (HashMap lookup),
- * so already-replaced TC items are skipped with negligible overhead.
+ * EntityJoinLevelEvent fires after {@code Mob#finalizeSpawn()} populates equipment slots.
+ * LOWEST priority so we run after other mods' equipment handlers on the same event.
+ * Idempotent on re-fire: tryReplace only matches vanilla items; TC items are skipped.
  */
 @Mod.EventBusSubscriber(modid = TinkersDevotion.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class MobEquipmentReplacer {
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
         if (!Config.replaceMobEquipment) return;
         if (event.getLevel().isClientSide()) return;
