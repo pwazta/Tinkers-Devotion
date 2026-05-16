@@ -64,8 +64,8 @@ public class GenerateRecipesCommand {
         final List<String> errors = new ArrayList<>();
     }
 
-    /** Info about a vanilla ingredient to replace with a TC ingredient. */
-    private record ReplacementEntry(int index, IngredientMode mode) {}
+    /** Pre-built replacement JSON for a slot containing at least one tracked vanilla item entry. */
+    private record ReplacementEntry(int index, JsonElement replacementJson) {}
 
     // ── Command entry point ───────────────────────────────────────────────────
 
@@ -264,23 +264,45 @@ public class GenerateRecipesCommand {
     }
 
     /**
-     * Scans an ingredient list and returns replacement entries for slots holding a single tracked vanilla item.
-     *
-     * <p>Tag safety: only single-item ingredients ({@code getItems().length == 1}) are candidates for replacement.
-     * Tag-based or compound ingredients (e.g. {@code forge:tools/bows}, {@code minecraft:trimmable_armor}) are
-     * preserved verbatim — replacing them would narrow their semantics and silently drop accepted items.
+     * Per-element rewrite: tracked-vanilla {@code {"item":"..."}} entries become our {@link IngredientMode} JSON;
+     * tags, custom-type ingredients, and non-tracked items are preserved. Forge re-parses mixed-child arrays
+     * into a {@code CompoundIngredient} with OR-test semantics.
      */
     private static List<ReplacementEntry> findVanillaItems(List<Ingredient> ingredients) {
         List<ReplacementEntry> replacements = new ArrayList<>();
         for (int i = 0; i < ingredients.size(); i++) {
-            ItemStack[] stacks = ingredients.get(i).getItems();
-            if (stacks.length != 1) continue;
-            ResourceLocation itemKey = ForgeRegistries.ITEMS.getKey(stacks[0].getItem());
-            if (itemKey == null) continue;
-            VanillaItemMappings.ReplacementInfo info = VanillaItemMappings.getReplacementInfoById(itemKey.toString());
-            if (info != null) replacements.add(new ReplacementEntry(i, toIngredientMode(info)));
+            Ingredient ingredient = ingredients.get(i);
+            if (ingredient.isEmpty()) continue;
+            JsonElement rewritten = rewriteIngredientJson(ingredient.toJson());
+            if (rewritten != null) replacements.add(new ReplacementEntry(i, rewritten));
         }
         return replacements;
+    }
+
+    /** Returns rewritten JSON if any element was replaced, else {@code null} (slot unchanged). */
+    private static @Nullable JsonElement rewriteIngredientJson(JsonElement originalJson) {
+        if (originalJson.isJsonArray()) {
+            JsonArray rewritten = new JsonArray();
+            boolean changed = false;
+            for (JsonElement element : originalJson.getAsJsonArray()) {
+                JsonElement replacement = tryReplaceVanillaItemEntry(element);
+                if (replacement != null) { rewritten.add(replacement); changed = true; }
+                else rewritten.add(element);
+            }
+            return changed ? rewritten : null;
+        }
+        return tryReplaceVanillaItemEntry(originalJson);
+    }
+
+    /** Returns {@link IngredientMode#toJson()} if {@code element} is {@code {"item":"<tracked id>"}}, else {@code null}. */
+    private static @Nullable JsonElement tryReplaceVanillaItemEntry(JsonElement element) {
+        if (!element.isJsonObject()) return null;
+        JsonObject obj = element.getAsJsonObject();
+        if (obj.has("type") || obj.has("tag") || !obj.has("item")) return null;
+        String itemId = obj.get("item").getAsString();
+        VanillaItemMappings.ReplacementInfo info = VanillaItemMappings.getReplacementInfoById(itemId);
+        if (info == null) return null;
+        return toIngredientMode(info).toJson();
     }
 
     /** Bridges loot-side ReplacementInfo to recipe-side IngredientMode. */
@@ -312,10 +334,6 @@ public class GenerateRecipesCommand {
             return buildSmithingTransformReplacement(transform, replacements, server);
         }
         return null;
-    }
-
-    private static JsonObject createTinkerIngredientJson(ReplacementEntry entry) {
-        return (JsonObject) entry.mode().toJson();
     }
 
     private static JsonObject createResultJson(Recipe<?> recipe, MinecraftServer server) {
@@ -407,10 +425,10 @@ public class GenerateRecipesCommand {
         return recipeJson;
     }
 
-    /** Emits the replacement ingredient if this index was tracked; otherwise preserves the original. */
+    /** Emits the precomputed replacement JSON if this index was tracked; otherwise preserves the original. */
     private static JsonElement ingredientJsonFor(Ingredient original, int index, List<ReplacementEntry> replacements) {
         ReplacementEntry replacement = findReplacementForIndex(replacements, index);
-        return replacement != null ? createTinkerIngredientJson(replacement) : original.toJson();
+        return replacement != null ? replacement.replacementJson() : original.toJson();
     }
 
     /** Finds the replacement for a given ingredient index, or null. */
