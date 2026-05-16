@@ -2,10 +2,11 @@
   "homepage": "https://www.curseforge.com/minecraft/mc-mods/tinkers-devotion",
   "1.20.1": {
     "1.0.0": "Initial release.",
-    "1.0.1": "Recipes auto-regenerate when mods change or tool_exclusions.json is edited. Vanilla items (e.g. netherite gear in smithing tables) can no longer be crafted via TC ingredient swaps."
+    "1.0.1": "Recipes auto-regenerate when mods change or tool_exclusions.json is edited. Vanilla items (e.g. netherite gear in smithing tables) can no longer be crafted via TC ingredient swaps.",
+    "1.0.2": "Recipe replacement now handles modded recipes that accept multiple items in one ingredient slot (item lists). Fixes Tide 2's fishing rod upgrade smithing recipes: TC fishing rod is now accepted as the base."
   },
   "promos": {
-    "1.20.1-recommended": "1.0.1",
-    "1.20.1-latest": "1.0.1"
+    "1.20.1-recommended": "1.0.2",
+    "1.20.1-latest": "1.0.2"
   }
 }
