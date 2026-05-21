@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
+import com.pwazta.tinkersdevotion.Config;
 import com.pwazta.tinkersdevotion.config.ToolExclusionConfig;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.repository.PackRepository;
@@ -39,6 +40,7 @@ public class DatapackHelper {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String DATAPACK_NAME = "tinkersdevotion_generated";
+    private static final String MANTLE_PACK_NAME = "SlimeKnightsGenerated";
     private static final String REPLACEMENT_SUFFIX = "_tinker_replacement.json";
     private static final String HASH_FILE = ".generated.hash";
     private static final String LEGACY_FLAG = ".generated";
@@ -148,9 +150,10 @@ public class DatapackHelper {
     }
 
     /**
-     * Hashes every loaded mod (modid:version, sorted) plus the raw bytes of tool_exclusions.json.
-     * Other configs don't feed recipe JSON output, so they're excluded to avoid false-positive regens
-     * on unrelated runtime-only edits.
+     * Inputs: mod set (modid:version, sorted), tool_exclusions.json bytes, and the value of
+     * {@code Config.disableVanillaCrafting}. The toggle is hashed by value because Forge rewrites
+     * the TOML on load for normalization — byte-hashing would flap. Other TOML fields are
+     * runtime-only and don't feed the generated JSON.
      */
     public static String computeHash(MinecraftServer server) {
         List<String> parts = new ArrayList<>();
@@ -160,6 +163,8 @@ public class DatapackHelper {
         Collections.sort(parts);
         parts.add("--exclusions--");
         parts.add(readExclusionConfigBytes());
+        parts.add("--toml-disable-vanilla--");
+        parts.add(String.valueOf(Config.disableVanillaCrafting));
 
         try {
             MessageDigest sha = MessageDigest.getInstance("SHA-256");
@@ -168,6 +173,46 @@ public class DatapackHelper {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
+    }
+
+    /**
+     * Deletes recipe-disabling stubs Mantle wrote into the {@code SlimeKnightsGenerated} datapack
+     * so vanilla recipes reload from base on the next datapack reload. Scoped to
+     * {@code data/<ns>/recipes/...} — {@code RemoveDataCommand} outputs (structure_set,
+     * biome_modifier) live elsewhere and are preserved.
+     *
+     * <p>Path resolution mirrors Mantle's {@code GeneratePackHelper.getDatapackPath}: global
+     * {@code thingpacks/} when JsonThings is loaded, world-local {@code datapacks/} otherwise.
+     */
+    public static int cleanupMantleRecipeStubs(MinecraftServer server) {
+        Path data = getMantleStubsPath(server).resolve("data");
+        if (!Files.exists(data)) return 0;
+        int deleted = 0;
+        try (Stream<Path> walk = Files.walk(data)) {
+            for (Path p : (Iterable<Path>) walk::iterator) {
+                if (!Files.isRegularFile(p)) continue;
+                if (!p.getFileName().toString().endsWith(".json")) continue;
+                if (!isUnderRecipesSegment(data, p)) continue;
+                if (Files.deleteIfExists(p)) deleted++;
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to walk Mantle stubs datapack at {}", data, e);
+        }
+        return deleted;
+    }
+
+    /** True if {@code file} sits under {@code <data>/<ns>/recipes/...}. */
+    private static boolean isUnderRecipesSegment(Path dataRoot, Path file) {
+        Path relative = dataRoot.relativize(file);
+        if (relative.getNameCount() < 3) return false;
+        return relative.getName(1).toString().equals("recipes");
+    }
+
+    private static Path getMantleStubsPath(MinecraftServer server) {
+        if (ModList.get().isLoaded("jsonthings")) {
+            return server.getServerDirectory().toPath().resolve("thingpacks").resolve(MANTLE_PACK_NAME);
+        }
+        return server.getWorldPath(LevelResource.ROOT).resolve("datapacks").resolve(MANTLE_PACK_NAME);
     }
 
     private static String readExclusionConfigBytes() {

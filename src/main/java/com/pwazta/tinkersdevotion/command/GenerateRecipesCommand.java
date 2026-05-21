@@ -59,6 +59,7 @@ public class GenerateRecipesCommand {
     private static class GenerationResult {
         int recipesGenerated = 0;
         int vanillaRecipesRemoved = 0;
+        int mantleStubsCleaned = 0;
         int staleRecipesCleaned = 0;
         List<String> unmappedToolMaterials = List.of();
         final List<String> errors = new ArrayList<>();
@@ -101,8 +102,14 @@ public class GenerateRecipesCommand {
             // Step 4: Generate all replacement recipes
             Set<Path> writtenFiles = doGenerate(server, result);
 
-            // Step 4b: Disable vanilla output recipes via Mantle (writes to its own datapack)
-            result.vanillaRecipesRemoved = disableVanillaRecipes(server);
+            // Mantle's preset dispatch scans the in-memory recipe manager (not disk), so it can
+            // only stub recipes that are currently loaded. ON dispatches against the live state;
+            // OFF wipes any stubs from a previous ON state so vanilla reloads from base.
+            if (Config.disableVanillaCrafting) {
+                result.vanillaRecipesRemoved = disableVanillaRecipes(server);
+            } else {
+                result.mantleStubsCleaned = DatapackHelper.cleanupMantleRecipeStubs(server);
+            }
 
             // Step 5: Clean stale recipes (files that exist but weren't regenerated)
             result.staleRecipesCleaned = cleanStaleRecipes(existingFiles, writtenFiles);
@@ -224,10 +231,14 @@ public class GenerateRecipesCommand {
     // ── Mantle delegation ─────────────────────────────────────────────────────
 
     /**
-     * Disables vanilla crafting via Mantle's {@code vanilla_tools} + {@code netherite_smithing} presets
-     * (tag-based, inverted vs {@code tconstruct:modifiable}, catches modded recipes producing vanilla items).
-     * Output goes to Mantle's {@code SlimeKnightsGenerated} datapack — caller's reload picks it up.
-     * Must be called after the overworld is loaded ({@code ServerStartedEvent} or later) — Mantle reads {@code source.getLevel()}.
+     * Dispatches Mantle's {@code vanilla_tools} + {@code netherite_smithing} presets when the toggle
+     * is on. Tag-based, inverted vs {@code tconstruct:modifiable}; catches modded recipes producing
+     * vanilla items. Output goes to {@code SlimeKnightsGenerated} — caller's reload picks it up.
+     *
+     * <p>Idempotent: Mantle scans the in-memory recipe manager, so already-stubbed recipes are
+     * skipped and only new vanilla recipes get fresh stubs.
+     *
+     * <p>Requires the overworld ({@code ServerStartedEvent} or later) — Mantle reads {@code source.getLevel()}.
      */
     public static int disableVanillaRecipes(MinecraftServer server) {
         if (!Config.disableVanillaCrafting) return 0;
@@ -459,6 +470,11 @@ public class GenerateRecipesCommand {
         if (result.vanillaRecipesRemoved > 0) {
             source.sendSuccess(() -> Component.literal(
                 "  Recipes: " + result.vanillaRecipesRemoved + " vanilla recipes disabled (via Mantle)"), false);
+        }
+
+        if (result.mantleStubsCleaned > 0) {
+            source.sendSuccess(() -> Component.literal(
+                "  Cleanup: " + result.mantleStubsCleaned + " stale Mantle recipe stubs removed"), false);
         }
 
         if (result.staleRecipesCleaned > 0) {
