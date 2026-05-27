@@ -8,7 +8,10 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.Tags;
+import net.minecraftforge.common.ToolAction;
+import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.common.TinkerTags;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
@@ -29,9 +32,9 @@ import java.util.function.Predicate;
  *
  * <p>Tag choice per type (verified TC-populated):
  * <ul>
- *   <li>Tools: {@link ItemTags#SWORDS}/{@code PICKAXES}/{@code AXES}/{@code SHOVELS}/{@code HOES} —
- *       TC tags items into these per their static {@code ToolActionsModule} declaration, so tag
- *       membership is equivalent to the prior {@code ToolHooks.TOOL_ACTION} static check.</li>
+ *   <li>Tools: iterate {@link TinkerTags.Items#MODIFIABLE}, matched by Forge {@link ToolAction} or
+ *       vanilla-tag membership (see {@link ToolType}). The action arm catches addon tools, which tag
+ *       only into TC tags — not the vanilla {@code minecraft:<type>} tags TC populates for its own.</li>
  *   <li>Ranged: {@link TinkerTags.Items#LONGBOWS}/{@code CROSSBOWS} — also catches addon launchers
  *       that don't extend {@code ModifiableBowItem}/{@code ModifiableCrossbowItem} directly
  *       (e.g. Tinkers-Thinking's repeating crossbow).</li>
@@ -46,13 +49,26 @@ public final class TcItemRegistry {
 
     private TcItemRegistry() {}
 
-    /** Per–tool-action tag (TC populates {@link ItemTags} from each tool's static {@code ToolActionsModule}). */
-    private static final Map<String, TagKey<Item>> TOOL_TAGS = Map.of(
-        "sword",   ItemTags.SWORDS,
-        "pickaxe", ItemTags.PICKAXES,
-        "axe",     ItemTags.AXES,
-        "shovel",  ItemTags.SHOVELS,
-        "hoe",     ItemTags.HOES
+    /**
+     * Detection signal for a vanilla tool type. An item matches if it can perform the type's Forge
+     * {@link ToolAction} (addon tools declare this in their definition) or is in the vanilla item tag.
+     * The tag arm backfills TC tools whose type lives in the tag, not an action — e.g. the scythe, in
+     * {@code minecraft:hoes} but with no {@code HOE_DIG} ({@code tilling} grants {@code HOE_TILL}, which
+     * we don't key on as it's a player-applied modifier).
+     */
+    public record ToolType(ToolAction action, TagKey<Item> vanillaTag) {
+        public boolean matches(ItemStack stack) {
+            return stack.canPerformAction(action) || stack.is(vanillaTag);
+        }
+    }
+
+    /** Per–tool-action detection signal (Forge ToolAction + vanilla tag). */
+    private static final Map<String, ToolType> TOOL_TYPES = Map.of(
+        "sword",   new ToolType(ToolActions.SWORD_DIG,   ItemTags.SWORDS),
+        "pickaxe", new ToolType(ToolActions.PICKAXE_DIG, ItemTags.PICKAXES),
+        "axe",     new ToolType(ToolActions.AXE_DIG,     ItemTags.AXES),
+        "shovel",  new ToolType(ToolActions.SHOVEL_DIG,  ItemTags.SHOVELS),
+        "hoe",     new ToolType(ToolActions.HOE_DIG,     ItemTags.HOES)
     );
 
     /** Per-slot armor tag (TC populates these via {@code addArmorTags}). */
@@ -87,20 +103,21 @@ public final class TcItemRegistry {
     }
 
     /**
-     * Returns all TC tools tagged for the given action name (sword/pickaxe/axe/shovel/hoe),
-     * excluding items in {@link ToolExclusionConfig}. Cached per action name.
+     * Returns all TC tools matching the given type (sword/pickaxe/axe/shovel/hoe) by ToolAction or
+     * vanilla tag, excluding items in {@link ToolExclusionConfig}. Cached per type name.
      */
     public static List<IModifiable> getEligibleTools(String actionName) {
         return TOOL_CACHE.computeIfAbsent(actionName, k -> {
-            TagKey<Item> tag = TOOL_TAGS.get(actionName);
-            if (tag == null) return List.of();
-            return collect(tag, actionName, null);
+            ToolType type = TOOL_TYPES.get(actionName);
+            if (type == null) return List.of();
+            // Scan the umbrella (addon tools tag into it); bare ItemStack ⇒ definition-level actions only.
+            return collect(TinkerTags.Items.MODIFIABLE, actionName, item -> type.matches(new ItemStack(item)));
         });
     }
 
-    /** Returns the per–tool-action item tag, or null for unknown action names. Used by {@link com.pwazta.tinkersdevotion.recipe.ToolMode} for runtime stack-membership checks. */
-    public static TagKey<Item> getToolTag(String actionName) {
-        return TOOL_TAGS.get(actionName);
+    /** Returns the detection signal for a tool type, or null for unknown names. Used by {@link com.pwazta.tinkersdevotion.recipe.ToolMode} for runtime stack matching. */
+    public static ToolType getToolType(String actionName) {
+        return TOOL_TYPES.get(actionName);
     }
 
     /**
