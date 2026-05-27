@@ -70,7 +70,8 @@ public class ToolExclusionConfig {
         "tconstruct:war_pick",
         "tconstruct:battlesign",
         "tconstruct:melting_pan",
-        "tconstruct:minotaur_axe"
+        "tconstruct:minotaur_axe",
+        "tinkers_thinking:mace"
     );
 
     /** Ranged excluded from all ranged types. war_pick: uncraftable ancient. blowpipe: defensive — JSON tool with 0 material parts; mistagging into ranged/crossbows would silently no-op replacement. */
