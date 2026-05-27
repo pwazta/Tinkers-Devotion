@@ -11,8 +11,6 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
@@ -32,7 +30,7 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return "tool_action";
     }
 
-    /** Checks head material (index 0) matches the required tier via live TC registry, optional all-parts % threshold, then verifies tool-type tag membership + exclusions. */
+    /** Checks head material (index 0) matches the required tier via live TC registry, optional all-parts % threshold, then verifies the tool type (ToolAction or tag) + exclusions. */
     @Override
     public boolean test(ItemStack stack) {
         CompoundTag nbt = stack.getTag();
@@ -59,13 +57,13 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return matchesToolType(stack);
     }
 
-    /** Verifies item is in the per-action item tag (TC populates these from each tool's static ToolActionsModule), then checks exclusion list. */
+    /** Verifies the item performs the type's ToolAction or is in the vanilla tool tag (see {@link TcItemRegistry.ToolType}), then checks the exclusion list. */
     private boolean matchesToolType(ItemStack stack) {
         if (toolType.isEmpty()) return true;
-        TagKey<Item> tag = TcItemRegistry.getToolTag(toolType);
-        if (tag == null) return true;
+        TcItemRegistry.ToolType type = TcItemRegistry.getToolType(toolType);
+        if (type == null) return true;
         if (!(stack.getItem() instanceof IModifiable)) return false;
-        if (!stack.is(tag)) return false;
+        if (!type.matches(stack)) return false;
 
         ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return toolId == null || !ToolExclusionConfig.isExcluded(toolType, toolId.toString());
