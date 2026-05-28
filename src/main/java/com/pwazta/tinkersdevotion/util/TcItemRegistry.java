@@ -27,8 +27,9 @@ import java.util.function.Predicate;
  * Cached tag-based scanner for eligible TC tools, armor, ranged weapons, shields, and fishing rods.
  *
  * <p>All methods iterate a TC- or Forge-populated item tag and apply an {@code instanceof IModifiable}
- * filter to exclude vanilla items. This is {@code O(M)} (M = tag size, ~30–80 with addons) versus
- * the prior {@code O(N)} full-registry scan.
+ * filter to exclude vanilla items, plus a {@link TinkerTags.Items#ANCIENT_TOOLS} skip (loot-only,
+ * uncraftable; addons inherit by populating the tag). This is {@code O(M)} (M = tag size, ~30–80 with
+ * addons) versus the prior {@code O(N)} full-registry scan.
  *
  * <p>Tag choice per type (verified TC-populated):
  * <ul>
@@ -203,12 +204,13 @@ public final class TcItemRegistry {
         });
     }
 
-    /** Iterates a tag, requires {@link IModifiable} (excludes vanilla), applies optional extra filter + exclusion config. */
+    /** Iterates a tag, requires {@link IModifiable} (excludes vanilla), skips ancients, applies optional extra filter + exclusion config. */
     private static List<IModifiable> collect(TagKey<Item> tag, String exclusionKey, Predicate<Item> extraFilter) {
         List<IModifiable> result = new ArrayList<>();
         for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
             Item item = holder.value();
             if (!(item instanceof IModifiable modifiable)) continue;
+            if (holder.is(TinkerTags.Items.ANCIENT_TOOLS)) continue;
             if (extraFilter != null && !extraFilter.test(item)) continue;
             ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
             if (id != null && ToolExclusionConfig.isExcluded(exclusionKey, id.toString())) continue;

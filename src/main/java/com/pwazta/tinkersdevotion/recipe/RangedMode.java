@@ -9,6 +9,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
+import slimeknights.tconstruct.common.TinkerTags;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
 
@@ -33,6 +34,7 @@ public record RangedMode(String rangedType, List<String> canonicalMaterials) imp
             default -> false;
         };
         if (!matchesType) return false;
+        if (stack.is(TinkerTags.Items.ANCIENT_TOOLS)) return false;
 
         ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return itemId == null || !ToolExclusionConfig.isExcluded(rangedType, itemId.toString());

@@ -10,6 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
+import slimeknights.tconstruct.common.TinkerTags;
 import slimeknights.tconstruct.library.materials.stats.MaterialStatsId;
 import slimeknights.tconstruct.library.tools.definition.ToolDefinition;
 import slimeknights.tconstruct.library.tools.definition.module.material.ToolMaterialHook;
@@ -36,6 +37,7 @@ public record ShieldMode(String shieldType, List<String> canonicalMaterials) imp
         Item item = stack.getItem();
         if (!(item instanceof IModifiable modifiable)) return false;
         if (item instanceof ModifiableArmorItem) return false;
+        if (stack.is(TinkerTags.Items.ANCIENT_TOOLS)) return false;
 
         ToolDefinition def = modifiable.getToolDefinition();
         if (!def.isDataLoaded()) return false;
