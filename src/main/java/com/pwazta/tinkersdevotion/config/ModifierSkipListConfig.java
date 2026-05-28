@@ -49,11 +49,14 @@ public class ModifierSkipListConfig {
         "tconstruct:pockets",
         "tconstruct:shulking",
         "tconstruct:flamewake",
+        "tconstruct:enderporting",
         // Addon modifiers (ignored if mod absent — ModifierId won't resolve)
         "tinkerslevellingaddon:improvable",
         "tcintegrations:flamed",
         "tcintegrations:iced",
-        "tcintegrations:zapped"
+        "tcintegrations:zapped",
+        "ticex:celestial",
+        "ticex:endestshot"
     );
 
     private static volatile Set<ModifierId> skipList = Set.of();
