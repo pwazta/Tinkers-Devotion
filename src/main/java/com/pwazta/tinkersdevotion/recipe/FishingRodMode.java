@@ -11,6 +11,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.Tags;
 import net.minecraftforge.registries.ForgeRegistries;
+import slimeknights.tconstruct.common.TinkerTags;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ public record FishingRodMode(String fishingRodType, List<String> canonicalMateri
         if (!stack.is(Tags.Items.TOOLS_FISHING_RODS)) return false;
         Item item = stack.getItem();
         if (!(item instanceof IModifiable)) return false;
+        if (stack.is(TinkerTags.Items.ANCIENT_TOOLS)) return false;
 
         ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
         return itemId == null || !ToolExclusionConfig.isExcluded(fishingRodType, itemId.toString());

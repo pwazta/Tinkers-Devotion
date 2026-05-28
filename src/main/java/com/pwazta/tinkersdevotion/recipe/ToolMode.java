@@ -13,6 +13,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
+import slimeknights.tconstruct.common.TinkerTags;
 import slimeknights.tconstruct.library.materials.definition.MaterialVariantId;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 
@@ -57,13 +58,14 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         return matchesToolType(stack);
     }
 
-    /** Verifies the item performs the type's ToolAction or is in the vanilla tool tag (see {@link TcItemRegistry.ToolType}), then checks the exclusion list. */
+    /** Verifies the item performs the type's ToolAction or is in the vanilla tool tag (see {@link TcItemRegistry.ToolType}), isn't ancient, then checks the exclusion list. */
     private boolean matchesToolType(ItemStack stack) {
         if (toolType.isEmpty()) return true;
         TcItemRegistry.ToolType type = TcItemRegistry.getToolType(toolType);
         if (type == null) return true;
         if (!(stack.getItem() instanceof IModifiable)) return false;
         if (!type.matches(stack)) return false;
+        if (stack.is(TinkerTags.Items.ANCIENT_TOOLS)) return false;
 
         ResourceLocation toolId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return toolId == null || !ToolExclusionConfig.isExcluded(toolType, toolId.toString());

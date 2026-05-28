@@ -18,16 +18,15 @@ import java.util.*;
 
 /**
  * Configures which TC items are excluded from matching specific actions/slots/types.
- * Prevents cheap multi-tools (e.g., dagger) from substituting for expensive tools
- * (e.g., cleaver) in recipe slots, and ancient tools (e.g., war_pick) from appearing
- * as loot replacements.
+ * Prevents cheap multi-tools (e.g., dagger) from substituting for expensive tools (e.g., cleaver).
+ *
+ * <p>Ancient (loot-only) tools are filtered structurally via {@code TinkerTags.Items.ANCIENT_TOOLS},
+ * not listed here — addons inherit the exclusion by populating the tag.
  *
  * Config file: config/tinkersdevotion/tool_exclusions.json
  * Format: { "action_name": ["modid:tool_id", ...], ... }
  *
- * On first boot, creates defaults (ancient tools excluded from tool/ranged actions,
- * dagger from tool actions, slimesuit from armor slots).
- * On subsequent boots, loads from file (user edits preserved).
+ * On first boot, creates defaults. On subsequent boots, loads from file (user edits preserved).
  */
 public class ToolExclusionConfig {
 
@@ -63,27 +62,17 @@ public class ToolExclusionConfig {
         initialized = true;
     }
 
-    /** Tools excluded from all tool actions by default. Dagger is too cheap; ancient tools are uncraftable loot-only. */
+    /** Dagger is too cheap as a one-handed multi-tool. */
     private static final List<String> DEFAULT_EXCLUDED_TOOLS = List.of(
-        "tconstruct:dagger",
-        "tconstruct:swasher",
-        "tconstruct:war_pick",
-        "tconstruct:battlesign",
-        "tconstruct:melting_pan",
-        "tconstruct:minotaur_axe",
-        "tinkers_thinking:mace"
+        "tconstruct:dagger"
     );
 
-    /** Ranged excluded from all ranged types. war_pick: uncraftable ancient. blowpipe: defensive — JSON tool with 0 material parts; mistagging into ranged/crossbows would silently no-op replacement. */
+    /** blowpipe: defensive — JSON tool with 0 material parts; mistagging into ranged/crossbows would silently no-op replacement. */
     private static final List<String> DEFAULT_EXCLUDED_RANGED = List.of(
-        "tconstruct:war_pick",
         "tinkers_things:blowpipe"
     );
 
-    /** Shields excluded from shield slot. Cutlass has shield_core stats but is sword-shaped — visually confusing as a vanilla-shield replacement. */
-    private static final List<String> DEFAULT_EXCLUDED_SHIELDS = List.of(
-        "tinkers_thinking:cutlass"
-    );
+    private static final List<String> DEFAULT_EXCLUDED_SHIELDS = List.of();
 
     /** Armor excluded from all armor slots by default. Slimesuit uses fixed stats, not material-based plating. */
     private static final List<String> DEFAULT_EXCLUDED_ARMOR = List.of(
@@ -93,10 +82,7 @@ public class ToolExclusionConfig {
         "tconstruct:slime_boots"
     );
 
-    /**
-     * Creates the default exclusion set: tools excluded from tool actions, slimesuit from armor slots,
-     * war_pick from ranged types (it's a ModifiableCrossbowItem but uncraftable ancient loot-only).
-     */
+    /** Creates the default exclusion set: dagger from tool actions, slimesuit from armor slots, blowpipe from ranged. */
     private static void createDefaults() {
         EXCLUSIONS.clear();
         for (String action : VanillaItemMappings.TOOL_TYPES) {
