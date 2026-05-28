@@ -92,7 +92,7 @@ A skip list in the config keeps unwanted modifiers out (defaults include `nether
 
 **Compatibility & extensibility**
 
-- **TC addons:** picked up automatically via standard tags. Tested with Tinkers' Things, TCIntegrations, Tinkers Levelling Addon, and Tinkers' Thinking.
+- **TC addons:** picked up automatically via standard tags and Forge tool actions. Tested with Tinkers' Things, TCIntegrations, Tinkers Levelling Addon, and Tinkers' Thinking.
 - **Addon materials:** read live from `MaterialRegistry`. New material drops in, it's eligible. Custom-tier materials work for armor and ranged; tools need a vanilla-tier mapping.
 - **Modded recipes:** caught by the same scan as vanilla. Datapack recipes should be automatically handled.
 - **Modded loot, mob equipment, villager professions:** all hit the same hooks as vanilla. No allowlist.
@@ -117,7 +117,7 @@ The defaults are quite sensible but if you want to tune, three files appear unde
 
 | File                                      | Format | What it controls                                                                                                                                                                |
 | ----------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tinkersdevotion-common.toml`             | TOML   | Main toggles. Disable mob, loot, or villager replacement independently. Tune the parts-match threshold, loot variance, modifier specialization weight.                          |
+| `tinkersdevotion-common.toml`             | TOML   | Main toggles. Independently disable vanilla-crafting removal, mob, loot, or villager replacement. Tune the parts-match threshold, loot variance, modifier specialization weight. |
 | `tinkersdevotion/tool_exclusions.json`    | JSON   | Blacklist specific TC tools per slot or action. Stops dagger from substituting for cleaver in recipes, stops slimesuit from rolling as armor loot, etc. Defaults pre-populated. |
 | `tinkersdevotion/modifier_skip_list.json` | JSON   | TC modifier IDs that should never appear in the random enchantment pool. Defaults pre-populated.                                                                                |
 
@@ -140,9 +140,7 @@ The recipe datapack auto-generates on first world load, so the command is only n
 
 </summary>
 
-Any bug reports, feature requests / suggestions (e.g: "this addon mod isn't getting picked up correctly"), please leave a comment or go on the [GitHub issue tracker](https://github.com/pwazta/Tinkers-Devotion/issues).
-
-Or hop in the Discord if you just want to chat about the mod, ask a question, or hang out:
+Leave a comment or hop in the Discord to chat or ask a question. If you've found a bug or have a specific request, flag it on the [GitHub issue tracker](https://github.com/pwazta/Tinkers-Devotion/issues).
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?logo=discord&logoColor=white&style=flat-square)](https://discord.gg/qrBcucsTtY)
 
