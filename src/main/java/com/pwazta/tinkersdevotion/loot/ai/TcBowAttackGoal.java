@@ -11,6 +11,7 @@ import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ArrowItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import com.pwazta.tinkersdevotion.util.TcRangedItems;
@@ -19,6 +20,7 @@ import slimeknights.tconstruct.library.modifiers.ModifierHooks;
 import slimeknights.tconstruct.library.modifiers.hook.interaction.GeneralInteractionModifierHook;
 import slimeknights.tconstruct.library.tools.helper.ModifierUtil;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
+import slimeknights.tconstruct.library.tools.item.ranged.ModifiableLauncherItem;
 import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 
 /**
@@ -136,15 +138,14 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
             } else if (canSee) {
                 int drawTicks = this.mob.getTicksUsingItem();
                 if (drawTicks >= getDrawDuration(this.mob.getUseItem())) {
-                    this.mob.stopUsingItem();
                     fireTcBowArrow(target, drawTicks);
+                    this.mob.stopUsingItem();
                     this.attackTime = this.attackIntervalMin;
                 }
             }
         } else if (--this.attackTime <= 0 && this.seeTime >= -60) {
             this.mob.startUsingItem(ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isBow));
-            // Mobs bypass Item.use() — init drawtime manually to avoid divide-by-zero in getToolCharge()
-            initDrawtimeIfTcBow();
+            initTcDrawState();
         }
     }
 
@@ -208,18 +209,26 @@ public class TcBowAttackGoal<T extends Mob & RangedAttackMob> extends Goal {
             1.0F / (this.mob.getRandom().nextFloat() * 0.4F + 0.8F));
     }
 
-    /** Initializes drawtime in persistent data if the mob is holding a TC bow. */
-    private void initDrawtimeIfTcBow() {
+    /**
+     * Writes the draw state TC's own {@code use()} would have written. Mobs never call
+     * {@code Item.use()}, so without this {@code getToolCharge} divides by a zero drawtime and the
+     * bow's pulling model renders no nocked arrow. Both keys are cleared by
+     * {@code ModifiableLauncherItem.onStopUsing} when the draw ends.
+     */
+    private void initTcDrawState() {
         ItemStack weapon = this.mob.getUseItem();
-        if (!weapon.isEmpty() && weapon.getItem() instanceof ModifiableBowItem) {
-            ToolStack toolStack = ToolStack.from(weapon);
-            GeneralInteractionModifierHook.startDrawtime(toolStack, this.mob, 1.0f);
-        }
+        if (weapon.isEmpty() || !(weapon.getItem() instanceof ModifiableBowItem)) return;
+
+        ToolStack tool = ToolStack.from(weapon);
+        GeneralInteractionModifierHook.startDrawtime(tool, this.mob, 1.0f);
+        // Compound, not boolean: ToolModel only renders the arrow for TAG_COMPOUND.
+        tool.getPersistentData().put(ModifiableLauncherItem.KEY_DRAWBACK_AMMO,
+            new ItemStack(Items.ARROW).save(new CompoundTag()));
     }
 
     /**
      * Returns draw duration in ticks from TC persistent data. For TC bows, reads
-     * {@code KEY_DRAWTIME} set by {@link #initDrawtimeIfTcBow()}. Falls back to 20 ticks
+     * {@code KEY_DRAWTIME} set by {@link #initTcDrawState()}. Falls back to 20 ticks
      * (vanilla default) for vanilla bows or if drawtime wasn't initialized.
      *
      * <p>Mirrors {@code TcCrossbowAttackGoal.getChargeDuration()} pattern.
