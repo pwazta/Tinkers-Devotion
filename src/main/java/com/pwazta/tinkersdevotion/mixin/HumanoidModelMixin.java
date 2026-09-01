@@ -9,6 +9,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -42,11 +43,7 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
     /**
      * Set the correct arm pose for TC ranged weapons before any rotation logic runs.
      *
-     * <p>Model instances are shared across all entities of the same type, so arm pose fields
-     * persist between render calls. Vanilla's {@code PlayerRenderer} resets arm poses every frame,
-     * but {@code HumanoidMobRenderer} does not. We must reset to EMPTY for mobs first, then set
-     * the correct pose if applicable — otherwise a stale CROSSBOW_HOLD from one mob bleeds into
-     * the next mob rendered with the same model.
+     * <p>Clears any stale pose we previously set on the shared model instance, then applies ours.
      *
      * <ul>
      *   <li>{@link ModifiableBowItem}: {@code BOW_AND_ARROW} (only when aggressive)</li>
@@ -59,10 +56,11 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
                                            CallbackInfo ci) {
         if (!(entity instanceof Mob mob)) return;
 
-        // Reset arm poses for mobs — HumanoidMobRenderer doesn't do this (unlike PlayerRenderer),
-        // so values set for one entity persist into the next entity sharing the same model instance.
-        this.rightArmPose = HumanoidModel.ArmPose.EMPTY;
-        this.leftArmPose = HumanoidModel.ArmPose.EMPTY;
+        // Model instances are shared per entity type and HumanoidMobRenderer never resets them
+        // (unlike PlayerRenderer), so clear our own stale poses. Only ours: DrownedModel sets
+        // THROW_SPEAR in prepareMobModel and re-reads it after super.setupAnim.
+        if (nmvt_isOurs(this.rightArmPose)) this.rightArmPose = HumanoidModel.ArmPose.EMPTY;
+        if (nmvt_isOurs(this.leftArmPose)) this.leftArmPose = HumanoidModel.ArmPose.EMPTY;
 
         ItemStack mainHand = mob.getItemInHand(InteractionHand.MAIN_HAND);
         Item item = mainHand.getItem();
@@ -79,5 +77,12 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
             if (mob.getMainArm() == HumanoidArm.RIGHT) this.rightArmPose = pose;
             else this.leftArmPose = pose;
         }
+    }
+
+    @Unique
+    private static boolean nmvt_isOurs(HumanoidModel.ArmPose pose) {
+        return pose == HumanoidModel.ArmPose.BOW_AND_ARROW
+            || pose == HumanoidModel.ArmPose.CROSSBOW_HOLD
+            || pose == HumanoidModel.ArmPose.CROSSBOW_CHARGE;
     }
 }

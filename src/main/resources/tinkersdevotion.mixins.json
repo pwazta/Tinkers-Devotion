@@ -8,6 +8,7 @@
     "client": [
         "AbstractZombieModelMixin",
         "HumanoidModelMixin",
+        "PiglinMixin",
         "PillagerMixin",
         "SkeletonModelMixin"
     ]
