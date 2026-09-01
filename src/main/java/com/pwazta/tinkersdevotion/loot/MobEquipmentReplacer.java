@@ -18,7 +18,7 @@ import slimeknights.tconstruct.library.materials.MaterialRegistry;
  *
  * EntityJoinLevelEvent fires after {@code Mob#finalizeSpawn()} populates equipment slots.
  * LOWEST priority so we run after other mods' equipment handlers on the same event.
- * Idempotent on re-fire: tryReplace only matches vanilla items; TC items are skipped.
+ * Idempotent on re-fire: tryReplace only matches items we replace; TC items are skipped.
  */
 @Mod.EventBusSubscriber(modid = TinkersDevotion.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class MobEquipmentReplacer {

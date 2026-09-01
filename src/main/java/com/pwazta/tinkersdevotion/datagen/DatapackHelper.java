@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import com.pwazta.tinkersdevotion.Config;
+import com.pwazta.tinkersdevotion.config.ItemAliasConfig;
 import com.pwazta.tinkersdevotion.config.ToolExclusionConfig;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.repository.PackRepository;
@@ -131,7 +132,7 @@ public class DatapackHelper {
     }
 
     /**
-     * Records the generation as live. Call only after the datapack reload has succeeded — a hash
+     * Records the generation as live. Call only after the datapack reload has succeeded. A hash
      * written for a generation that never activated would suppress the retry on the next launch.
      *
      * <p>Also deletes the pre-1.0.1 .generated flag if present, so upgraded worlds are clean.
@@ -155,7 +156,7 @@ public class DatapackHelper {
     }
 
     /**
-     * Inputs: mod set (modid:version, sorted), tool_exclusions.json bytes, and the value of
+     * Inputs: mod set (modid:version, sorted), tool_exclusions.json + item_aliases.json bytes, and the value of
      * {@code Config.disableVanillaCrafting}. The toggle is hashed by value because Forge rewrites
      * the TOML on load for normalization — byte-hashing would flap. Other TOML fields are
      * runtime-only and don't feed the generated JSON.
@@ -167,7 +168,9 @@ public class DatapackHelper {
         }
         Collections.sort(parts);
         parts.add("--exclusions--");
-        parts.add(readExclusionConfigBytes());
+        parts.add(readConfigBytes(ToolExclusionConfig.getConfigFile()));
+        parts.add("--aliases--");
+        parts.add(readConfigBytes(ItemAliasConfig.getConfigFile()));
         parts.add("--toml-disable-vanilla--");
         parts.add(String.valueOf(Config.disableVanillaCrafting));
 
@@ -220,8 +223,7 @@ public class DatapackHelper {
         return server.getWorldPath(LevelResource.ROOT).resolve("datapacks").resolve(MANTLE_PACK_NAME);
     }
 
-    private static String readExclusionConfigBytes() {
-        File configFile = ToolExclusionConfig.getConfigFile();
+    private static String readConfigBytes(File configFile) {
         if (configFile == null || !configFile.exists()) return "";
         try {
             return new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
