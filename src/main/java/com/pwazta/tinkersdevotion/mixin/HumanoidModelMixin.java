@@ -7,6 +7,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.UseAnim;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -45,10 +47,11 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
      *
      * <p>Clears any stale pose we previously set on the shared model instance, then applies ours.
      *
-     * <ul>
-     *   <li>{@link ModifiableBowItem}: {@code BOW_AND_ARROW} (only when aggressive)</li>
-     *   <li>{@link ModifiableCrossbowItem}: {@code CROSSBOW_CHARGE} when using, {@code CROSSBOW_HOLD} otherwise</li>
-     * </ul>
+     * <p>Bows use {@code BOW_AND_ARROW}, crossbows {@code CROSSBOW_CHARGE} while using and
+     * {@code CROSSBOW_HOLD} otherwise. Launchers that draw with {@link UseAnim#SPEAR}, such as
+     * Tinkers' Thinking's atlatl, get {@code THROW_SPEAR} for the draw only: their drawing model
+     * carries a 180 degree flip that the raised arm is drawn against, and the plain model they
+     * revert to afterwards is not, so the pose has to track the model swap exactly.
      */
     @Inject(method = "setupAnim(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V", at = @At("HEAD"))
     private void nmvt_fixTcRangedArmPoses(T entity, float limbSwing, float limbSwingAmount,
@@ -56,18 +59,30 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
                                            CallbackInfo ci) {
         if (!(entity instanceof Mob mob)) return;
 
+        ItemStack mainHand = mob.getItemInHand(InteractionHand.MAIN_HAND);
+        // DrownedModel owns THROW_SPEAR for tridents, setting it in prepareMobModel and re-reading
+        // it after super.setupAnim, so leave those poses alone entirely.
+        if (mainHand.is(Items.TRIDENT)) return;
+
         // Model instances are shared per entity type and HumanoidMobRenderer never resets them
-        // (unlike PlayerRenderer), so clear our own stale poses. Only ours: DrownedModel sets
-        // THROW_SPEAR in prepareMobModel and re-reads it after super.setupAnim.
+        // (unlike PlayerRenderer), so clear our own stale poses.
         if (nmvt_isOurs(this.rightArmPose)) this.rightArmPose = HumanoidModel.ArmPose.EMPTY;
         if (nmvt_isOurs(this.leftArmPose)) this.leftArmPose = HumanoidModel.ArmPose.EMPTY;
 
-        ItemStack mainHand = mob.getItemInHand(InteractionHand.MAIN_HAND);
         Item item = mainHand.getItem();
         HumanoidModel.ArmPose pose = null;
 
         if (TcRangedItems.isBow(item)) {
-            if (mob.isAggressive()) pose = HumanoidModel.ArmPose.BOW_AND_ARROW;
+            // Same condition TinkerItemProperties.CHARGING uses to swap in the drawing model.
+            boolean drawing = mob.getUseItem() == mainHand;
+            if (drawing || mob.isAggressive()) {
+                if (mainHand.getUseAnimation() == UseAnim.SPEAR) {
+                    // The drawing model flips the item 180 degrees, so raise the arm only while it applies.
+                    if (drawing) pose = HumanoidModel.ArmPose.THROW_SPEAR;
+                } else {
+                    pose = HumanoidModel.ArmPose.BOW_AND_ARROW;
+                }
+            }
         } else if (TcRangedItems.isCrossbow(item)) {
             pose = mob.isUsingItem() ? HumanoidModel.ArmPose.CROSSBOW_CHARGE
                                      : HumanoidModel.ArmPose.CROSSBOW_HOLD;
@@ -83,6 +98,7 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> {
     private static boolean nmvt_isOurs(HumanoidModel.ArmPose pose) {
         return pose == HumanoidModel.ArmPose.BOW_AND_ARROW
             || pose == HumanoidModel.ArmPose.CROSSBOW_HOLD
-            || pose == HumanoidModel.ArmPose.CROSSBOW_CHARGE;
+            || pose == HumanoidModel.ArmPose.CROSSBOW_CHARGE
+            || pose == HumanoidModel.ArmPose.THROW_SPEAR;
     }
 }
