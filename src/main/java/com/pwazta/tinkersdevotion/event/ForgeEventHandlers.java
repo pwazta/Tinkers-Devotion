@@ -7,7 +7,6 @@ import com.pwazta.tinkersdevotion.config.TiersToTcMaterials;
 import com.pwazta.tinkersdevotion.datagen.DatapackHelper;
 import com.pwazta.tinkersdevotion.loot.TinkerToolBuilder;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.event.server.ServerAboutToStartEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -23,9 +22,6 @@ public class ForgeEventHandlers {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Set to true when recipes are auto-generated during ServerAboutToStartEvent, so we can reload on ServerStartedEvent. */
-    private static boolean needsReloadAfterStart = false;
-
     /**
      * Rebuilds tool tier caches from the TC registry and clears loot/ingredient caches.
      * Fires on both client and server after TC materials sync/reload.
@@ -37,47 +33,23 @@ public class ForgeEventHandlers {
     }
 
     /**
-     * Datapacks are already loaded at this point, so written recipes need the reload triggered
-     * in onServerStarted to take effect.
-     */
-    @SubscribeEvent
-    public static void onServerAboutToStart(ServerAboutToStartEvent event) {
-        needsReloadAfterStart = false;
-        MinecraftServer server = event.getServer();
-
-        String storedHash = DatapackHelper.readStoredHash(server);
-        String currentHash = DatapackHelper.computeHash(server);
-        if (currentHash.equals(storedHash)) return;
-
-        LOGGER.info(storedHash == null
-            ? "No generated datapack found, auto-generating recipes..."
-            : "Mod set or tool_exclusions.json changed, regenerating recipes...");
-        try {
-            int count = GenerateRecipesCommand.generate(server);
-            LOGGER.info("Auto-generation complete! Generated {} recipes.", count);
-            LOGGER.info("Recipes saved to: world/datapacks/tinkersdevotion_generated/");
-            needsReloadAfterStart = true;
-        } catch (Exception e) {
-            LOGGER.error("Failed to auto-generate recipes", e);
-        }
-    }
-
-    /**
-     * Activates the freshly generated recipes and reconciles vanilla recipe removal with the
-     * toggle. Runs at ServerStarted (not ServerAboutToStart) because Mantle reads
-     * {@code source.getLevel()}.
+     * Regenerates when the stored hash is stale. Runs at ServerStarted rather than
+     * ServerAboutToStart because generation now reloads datapacks itself, and Mantle's dispatch
+     * needs the overworld.
      */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
-        if (!needsReloadAfterStart) return;
-        needsReloadAfterStart = false;
+        MinecraftServer server = event.getServer();
+        String storedHash = DatapackHelper.readStoredHash(server);
+        if (DatapackHelper.computeHash(server).equals(storedHash)) return;
 
-        LOGGER.info("Reloading datapacks to activate auto-generated recipes...");
+        LOGGER.info(storedHash == null
+            ? "No generated datapack found, auto-generating recipes..."
+            : "Mod set, exclusions or vanilla-crafting toggle changed, regenerating recipes...");
         try {
-            int disabled = GenerateRecipesCommand.reconcileVanillaRecipes(event.getServer());
-            LOGGER.info("Mantle disabled {} vanilla recipes", disabled);
-        } catch (RuntimeException e) {
-            LOGGER.error("Failed to reload datapacks after auto-generation", e);
+            LOGGER.info("Auto-generation complete! Generated {} recipes.", GenerateRecipesCommand.generate(server));
+        } catch (Exception e) {
+            LOGGER.error("Failed to auto-generate recipes, will retry next launch", e);
         }
     }
 }

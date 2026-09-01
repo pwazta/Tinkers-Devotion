@@ -1,0 +1,7 @@
+{
+  "result": {
+    "type": "mantle:tag",
+    "tag": "tinkersdevotion:disabled_vanilla_smithing"
+  },
+  "recipe_type": "minecraft:smithing"
+}
