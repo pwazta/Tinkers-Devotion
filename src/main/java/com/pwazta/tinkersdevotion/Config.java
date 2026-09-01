@@ -10,8 +10,8 @@ public class Config {
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
     private static final ForgeConfigSpec.BooleanValue DISABLE_VANILLA_CRAFTING = BUILDER
-            .comment("Disable crafting (via Mantle) of vanilla tools, armor, ranged weapons, shields, fishing rods, flint & steel, shears, brush, and netherite smithing.",
-                     "Catches modded recipes producing those items too.",
+            .comment("Disable crafting and smithing (via Mantle) of every vanilla item we replace, plus shears.",
+                     "Listed in the #tinkersdevotion:disabled_vanilla_crafting item tag; catches modded recipes producing those items too.",
                      "",
                      "!! TAKES EFFECT ON FULL GAME RESTART ONLY !!")
             .define("disableVanillaCrafting", true);

@@ -8,6 +8,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import com.pwazta.tinkersdevotion.Config;
+import com.pwazta.tinkersdevotion.TinkersDevotion;
 import com.pwazta.tinkersdevotion.config.ModifierSkipListConfig;
 import com.pwazta.tinkersdevotion.config.TiersToTcMaterials;
 import com.pwazta.tinkersdevotion.config.ToolExclusionConfig;
@@ -25,6 +26,9 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -34,6 +38,7 @@ import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.tags.ITag;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -53,13 +58,22 @@ public class GenerateRecipesCommand {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    private static final String REMOVAL_PRESET = TinkersDevotion.MODID + ":vanilla_replacements";
+
+    /**
+     * Every vanilla item whose crafting/smithing recipes we disable. Mirrors
+     * {@link VanillaItemMappings#replacedItemIds()} plus shears, which has no TC item equivalent
+     * but is covered by TC's shearing modifiers. Datapack-overridable, unlike a hardcoded list.
+     */
+    private static final TagKey<Item> DISABLED_VANILLA_CRAFTING =
+        ItemTags.create(new ResourceLocation(TinkersDevotion.MODID, "disabled_vanilla_crafting"));
+
     // ── Inner types ───────────────────────────────────────────────────────────
 
     /** Tracks everything that happened during generation for player feedback. */
     private static class GenerationResult {
         int recipesGenerated = 0;
         int vanillaRecipesRemoved = 0;
-        int mantleStubsCleaned = 0;
         int staleRecipesCleaned = 0;
         List<String> unmappedToolMaterials = List.of();
         final List<String> errors = new ArrayList<>();
@@ -77,8 +91,8 @@ public class GenerateRecipesCommand {
      * 3. Collect existing generated files (for stale detection)
      * 4. Generate replacement recipes
      * 5. Clean stale recipes from uninstalled mods
-     * 6. Send detailed feedback
-     * 7. Reload datapacks
+     * 6. Reconcile vanilla recipe removal with the toggle (reloads datapacks)
+     * 7. Send detailed feedback
      */
     public static int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         MinecraftServer server = context.getSource().getServer();
@@ -102,30 +116,16 @@ public class GenerateRecipesCommand {
             // Step 4: Generate all replacement recipes
             Set<Path> writtenFiles = doGenerate(server, result);
 
-            // Mantle's preset dispatch scans the in-memory recipe manager (not disk), so it can
-            // only stub recipes that are currently loaded. ON dispatches against the live state;
-            // OFF wipes any stubs from a previous ON state so vanilla reloads from base.
-            if (Config.disableVanillaCrafting) {
-                result.vanillaRecipesRemoved = disableVanillaRecipes(server);
-            } else {
-                result.mantleStubsCleaned = DatapackHelper.cleanupMantleRecipeStubs(server);
-            }
-
             // Step 5: Clean stale recipes (files that exist but weren't regenerated)
             result.staleRecipesCleaned = cleanStaleRecipes(existingFiles, writtenFiles);
 
-            // Step 6: Send detailed feedback
-            sendFeedback(source, result);
-
-            // Step 7: Reload datapacks
+            // Step 6: Reconcile vanilla recipe removal with the toggle (reloads datapacks)
             source.sendSuccess(() -> Component.literal("Reloading datapacks..."), false);
-            DatapackHelper.discoverAndReload(server).exceptionally(e -> {
-                LOGGER.error("Failed to reload datapacks after recipe generation", e);
-                source.sendFailure(Component.literal("Recipes generated but datapack reload failed. Run /reload manually."));
-                return null;
-            }).thenRun(() -> {
-                source.sendSuccess(() -> Component.literal("Datapack reload complete! Recipes are now active."), true);
-            });
+            result.vanillaRecipesRemoved = reconcileVanillaRecipes(server);
+
+            // Step 7: Send detailed feedback
+            sendFeedback(source, result);
+            source.sendSuccess(() -> Component.literal("Datapack reload complete! Recipes are now active."), true);
 
             return Command.SINGLE_SUCCESS;
         } catch (Exception e) {
@@ -231,28 +231,55 @@ public class GenerateRecipesCommand {
     // ── Mantle delegation ─────────────────────────────────────────────────────
 
     /**
-     * Dispatches Mantle's {@code vanilla_tools} + {@code netherite_smithing} presets when the toggle
-     * is on. Tag-based, inverted vs {@code tconstruct:modifiable}; catches modded recipes producing
-     * vanilla items. Output goes to {@code SlimeKnightsGenerated} — caller's reload picks it up.
+     * Brings Mantle's stub pack in line with {@code disableVanillaCrafting}, reloading so the
+     * result is live. Requires the overworld ({@code ServerStartedEvent} or later) — Mantle reads
+     * {@code source.getLevel()}.
      *
-     * <p>Idempotent: Mantle scans the in-memory recipe manager, so already-stubbed recipes are
-     * skipped and only new vanilla recipes get fresh stubs.
+     * <p>Stubs are always cleared first: Mantle scans the in-memory recipe manager, which cannot
+     * see a recipe its own stub already suppressed, so a stub left by an earlier (or broader)
+     * preset would survive every regeneration. The reload between clearing and dispatching is what
+     * makes those recipes visible again. {@link MinecraftServer#reloadResources} blocks when called
+     * on the server thread, so this reads as straight-line code.
      *
-     * <p>Requires the overworld ({@code ServerStartedEvent} or later) — Mantle reads {@code source.getLevel()}.
+     * @return recipes Mantle disabled, or 0 when the toggle is off
      */
-    public static int disableVanillaRecipes(MinecraftServer server) {
+    public static int reconcileVanillaRecipes(MinecraftServer server) {
+        DatapackHelper.cleanupMantleRecipeStubs(server);
+        DatapackHelper.discoverAndReload(server).join();
         if (!Config.disableVanillaCrafting) return 0;
+
+        int disabled = disableVanillaRecipes(server);
+        DatapackHelper.discoverAndReload(server).join();
+        return disabled;
+    }
+
+    /**
+     * Dispatches our removal preset, which matches recipe results against
+     * {@link #DISABLED_VANILLA_CRAFTING} across crafting and smithing. Scoped to item IDs rather
+     * than the vanilla tool/armor tags TC's own preset uses — those tags carry modded gear too,
+     * whose recipes are none of our business.
+     */
+    private static int disableVanillaRecipes(MinecraftServer server) {
+        warnUncoveredReplacements();
         CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
-        int count = 0;
-        for (String preset : List.of("tconstruct:vanilla_tools", "tconstruct:netherite_smithing")) {
-            try {
-                count += server.getCommands().getDispatcher()
-                    .execute("mantle remove recipes preset " + preset, source);
-            } catch (CommandSyntaxException e) {
-                LOGGER.error("Failed to dispatch Mantle preset '{}' — TC dependency missing or broken?", preset, e);
+        try {
+            return server.getCommands().getDispatcher()
+                .execute("mantle remove recipes preset " + REMOVAL_PRESET, source);
+        } catch (CommandSyntaxException e) {
+            LOGGER.error("Failed to dispatch removal preset '{}' — Mantle dependency missing or broken?", REMOVAL_PRESET, e);
+            return 0;
+        }
+    }
+
+    /** A replaced item left out of the tag stays craftable, silently defeating its replacement. */
+    private static void warnUncoveredReplacements() {
+        ITag<Item> disabled = ForgeRegistries.ITEMS.tags().getTag(DISABLED_VANILLA_CRAFTING);
+        for (String id : VanillaItemMappings.replacedItemIds()) {
+            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+            if (item != null && !disabled.contains(item)) {
+                LOGGER.error("'{}' is replaced but absent from #{} — its recipes stay craftable", id, DISABLED_VANILLA_CRAFTING.location());
             }
         }
-        return count;
     }
 
     // ── Recipe scanning ───────────────────────────────────────────────────────
@@ -470,11 +497,6 @@ public class GenerateRecipesCommand {
         if (result.vanillaRecipesRemoved > 0) {
             source.sendSuccess(() -> Component.literal(
                 "  Recipes: " + result.vanillaRecipesRemoved + " vanilla recipes disabled (via Mantle)"), false);
-        }
-
-        if (result.mantleStubsCleaned > 0) {
-            source.sendSuccess(() -> Component.literal(
-                "  Cleanup: " + result.mantleStubsCleaned + " stale Mantle recipe stubs removed"), false);
         }
 
         if (result.staleRecipesCleaned > 0) {
