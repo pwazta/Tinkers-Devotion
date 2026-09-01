@@ -130,7 +130,12 @@ public class DatapackHelper {
         }
     }
 
-    /** Also deletes the pre-1.0.1 .generated flag if present, so upgraded worlds are clean. */
+    /**
+     * Records the generation as live. Call only after the datapack reload has succeeded — a hash
+     * written for a generation that never activated would suppress the retry on the next launch.
+     *
+     * <p>Also deletes the pre-1.0.1 .generated flag if present, so upgraded worlds are clean.
+     */
     public static void markGenerated(MinecraftServer server) throws IOException {
         Path packPath = getDatapackPath(server);
         Files.createDirectories(packPath);

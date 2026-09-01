@@ -3,6 +3,5 @@
     "type": "mantle:tag",
     "tag": "tinkersdevotion:disabled_vanilla_crafting"
   },
-  "input": "mantle:any",
-  "recipe_type": ["minecraft:crafting", "minecraft:smithing"]
+  "recipe_type": "minecraft:crafting"
 }
