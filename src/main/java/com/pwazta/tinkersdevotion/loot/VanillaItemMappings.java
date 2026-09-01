@@ -7,9 +7,11 @@ import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Maps vanilla items to their TC replacement info — which items get replaced and how.
@@ -118,6 +120,11 @@ public class VanillaItemMappings {
     /** Unified string-keyed lookup for recipe generation. */
     public static @Nullable ReplacementInfo getReplacementInfoById(String registryId) {
         return REPLACEMENTS_BY_ID.get(registryId);
+    }
+
+    /** Registry IDs of every vanilla item we replace. */
+    public static Set<String> replacedItemIds() {
+        return Collections.unmodifiableSet(REPLACEMENTS_BY_ID.keySet());
     }
 
     // ── ArmorItem.Type resolution ────────────────────────────────────────

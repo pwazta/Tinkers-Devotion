@@ -1,7 +1,6 @@
 package com.pwazta.tinkersdevotion.event;
 
 import com.mojang.logging.LogUtils;
-import com.pwazta.tinkersdevotion.Config;
 import com.pwazta.tinkersdevotion.TinkersDevotion;
 import com.pwazta.tinkersdevotion.command.GenerateRecipesCommand;
 import com.pwazta.tinkersdevotion.config.TiersToTcMaterials;
@@ -64,30 +63,21 @@ public class ForgeEventHandlers {
     }
 
     /**
-     * Reconciles Mantle's stub datapack with the current toggle, then reloads. Runs at
-     * ServerStarted (not ServerAboutToStart) because Mantle reads {@code source.getLevel()}.
-     *
-     * <p>Mantle's preset dispatch scans the in-memory recipe manager, so ON dispatches against
-     * the live state (writing stubs only for currently-loaded vanilla recipes); OFF wipes any
-     * stubs from a previous ON state so vanilla reloads from base.
+     * Activates the freshly generated recipes and reconciles vanilla recipe removal with the
+     * toggle. Runs at ServerStarted (not ServerAboutToStart) because Mantle reads
+     * {@code source.getLevel()}.
      */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
-        if (needsReloadAfterStart) {
-            needsReloadAfterStart = false;
-            MinecraftServer server = event.getServer();
-            if (Config.disableVanillaCrafting) {
-                int disabled = GenerateRecipesCommand.disableVanillaRecipes(server);
-                LOGGER.info("Mantle disabled {} vanilla recipes", disabled);
-            } else {
-                int cleaned = DatapackHelper.cleanupMantleRecipeStubs(server);
-                if (cleaned > 0) LOGGER.info("Cleaned {} stale Mantle recipe stubs", cleaned);
-            }
-            LOGGER.info("Reloading datapacks to activate auto-generated recipes...");
-            DatapackHelper.discoverAndReload(server).exceptionally(e -> {
-                LOGGER.error("Failed to reload datapacks after auto-generation", e);
-                return null;
-            });
+        if (!needsReloadAfterStart) return;
+        needsReloadAfterStart = false;
+
+        LOGGER.info("Reloading datapacks to activate auto-generated recipes...");
+        try {
+            int disabled = GenerateRecipesCommand.reconcileVanillaRecipes(event.getServer());
+            LOGGER.info("Mantle disabled {} vanilla recipes", disabled);
+        } catch (RuntimeException e) {
+            LOGGER.error("Failed to reload datapacks after auto-generation", e);
         }
     }
 }
