@@ -6,12 +6,11 @@ This mod is designed to be extensible, so the replacements system should work au
 
 ---
 
-<details open>
-<summary>
+
 
 ## Features
 
-</summary>
+
 
 ### 1. Mob Equipment
 
@@ -31,16 +30,15 @@ I highly suggest you use JEI, as it shows candidate TC tools per slot with tier 
 
 All villager trades involving such items (e.g: armorer, toolsmith, fisherman) have these trades replaced with a deterministic trade on spawn (e.g: iron-sword from a toolsmith will be replaced with a tier-2 TC sword equivalent). Wandering traders are also handled in the same way.
 
-</details>
+
 
 ---
 
-<details>
-<summary>
+
 
 ## Nerdy Stuff
 
-</summary>
+
 
 > Skip to [Configuration](#configuration) if you just want to play.
 
@@ -99,27 +97,29 @@ A skip list in the config keeps unwanted modifiers out (defaults include `nether
 - **JEI:** integrated. Replacement ingredient cycles through valid TC tools per slot. Recipe transfer works on the vanilla 3×3, player inventory grid, TC crafting station, and any container declared in the user-extensible config.
   - NOTE: Other crafting interfaces may need special handling which I haven't specifically accounted for! Please let me know if there are any issues.
 
-</details>
+
 
 ---
 
-<details open>
-<summary>
+
 
 ## Configuration
 
-</summary>
+
 
 Drop the jar in your mods folder and load a world.
 
-The defaults are quite sensible but if you want to tune, three files appear under `config/` after first launch:
+The defaults are quite sensible but if you want to tune, four files appear under `config/` after first launch:
 
 
-| File                                      | Format | What it controls                                                                                                                                                                |
-| ----------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tinkersdevotion-common.toml`             | TOML   | Main toggles. Independently disable vanilla-crafting removal, mob, loot, or villager replacement. Tune the parts-match threshold, loot variance, modifier specialization weight. |
-| `tinkersdevotion/tool_exclusions.json`    | JSON   | Blacklist specific TC tools per slot or action. Stops dagger from substituting for cleaver in recipes, stops slimesuit from rolling as armor loot, etc. Defaults pre-populated. |
-| `tinkersdevotion/modifier_skip_list.json` | JSON   | TC modifier IDs that should never appear in the random enchantment pool. Defaults pre-populated.                                                                                |
+| File                                      | Format | What it controls                                                                                                                                                                                                                                              |
+| ----------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tinkersdevotion-common.toml`             | TOML   | Main toggles. Independently disable vanilla-crafting removal, mob, loot, or villager replacement. Tune the parts-match threshold, loot variance, modifier specialization weight.                                                                              |
+| `tinkersdevotion/tool_exclusions.json`    | JSON   | Blacklist specific TC tools per slot or action. Stops dagger from substituting for cleaver in recipes, stops slimesuit from rolling as armor loot, etc. Defaults pre-populated.                                                                               |
+| `tinkersdevotion/modifier_skip_list.json` | JSON   | TC modifier IDs that should never appear in the random enchantment pool. Defaults pre-populated.                                                                                                                                                              |
+| `tinkersdevotion/item_aliases.json`       | JSON   | Treat a modded item as a vanilla one, e.g. `{"twilightforest:steeleaf_pickaxe": "minecraft:iron_pickaxe"}`. It is then replaced everywhere a vanilla iron pickaxe would be in this mod, and its own recipe is disabled alongside vanilla's. Empty by default. |
+
+
 
 
 ### Commands
@@ -129,35 +129,32 @@ The defaults are quite sensible but if you want to tune, three files appear unde
 
 The recipe datapack auto-generates on first world load, so the command is only needed if you change your mod list.
 
-</details>
+
 
 ---
 
-<details open>
-<summary>
+
 
 ## Issues & Feedback
 
-</summary>
+
 
 Leave a comment or hop in the Discord to chat or ask a question. If you've found a bug or have a specific request, flag it on the [GitHub issue tracker](https://github.com/pwazta/Tinkers-Devotion/issues).
 
-[![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?logo=discord&logoColor=white&style=flat-square)](https://discord.gg/qrBcucsTtY)
+![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?logo=discord&logoColor=white&style=flat-square)
 
 - I am just one guy!! 
-
 - FAQ COMING SOON.
 
-</details>
+
 
 ---
 
-<details open>
-<summary>
+
 
 ## Requirements & Compatibility
 
-</summary>
+
 
 - Minecraft **1.20.1**, Forge **47.4+**
 - [Tinkers' Construct](https://www.curseforge.com/minecraft/mc-mods/tinkers-construct) **3.11+**
@@ -166,16 +163,15 @@ Leave a comment or hop in the Discord to chat or ask a question. If you've found
 
 Tested with Tinkers' Things, TCIntegrations, Tinkers Levelling Addon, and Tinkers' Thinking. Should be friendly to any other TC addon that uses standard tags and registers its modifiers via TC's recipe system.
 
-</details>
+
 
 ---
 
-<details open>
-<summary>
+
 
 ## Credits & License
 
-</summary>
+
 
 **Tinkers' Construct** and **Mantle** by [SlimeKnights](https://github.com/SlimeKnights). Without them this mod would have nothing to integrate.
 
@@ -187,4 +183,3 @@ Tested with Tinkers' Things, TCIntegrations, Tinkers Levelling Addon, and Tinker
 
 Full terms in [LICENSE.md](LICENSE.md). For permission requests, open a [GitHub issue](https://github.com/pwazta/Tinkers-Devotion/issues).
 
-</details>

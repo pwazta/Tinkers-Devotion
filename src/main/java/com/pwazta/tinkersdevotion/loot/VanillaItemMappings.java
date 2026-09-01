@@ -1,14 +1,19 @@
 package com.pwazta.tinkersdevotion.loot;
 
+import com.mojang.logging.LogUtils;
 import com.pwazta.tinkersdevotion.config.VanillaTier;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import slimeknights.tconstruct.library.tools.item.IModifiable;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +26,8 @@ import java.util.Set;
  * Item-keyed map for loot replacement (lazy-initialized after registry loads).
  */
 public class VanillaItemMappings {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     // ── Sealed interface for strategy dispatch ─────────────────────────
     public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo, ShieldInfo, FishingRodInfo, FlintAndSteelInfo {}
@@ -90,41 +97,95 @@ public class VanillaItemMappings {
         REPLACEMENTS_BY_ID.put("minecraft:flint_and_steel", new FlintAndSteelInfo("flint_and_steel", List.of("tconstruct:flint_and_brick")));
     }
 
-    // ── Item-keyed map (lazy-initialized on first access) ────────────────
+    // ── Published maps (built-ins ∪ player aliases) ──────────────────────
 
-    private static volatile Map<Item, ReplacementInfo> replacementsByItem;
+    /** Immutable snapshots: readers see either the old map or the new one, never a partial state. */
+    private static volatile Map<String, ReplacementInfo> byId = Map.copyOf(REPLACEMENTS_BY_ID);
+    private static volatile Map<Item, ReplacementInfo> byItem;
 
-    private static void ensureItemMap() {
-        if (replacementsByItem != null) return;
-        synchronized (VanillaItemMappings.class) {
-            if (replacementsByItem != null) return;
-            Map<Item, ReplacementInfo> map = new HashMap<>();
-            for (Map.Entry<String, ReplacementInfo> entry : REPLACEMENTS_BY_ID.entrySet()) {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey()));
-                if (item != null) map.put(item, entry.getValue());
+    /**
+     * Republishes the id map as built-ins plus {@code aliases}, and invalidates the item map.
+     * Called on boot and whenever {@code item_aliases.json} reloads.
+     */
+    public static synchronized void applyAliases(Map<String, String> aliases) {
+        Map<String, ReplacementInfo> merged = new HashMap<>(REPLACEMENTS_BY_ID);
+        aliases.forEach((from, to) -> {
+            ReplacementInfo target = REPLACEMENTS_BY_ID.get(to);
+            if (target == null) {
+                LOGGER.warn("Ignoring alias '{}': target '{}' is not a vanilla item we replace", from, to);
+            } else if (REPLACEMENTS_BY_ID.containsKey(from)) {
+                LOGGER.warn("Ignoring alias '{}': it would re-tier a vanilla item we already replace", from);
+            } else if (canAlias(from)) {
+                merged.put(from, target);
             }
-            replacementsByItem = map;
+        });
+        byId = Map.copyOf(merged);
+        byItem = null;
+    }
+
+    /** True if the alias key names a registered, non-Tinkers item. Warns on why it doesn't. */
+    private static boolean canAlias(String id) {
+        ResourceLocation key = ResourceLocation.tryParse(id);
+        if (key == null) {
+            LOGGER.warn("Ignoring alias '{}': not a valid item id", id);
+            return false;
+        }
+        // containsKey, not getValue: the item registry substitutes AIR for unknown ids.
+        if (!ForgeRegistries.ITEMS.containsKey(key)) {
+            // Absent namespace just means the mod is uninstalled, not worth warning about.
+            if (ModList.get().isLoaded(key.getNamespace()))
+                LOGGER.warn("Ignoring alias '{}': it does not resolve to a registered item", id);
+            return false;
+        }
+        if (ForgeRegistries.ITEMS.getValue(key) instanceof IModifiable) {
+            // tryReplace would match it, and EntityJoinLevelEvent re-fires on chunk load, so mob
+            // gear would be rebuilt and re-enchanted every single load.
+            LOGGER.warn("Ignoring alias '{}': Tinkers items cannot be replaced", id);
+            return false;
+        }
+        return true;
+    }
+
+    private static Map<Item, ReplacementInfo> itemMap() {
+        Map<Item, ReplacementInfo> map = byItem;
+        if (map != null) return map;
+        synchronized (VanillaItemMappings.class) {
+            map = byItem;
+            if (map != null) return map;
+            map = new HashMap<>();
+            for (Map.Entry<String, ReplacementInfo> entry : byId.entrySet()) {
+                map.put(ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey())), entry.getValue());
+            }
+            map = Map.copyOf(map);
+            byItem = map;
+            return map;
         }
     }
 
     // ── Loot lookup (Item-keyed, O(1)) ───────────────────────────────────
 
-    /** Unified lookup for strategy dispatch. Returns null if not a mapped vanilla item. */
+    /** Unified lookup for strategy dispatch. Returns null if not a mapped item. */
     public static @Nullable ReplacementInfo getReplacementInfo(Item item) {
-        ensureItemMap();
-        return replacementsByItem.get(item);
+        return itemMap().get(item);
     }
 
     // ── Recipe gen lookup (String-keyed, O(1)) ───────────────────────────
 
     /** Unified string-keyed lookup for recipe generation. */
     public static @Nullable ReplacementInfo getReplacementInfoById(String registryId) {
-        return REPLACEMENTS_BY_ID.get(registryId);
+        return byId.get(registryId);
     }
 
-    /** Registry IDs of every vanilla item we replace. */
+    /** Registry IDs of every vanilla item we replace. Excludes player aliases. */
     public static Set<String> replacedItemIds() {
         return Collections.unmodifiableSet(REPLACEMENTS_BY_ID.keySet());
+    }
+
+    /** Registry IDs of the player-aliased modded items, whose own recipes also need disabling. */
+    public static Set<String> aliasedItemIds() {
+        Set<String> ids = new HashSet<>(byId.keySet());
+        ids.removeAll(REPLACEMENTS_BY_ID.keySet());
+        return ids;
     }
 
     // ── ArmorItem.Type resolution ────────────────────────────────────────

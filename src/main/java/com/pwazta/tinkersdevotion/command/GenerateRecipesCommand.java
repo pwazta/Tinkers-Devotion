@@ -9,6 +9,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import com.pwazta.tinkersdevotion.Config;
 import com.pwazta.tinkersdevotion.TinkersDevotion;
+import com.pwazta.tinkersdevotion.config.ItemAliasConfig;
 import com.pwazta.tinkersdevotion.config.ModifierSkipListConfig;
 import com.pwazta.tinkersdevotion.config.TiersToTcMaterials;
 import com.pwazta.tinkersdevotion.config.ToolExclusionConfig;
@@ -63,10 +64,13 @@ public class GenerateRecipesCommand {
      * One preset per recipe type, because their scopes genuinely differ: every replaced item on the
      * crafting side, but only the netherite upgrades on the smithing side. A shared preset would
      * also match {@code SmithingTrimRecipe}, whose {@code getResultItem} returns a placeholder iron
-     * chestplate — taking all 16 armor trim recipes with it.
+     * chestplate, taking all 16 armor trim recipes with it.
      */
     private static final List<String> REMOVAL_PRESETS =
         List.of(TinkersDevotion.MODID + ":vanilla_crafting", TinkersDevotion.MODID + ":vanilla_smithing");
+
+    /** Recipe types swept per aliased item. Trims are safe here: their result is never an alias. */
+    private static final List<String> ALIAS_REMOVAL_TYPES = List.of("minecraft:crafting", "minecraft:smithing");
 
     /**
      * Mirrors {@link VanillaItemMappings#replacedItemIds()} plus shears, which has no TC item
@@ -94,8 +98,8 @@ public class GenerateRecipesCommand {
     // ── Command entry point ───────────────────────────────────────────────────
 
     /**
-     * Executes the generate command: captures addon-pack diagnostics, reloads the disk-backed
-     * configs, then runs {@link #regenerate} and reports what happened.
+     * Executes the generate command: captures addon-pack diagnostics, then runs
+     * {@link #regenerate} and reports what happened.
      */
     public static int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         MinecraftServer server = context.getSource().getServer();
@@ -109,15 +113,11 @@ public class GenerateRecipesCommand {
             // exclusions. The cache itself is rebuilt on MaterialsLoadedEvent, not here.
             result.unmappedToolMaterials = TiersToTcMaterials.getUnmappedToolMaterials();
 
-            // Step 2: Reload tool/armor exclusions and modifier skip list from disk
-            ToolExclusionConfig.reload();
-            ModifierSkipListConfig.reload();
-
-            // Step 3: Regenerate everything (scan, write, disable, reload)
+            // Step 2: Regenerate everything (reload configs, scan, write, disable, reload)
             source.sendSuccess(() -> Component.literal("Reloading datapacks..."), false);
             regenerate(server, result);
 
-            // Step 4: Send detailed feedback
+            // Step 3: Send detailed feedback
             sendFeedback(source, result);
             source.sendSuccess(() -> Component.literal("Datapack reload complete! Recipes are now active."), true);
 
@@ -143,6 +143,7 @@ public class GenerateRecipesCommand {
         // Tool tier state lives in the TC registry — no config file to delete.
         ToolExclusionConfig.resetToDefaults();
         ModifierSkipListConfig.resetToDefaults();
+        ItemAliasConfig.resetToDefaults();
 
         source.sendSuccess(() -> Component.literal("Configs reset. Regenerating..."), false);
         return run(context);
@@ -219,16 +220,21 @@ public class GenerateRecipesCommand {
     // ── Mantle delegation ─────────────────────────────────────────────────────
 
     /**
-     * Scan, write, disable, reload — in the one order that converges in a single pass. Requires the
+     * Reload the disk-backed configs, then scan, write, disable and reload: the one order that
+     * converges in a single pass. Requires the
      * overworld ({@code ServerStartedEvent} or later), since Mantle reads {@code source.getLevel()}.
      *
      * <p>Clearing Mantle's stubs and reloading has to come first. A stub suppresses its recipe at
-     * load, so neither our scan nor Mantle's own can see it — leaving a stale stub in place would
+     * load, so neither our scan nor Mantle's own can see it. Leaving a stale stub in place would
      * both skip that recipe's replacement and outlive every regeneration.
      * {@link MinecraftServer#reloadResources} blocks when called on the server thread, so this
      * reads as straight-line code.
      */
     private static void regenerate(MinecraftServer server, GenerationResult result) throws Exception {
+        ToolExclusionConfig.reload();
+        ModifierSkipListConfig.reload();
+        ItemAliasConfig.reload();
+
         result.mantleStubsCleaned = DatapackHelper.cleanupMantleRecipeStubs(server);
         DatapackHelper.discoverAndReload(server).join();
 
@@ -244,7 +250,7 @@ public class GenerateRecipesCommand {
 
     /**
      * Dispatches our removal presets, which match recipe results against our own item tags. Scoped
-     * to item IDs rather than the vanilla tool/armor tags TC's own preset uses — those tags carry
+     * to item IDs rather than the vanilla tool/armor tags TC's own preset uses, because those tags carry
      * modded gear too, whose recipes are none of our business.
      */
     private static int disableVanillaRecipes(MinecraftServer server) {
@@ -252,14 +258,24 @@ public class GenerateRecipesCommand {
         CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
         int count = 0;
         for (String preset : REMOVAL_PRESETS) {
-            try {
-                count += server.getCommands().getDispatcher()
-                    .execute("mantle remove recipes preset " + preset, source);
-            } catch (CommandSyntaxException e) {
-                LOGGER.error("Failed to dispatch removal preset '{}' — Mantle dependency missing or broken?", preset, e);
+            count += dispatch(server, source, "preset " + preset);
+        }
+        // Aliased items can't ride the presets: those match tags, which a config can't extend.
+        for (String id : VanillaItemMappings.aliasedItemIds()) {
+            for (String recipeType : ALIAS_REMOVAL_TYPES) {
+                count += dispatch(server, source, "result " + recipeType + " " + id);
             }
         }
         return count;
+    }
+
+    private static int dispatch(MinecraftServer server, CommandSourceStack source, String args) {
+        try {
+            return server.getCommands().getDispatcher().execute("mantle remove recipes " + args, source);
+        } catch (Exception e) {
+            LOGGER.error("Failed to dispatch 'mantle remove recipes {}'", args, e);
+            return 0;
+        }
     }
 
     /** A replaced item left out of the tag stays craftable, silently defeating its replacement. */
@@ -270,7 +286,7 @@ public class GenerateRecipesCommand {
         }
         List<String> uncovered = VanillaItemMappings.replacedItemIds().stream().filter(id -> !covered.contains(id)).sorted().toList();
         if (!uncovered.isEmpty()) {
-            LOGGER.error("Replaced items missing from #{} — their recipes stay craftable: {}", DISABLED_VANILLA_CRAFTING.location(), uncovered);
+            LOGGER.error("Replaced items missing from #{}, so their recipes stay craftable: {}", DISABLED_VANILLA_CRAFTING.location(), uncovered);
         }
     }
 
@@ -485,6 +501,12 @@ public class GenerateRecipesCommand {
         // Recipes
         source.sendSuccess(() -> Component.literal(
             "  Recipes: " + result.recipesGenerated + " replacement recipes generated"), false);
+
+        int aliases = VanillaItemMappings.aliasedItemIds().size();
+        if (aliases > 0) {
+            source.sendSuccess(() -> Component.literal(
+                "  Aliases: " + aliases + " modded item(s) treated as vanilla"), false);
+        }
 
         source.sendSuccess(() -> Component.literal(Config.disableVanillaCrafting
             ? "  Recipes: " + result.vanillaRecipesRemoved + " vanilla recipes disabled (via Mantle)"

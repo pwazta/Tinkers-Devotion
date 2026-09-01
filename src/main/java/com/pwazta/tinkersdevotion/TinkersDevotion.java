@@ -2,6 +2,7 @@ package com.pwazta.tinkersdevotion;
 
 import com.pwazta.tinkersdevotion.compat.jei.CraftingContainerConfigLoader;
 import com.pwazta.tinkersdevotion.compat.jei.CraftingContainerRegistry;
+import com.pwazta.tinkersdevotion.config.ItemAliasConfig;
 import com.pwazta.tinkersdevotion.config.ModifierSkipListConfig;
 import com.pwazta.tinkersdevotion.config.ToolExclusionConfig;
 import com.pwazta.tinkersdevotion.loot.ModGlobalLootModifiers;
@@ -34,6 +35,7 @@ public class TinkersDevotion {
     private void commonSetup(final FMLCommonSetupEvent event) {
         ToolExclusionConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
         ModifierSkipListConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
+        ItemAliasConfig.initialize(FMLPaths.CONFIGDIR.get().toFile());
         ModNetwork.register();
         CraftingContainerRegistry.registerBuiltIns();
         CraftingContainerConfigLoader.loadExtrasFromConfig(FMLPaths.CONFIGDIR.get());
