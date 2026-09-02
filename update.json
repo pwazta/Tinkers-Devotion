@@ -6,10 +6,11 @@
     "1.0.2": "Recipe replacement now handles modded recipes that accept multiple items in one ingredient slot (item lists). Fixes Tide 2's fishing rod upgrade smithing recipes: TC fishing rod is now accepted as the base.",
     "1.0.3": "Mob equipment replacement now runs last on the mob-spawn event (LOWEST priority), so equipment added by other mods on the same event (e.g. ImprovedMobs) gets swapped to TC equivalents too.",
     "1.0.4": "disableVanillaCrafting toggle now correctly applies after a full game restart: previously, flipping it back to false could leave vanilla crafting stuck disabled. Note: toggle changes ONLY take effect on full Minecraft restart.",
-    "1.0.5": "Addon TC tools (Tinkers' Thinking, JSON Things) now qualify as vanilla replacements via Forge tool-action detection. Ancient (loot-only) tools, including addon-added ones, are auto-excluded by tag. New modifier skip-list defaults: enderporting, ticex:celestial (creative flight), ticex:endestshot."
+    "1.0.5": "Addon TC tools (Tinkers' Thinking, JSON Things) now qualify as vanilla replacements via Forge tool-action detection. Ancient (loot-only) tools, including addon-added ones, are auto-excluded by tag. New modifier skip-list defaults: enderporting, ticex:celestial (creative flight), ticex:endestshot.",
+    "1.1.0": "SUPPORT TO REPLACE MODDED ITEMS!! New item_aliases.json: point any modded item at a vanilla one and it gets replaced everywhere that vanilla item would be, across loot, mobs, trades and recipes, with its own recipe disabled too. Fixed certain modded recipes being mistakenly cleared during disabling phase (now hard-scoped to only items we replace). Animation fixes: TC bows show arrow while charging, drowned raise tridents, piglins hold TC crossbows properly."
   },
   "promos": {
-    "1.20.1-recommended": "1.0.5",
-    "1.20.1-latest": "1.0.5"
+    "1.20.1-recommended": "1.1.0",
+    "1.20.1-latest": "1.1.0"
   }
 }
