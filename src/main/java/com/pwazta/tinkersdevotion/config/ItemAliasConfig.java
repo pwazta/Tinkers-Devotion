@@ -1,7 +1,5 @@
 package com.pwazta.tinkersdevotion.config;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
@@ -10,8 +8,8 @@ import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -29,7 +27,19 @@ import java.util.Map;
 public class ItemAliasConfig {
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    /**
+     * Written on first launch and by {@code /tinkersdevotion generate reset}, never on load, so a
+     * player who deletes the comment keeps it deleted. Gson parses leniently, allowing {@code //}.
+     */
+    private static final String TEMPLATE = """
+        // Treat a modded item as the vanilla one you point it at: replaced wherever that vanilla item would be, own recipe disabled, Tinkers items excluded.
+        // {
+        //   "modid:example_sword": "minecraft:iron_sword",
+        //   "modid:example_helmet": "minecraft:diamond_helmet"
+        // }
+        {}
+        """;
 
     private static Map<String, String> aliases = Map.of();
 
@@ -44,11 +54,8 @@ public class ItemAliasConfig {
         if (!modConfigDir.exists()) modConfigDir.mkdirs();
 
         configFile = new File(modConfigDir, "item_aliases.json");
-        if (configFile.exists()) {
-            loadConfig();
-        } else {
-            saveConfig();
-        }
+        if (configFile.exists()) loadConfig();
+        else writeTemplate();
 
         initialized = true;
     }
@@ -61,11 +68,11 @@ public class ItemAliasConfig {
         loadConfig();
     }
 
-    /** Aliases have no defaults, so resetting means clearing the file. */
+    /** Aliases have no defaults, so resetting restores the blank template. */
     public static void resetToDefaults() {
         LOGGER.info("Clearing item aliases...");
         aliases = Map.of();
-        saveConfig();
+        writeTemplate();
         VanillaItemMappings.applyAliases(aliases);
     }
 
@@ -97,11 +104,11 @@ public class ItemAliasConfig {
         VanillaItemMappings.applyAliases(aliases);
     }
 
-    private static void saveConfig() {
-        try (FileWriter writer = new FileWriter(configFile)) {
-            GSON.toJson(aliases, writer);
+    private static void writeTemplate() {
+        try {
+            Files.writeString(configFile.toPath(), TEMPLATE);
         } catch (IOException e) {
-            LOGGER.error("Failed to save item aliases config", e);
+            LOGGER.error("Failed to write item aliases config", e);
         }
     }
 }
