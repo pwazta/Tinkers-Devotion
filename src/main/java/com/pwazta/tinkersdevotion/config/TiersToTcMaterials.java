@@ -46,22 +46,22 @@ public class TiersToTcMaterials {
         "4-4", "tconstruct:hepatizon"
     );
 
-    // ── Tool caches (immutable snapshots, swapped atomically on MaterialsLoadedEvent) ────
+    // -- Tool caches (immutable snapshots, swapped atomically on MaterialsLoadedEvent) ----
 
-    /** materialId → tier name (e.g. "tconstruct:iron" → "iron"). Immutable snapshot; replaced via volatile write. */
+    /** materialId -> tier name (e.g. "tconstruct:iron" -> "iron"). Immutable snapshot; replaced via volatile write. */
     private static volatile Map<String, String> toolTierByMaterial = Map.of();
 
-    /** tier name → immutable set of material ids. Immutable snapshot; replaced via volatile write. */
+    /** tier name -> immutable set of material ids. Immutable snapshot; replaced via volatile write. */
     private static volatile Map<String, Set<String>> toolMaterialsByTier = Map.of();
 
     /** Materials dropped during last rebuild because their vanilla Tier isn't in {@link VanillaTier}. Diagnostic feedback only - these are NOT user exclusions. */
     private static volatile List<String> unmappedToolMaterials = List.of();
 
-    // ── Armor plating cache (lazy per tier range) ─────────────────────
+    // -- Armor plating cache (lazy per tier range) ---------------------
 
     private static final Map<String, List<IMaterial>> PLATING_TIER_CACHE = new ConcurrentHashMap<>();
 
-    // ── Tool API ──────────────────────────────────────────────────────
+    // -- Tool API ------------------------------------------------------
 
     /**
      * Rebuilds tool tier caches from the live TC registry. Called from {@code MaterialsLoadedEvent}.
@@ -148,7 +148,7 @@ public class TiersToTcMaterials {
         return (pool != null && !pool.isEmpty()) ? pool.iterator().next() : null;
     }
 
-    // ── Armor API ─────────────────────────────────────────────────────
+    // -- Armor API -----------------------------------------------------
 
     /** Returns curated canonical armor material id for a tier range. No validation - call-site handles missing. */
     public static @Nullable String getCanonicalArmorMaterial(int minTier, int maxTier) {

@@ -50,7 +50,7 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
     /** Mode name string for JSON "mode" field and serializer dispatch. */
     String modeName();
 
-    // ── Static factory methods ───────────────────────────────────────────
+    // -- Static factory methods -------------------------------------------
 
     /** Dispatches to the correct mode's fromJson based on the "mode" string field. */
     static IngredientMode fromJson(JsonObject json) {
@@ -80,7 +80,7 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
         };
     }
 
-    // ── Shared display building helper ───────────────────────────────────
+    // -- Shared display building helper -----------------------------------
 
     /**
      * Unified display builder for JEI. Each mode supplies a {@code resolver} that decides
@@ -100,8 +100,8 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
      * </ul>
      *
      * @param items     eligible TC items to display
-     * @param resolver  (item, statTypes) → materials list (1 = smart single-slot, &gt;1 = explicit per-part)
-     * @param tagger    (resultStack, statTypes) → applies mode-specific NBT to the built stack
+     * @param resolver  (item, statTypes) -> materials list (1 = smart single-slot, &gt;1 = explicit per-part)
+     * @param tagger    (resultStack, statTypes) -> applies mode-specific NBT to the built stack
      */
     static ItemStack[] buildMixedDisplayItems(
             List<? extends IModifiable> items,
@@ -135,7 +135,7 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
         return result.toArray(new ItemStack[0]);
     }
 
-    // ── Canonical-list shared helpers (RangedMode / ShieldMode / FishingRodMode) ──
+    // -- Canonical-list shared helpers (RangedMode / ShieldMode / FishingRodMode) --
 
     /** Resolves a canonical material ID to its IMaterial.getTier() int. Returns -1 if unresolvable. */
     static int resolveCanonicalTier(String canonicalId) {
@@ -145,7 +145,7 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
         return material == IMaterial.UNKNOWN ? -1 : material.getTier();
     }
 
-    /** Capitalizes a snake_case stat type path, e.g. "bow_grip" → "Bow Grip". */
+    /** Capitalizes a snake_case stat type path, e.g. "bow_grip" -> "Bow Grip". */
     static String formatPartName(String path) {
         String[] words = path.split("_");
         StringBuilder sb = new StringBuilder();

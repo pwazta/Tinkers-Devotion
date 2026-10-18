@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  */
 public class TinkerMaterialIngredient extends AbstractIngredient {
 
-    // ── Caches ──────────────────────────────────────────────────────────
+    // -- Caches ----------------------------------------------------------
 
     /** Cache of display ItemStacks per type:tier key. Built from TcItemRegistry + canonical material. */
     private static final Map<String, ItemStack[]> DISPLAY_CACHE = new ConcurrentHashMap<>();
@@ -28,7 +28,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         DISPLAY_CACHE.clear();
     }
 
-    // ── Instance fields ──────────────────────────────────────────────────
+    // -- Instance fields --------------------------------------------------
 
     private final IngredientMode mode;
 
@@ -37,21 +37,21 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         this.mode = mode;
     }
 
-    // ── test() - main matching logic ─────────────────────────────────────
+    // -- test() - main matching logic -------------------------------------
 
     @Override
     public boolean test(@Nullable ItemStack stack) {
         return stack != null && !stack.isEmpty() && mode.test(stack);
     }
 
-    // ── Display items (JEI) ──────────────────────────────────────────────
+    // -- Display items (JEI) ----------------------------------------------
 
     @Override
     public ItemStack[] getItems() {
         return DISPLAY_CACHE.computeIfAbsent(mode.displayCacheKey(), k -> mode.computeDisplayItems());
     }
 
-    // ── AbstractIngredient overrides ─────────────────────────────────────
+    // -- AbstractIngredient overrides -------------------------------------
 
     @Override public boolean isSimple() { return false; }
     @Override public boolean isEmpty() { return false; }
@@ -70,7 +70,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         return mode;
     }
 
-    // ── Serializer ───────────────────────────────────────────────────────
+    // -- Serializer -------------------------------------------------------
 
     public static class Serializer implements IIngredientSerializer<TinkerMaterialIngredient> {
 

@@ -47,12 +47,12 @@ public class TinkerToolBuilder {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // ── Shared constants (public for strategy sub-package access) ────────
+    // -- Shared constants (public for strategy sub-package access) --------
 
     /** Probability of selecting the canonical (first-in-config) material for primary parts. */
     public static final float CANONICAL_WEIGHT = 0.80f;
 
-    // ── Strategy dispatch ────────────────────────────────────────────────
+    // -- Strategy dispatch ------------------------------------------------
 
     private static final Map<Class<? extends VanillaItemMappings.ReplacementInfo>, ReplacementStrategy> STRATEGIES = Map.of(
         VanillaItemMappings.ToolInfo.class,           ToolReplacementStrategy.INSTANCE,
@@ -63,7 +63,7 @@ public class TinkerToolBuilder {
         VanillaItemMappings.FlintAndSteelInfo.class,  FlintAndSteelReplacementStrategy.INSTANCE
     );
 
-    // ── Caches (ConcurrentHashMap, consistent with codebase pattern) ─────
+    // -- Caches (ConcurrentHashMap, consistent with codebase pattern) -----
 
     /** Compatible materials per stat type. Cleared on materials reload. */
     private static final Map<MaterialStatsId, List<IMaterial>> MATERIAL_CACHE = new ConcurrentHashMap<>();
@@ -80,7 +80,7 @@ public class TinkerToolBuilder {
         EnchantmentConverter.clearCache();
     }
 
-    // ── Main entry point ─────────────────────────────────────────────────
+    // -- Main entry point -------------------------------------------------
 
     /**
      * Attempts to replace a vanilla item with a TC equivalent.
@@ -109,7 +109,7 @@ public class TinkerToolBuilder {
         }
     }
 
-    // ── Shared build logic ───────────────────────────────────────────────
+    // -- Shared build logic -----------------------------------------------
 
     /**
      * Material-based build pipeline used by {@link ReplacementStrategy#buildReplacement}'s
@@ -153,7 +153,7 @@ public class TinkerToolBuilder {
         return result;
     }
 
-    // ── Damage transfer ──────────────────────────────────────────────────
+    // -- Damage transfer --------------------------------------------------
 
     /** Transfers damage proportionally from original to replacement. */
     public static void transferDamage(ItemStack original, ItemStack replacement) {
@@ -164,7 +164,7 @@ public class TinkerToolBuilder {
         replacement.setDamageValue(newDamage);
     }
 
-    // ── Single-tier shared selection (used by ranged, shield, and future single-tier strategies) ──
+    // -- Single-tier shared selection (used by ranged, shield, and future single-tier strategies) --
 
     /**
      * Selects materials for all parts of a single-tier item from canonical material IDs.
@@ -226,7 +226,7 @@ public class TinkerToolBuilder {
         return MaterialVariantId.create(selected.getIdentifier(), "");
     }
 
-    // ── Compatible materials per stat type (cached, public for strategies) ──
+    // -- Compatible materials per stat type (cached, public for strategies) --
 
     /** Gets all materials compatible with a given stat type. */
     public static List<IMaterial> getCompatibleMaterials(MaterialStatsId statType) {

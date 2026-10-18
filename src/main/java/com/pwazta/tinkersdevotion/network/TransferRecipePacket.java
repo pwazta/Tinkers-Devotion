@@ -24,7 +24,7 @@ public class TransferRecipePacket {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** A single slot transfer: source inventory slot → target crafting slot. */
+    /** A single slot transfer: source inventory slot -> target crafting slot. */
     public record SlotTransfer(int sourceSlot, int targetSlot) {
         public void encode(FriendlyByteBuf buf) {
             buf.writeVarInt(sourceSlot);

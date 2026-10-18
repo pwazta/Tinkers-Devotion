@@ -80,7 +80,7 @@ public class GenerateRecipesCommand {
     private static final TagKey<Item> DISABLED_VANILLA_CRAFTING =
         ItemTags.create(new ResourceLocation(TinkersDevotion.MODID, "disabled_vanilla_crafting"));
 
-    // ── Inner types ───────────────────────────────────────────────────────────
+    // -- Inner types -----------------------------------------------------------
 
     /** Tracks everything that happened during generation for player feedback. */
     private static class GenerationResult {
@@ -95,7 +95,7 @@ public class GenerateRecipesCommand {
     /** Pre-built replacement JSON for a slot containing at least one tracked vanilla item entry. */
     private record ReplacementEntry(int index, JsonElement replacementJson) {}
 
-    // ── Command entry point ───────────────────────────────────────────────────
+    // -- Command entry point ---------------------------------------------------
 
     /**
      * Executes the generate command: captures addon-pack diagnostics, then runs
@@ -129,7 +129,7 @@ public class GenerateRecipesCommand {
         }
     }
 
-    // ── Reset subcommand ──────────────────────────────────────────────────────
+    // -- Reset subcommand ------------------------------------------------------
 
     /**
      * Resets all disk-backed configs to defaults and regenerates everything from scratch.
@@ -149,7 +149,7 @@ public class GenerateRecipesCommand {
         return run(context);
     }
 
-    // ── Auto-boot entry point ─────────────────────────────────────────────────
+    // -- Auto-boot entry point -------------------------------------------------
 
     /** @return replacement recipes generated */
     public static int generate(MinecraftServer server) throws Exception {
@@ -168,7 +168,7 @@ public class GenerateRecipesCommand {
         return cleaned;
     }
 
-    // ── Core generation logic ─────────────────────────────────────────────────
+    // -- Core generation logic -------------------------------------------------
 
     /**
      * Scans all loaded recipes, finds vanilla tool ingredients, and writes replacement recipes.
@@ -217,7 +217,7 @@ public class GenerateRecipesCommand {
         return writtenFiles;
     }
 
-    // ── Mantle delegation ─────────────────────────────────────────────────────
+    // -- Mantle delegation -----------------------------------------------------
 
     /**
      * Reload the disk-backed configs, then scan, write, disable and reload: the one order that
@@ -290,7 +290,7 @@ public class GenerateRecipesCommand {
         }
     }
 
-    // ── Recipe scanning ───────────────────────────────────────────────────────
+    // -- Recipe scanning -------------------------------------------------------
 
     /**
      * Returns the list of ingredients to scan for a supported recipe type, or null for unsupported types.
@@ -369,7 +369,7 @@ public class GenerateRecipesCommand {
         throw new IllegalStateException("Unknown ReplacementInfo type: " + info.getClass());
     }
 
-    // ── Recipe building ───────────────────────────────────────────────────────
+    // -- Recipe building -------------------------------------------------------
 
     private static JsonObject buildReplacementRecipe(Recipe<?> recipe, List<ReplacementEntry> replacements, MinecraftServer server) {
         if (recipe instanceof ShapedRecipe shaped) {
@@ -485,7 +485,7 @@ public class GenerateRecipesCommand {
         return null;
     }
 
-    // ── Player feedback ───────────────────────────────────────────────────────
+    // -- Player feedback -------------------------------------------------------
 
     private static void sendFeedback(CommandSourceStack source, GenerationResult result) {
         source.sendSuccess(() -> Component.literal("=== Recipe Generation Complete ==="), true);

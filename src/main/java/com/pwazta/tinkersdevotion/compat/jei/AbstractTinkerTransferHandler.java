@@ -92,7 +92,7 @@ public abstract class AbstractTinkerTransferHandler<C extends AbstractContainerM
         return null;
     }
 
-    // ── Shared static helpers (also used by DynamicCraftingTransferHandler) ──
+    // -- Shared static helpers (also used by DynamicCraftingTransferHandler) --
 
     /** Finds an inventory slot matching the ingredient. Uses ingredient.test() for TinkerMaterialIngredient support. */
     static int findMatchingSlot(AbstractContainerMenu container, Ingredient ingredient, int startSlot, int endSlot, Map<Integer, Integer> reservedCounts) {

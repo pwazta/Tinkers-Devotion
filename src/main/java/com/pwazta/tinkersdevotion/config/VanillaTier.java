@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Defines what a vanilla tier IS - item prefix, TC tier path, and canonical tool material.
- * Used by {@link TiersToTcMaterials} for tier↔material resolution and by
+ * Used by {@link TiersToTcMaterials} for tier<->material resolution and by
  * {@link com.pwazta.tinkersdevotion.loot.VanillaItemMappings} for vanilla item registration.
  */
 public enum VanillaTier {
@@ -36,7 +36,7 @@ public enum VanillaTier {
     public String canonicalToolMaterial() { return canonicalToolMaterial; }
 
     /**
-     * Lookup by vanilla Tier ResourceLocation (e.g. minecraft:gold → GOLD).
+     * Lookup by vanilla Tier ResourceLocation (e.g. minecraft:gold -> GOLD).
      * Used during {@link TiersToTcMaterials#rebuildToolCaches()} to resolve HeadMaterialStats.tier().
      * Returns null for non-vanilla or modded tiers - callers handle null as "unmapped material".
      */
@@ -49,7 +49,7 @@ public enum VanillaTier {
     }
 
     /**
-     * Lookup by item prefix (e.g. "iron" → IRON, "golden" → GOLD).
+     * Lookup by item prefix (e.g. "iron" -> IRON, "golden" -> GOLD).
      * Used to resolve tier name strings from caches back to enum values.
      * Returns null if not found.
      */

@@ -27,7 +27,7 @@ import java.util.Set;
  * Format: ["modid:modifier_id", ...]
  *
  * Follows the same lifecycle pattern as {@link ToolExclusionConfig}:
- * initialize (commonSetup) → reload (generate command) → resetToDefaults (generate reset).
+ * initialize (commonSetup) -> reload (generate command) -> resetToDefaults (generate reset).
  */
 public class ModifierSkipListConfig {
 

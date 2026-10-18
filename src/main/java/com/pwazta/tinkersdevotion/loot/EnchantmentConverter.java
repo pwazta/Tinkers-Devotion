@@ -47,9 +47,9 @@ public class EnchantmentConverter {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // ── Budget constants ────────────────────────────────────────────────
+    // -- Budget constants ------------------------------------------------
 
-    /** Enchant levels → budget scaling factor. */
+    /** Enchant levels -> budget scaling factor. */
     private static final double POWER_MULTIPLIER = 4.0;
     /** Maximum modifier budget (caps total modifiers applied). */
     private static final int MAX_BUDGET = 7;
@@ -58,7 +58,7 @@ public class EnchantmentConverter {
     /** Minimum budget required before an ability-slot modifier can be picked. */
     private static final int ABILITY_BUDGET_THRESHOLD = 4;
 
-    // ── Bonus slot modifiers (applied as slot expansion, excluded from random pool) ──
+    // -- Bonus slot modifiers (applied as slot expansion, excluded from random pool) --
 
     private static final List<ModifierId> BONUS_SLOT_ORDER = List.of(
         new ModifierId("tconstruct", "writable"),
@@ -69,7 +69,7 @@ public class EnchantmentConverter {
 
     private static final Set<ModifierId> BONUS_MODIFIERS = Set.copyOf(BONUS_SLOT_ORDER);
 
-    // ── Tool category tags for specificity-based weighting ────────────────
+    // -- Tool category tags for specificity-based weighting ----------------
 
     private static final List<TagKey<Item>> CATEGORY_TAGS = List.of(
         TagKey.create(Registries.ITEM, new ResourceLocation("tconstruct", "modifiable/melee")),
@@ -78,18 +78,18 @@ public class EnchantmentConverter {
         TagKey.create(Registries.ITEM, new ResourceLocation("tconstruct", "modifiable/ranged"))
     );
 
-    // ── Pool cache (volatile + double-checked locking) ──────────────────
+    // -- Pool cache (volatile + double-checked locking) ------------------
 
     private static volatile Map<ModifierId, ModifierPoolEntry> poolCache;
 
-    // ── Inner record ────────────────────────────────────────────────────
+    // -- Inner record ----------------------------------------------------
 
     /** Cached info about a modifier available from TC recipes, with pre-computed specificity weight. */
     record ModifierPoolEntry(ModifierId id, SlotType slotType, int maxLevel, Set<Item> compatibleTools, double weight) {}
 
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
     //  Public API
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
 
     /**
      * Converts enchantments on the original vanilla item into TC modifiers on the tool stack.
@@ -178,7 +178,7 @@ public class EnchantmentConverter {
 
         if (picked.isEmpty() && bonusNeeded == 0) return;
 
-        // 7. Batch ALL modifiers (bonus + picked) into single setUpgrades → single rebuildStats.
+        // 7. Batch ALL modifiers (bonus + picked) into single setUpgrades -> single rebuildStats.
         ModifierNBT upgrades = toolStack.getUpgrades();
         for (int i = 0; i < bonusNeeded; i++) {
             upgrades = upgrades.withModifier(BONUS_SLOT_ORDER.get(i), 1);
@@ -200,9 +200,9 @@ public class EnchantmentConverter {
         poolCache = null;
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
     //  Budget calculation
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
 
     /**
      * Computes the modifier budget from the original item's total enchantment levels.
@@ -217,9 +217,9 @@ public class EnchantmentConverter {
         return Math.min((int) Math.ceil(Math.sqrt(totalLevels * POWER_MULTIPLIER)), MAX_BUDGET);
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
     //  Pool management
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
 
     /** Returns the cached pool, building it lazily on first access (double-checked locking). */
     private static Map<ModifierId, ModifierPoolEntry> ensurePool() {
@@ -326,9 +326,9 @@ public class EnchantmentConverter {
         return compatible;
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
     //  Specificity-based weighting
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
 
     /**
      * Builds item sets for each tool category tag in a single registry pass.
@@ -348,7 +348,7 @@ public class EnchantmentConverter {
 
     /**
      * Counts how many of TC's 4 tool category tags the modifier's compatible tools overlap with.
-     * Empty compatibleTools (universal modifier) → max count (all categories).
+     * Empty compatibleTools (universal modifier) -> max count (all categories).
      * Floor of 1 prevents division by zero in weight formula.
      */
     private static int countCategoryOverlap(Set<Item> compatibleTools, Collection<Set<Item>> categorySets) {
@@ -359,9 +359,9 @@ public class EnchantmentConverter {
         return Math.max(count, 1);
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
     //  Selection algorithms
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
 
     /**
      * Weighted random selection from the compatible pool.
@@ -421,9 +421,9 @@ public class EnchantmentConverter {
         return candidates.get(random.nextInt(candidates.size()));
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
     //  Helpers
-    // ═══════════════════════════════════════════════════════════════════
+    // ===================================================================
 
     private static @Nullable ModifierPoolEntry findEntry(List<ModifierPoolEntry> pool, ModifierId id) {
         for (ModifierPoolEntry entry : pool) {

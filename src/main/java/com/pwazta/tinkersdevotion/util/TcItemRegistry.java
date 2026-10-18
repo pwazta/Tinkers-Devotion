@@ -28,7 +28,7 @@ import java.util.function.Predicate;
  *
  * <p>All methods iterate a TC- or Forge-populated item tag and apply an {@code instanceof IModifiable}
  * filter to exclude vanilla items, plus a {@link TinkerTags.Items#ANCIENT_TOOLS} skip (loot-only,
- * uncraftable; addons inherit by populating the tag). This is {@code O(M)} (M = tag size, ~30–80 with
+ * uncraftable; addons inherit by populating the tag). This is {@code O(M)} (M = tag size, ~30-80 with
  * addons) versus the prior {@code O(N)} full-registry scan.
  *
  * <p>Tag choice per type (verified TC-populated):
@@ -63,7 +63,7 @@ public final class TcItemRegistry {
         }
     }
 
-    /** Per–tool-action detection signal (Forge ToolAction + vanilla tag). */
+    /** Per-tool-action detection signal (Forge ToolAction + vanilla tag). */
     private static final Map<String, ToolType> TOOL_TYPES = Map.of(
         "sword",   new ToolType(ToolActions.SWORD_DIG,   ItemTags.SWORDS),
         "pickaxe", new ToolType(ToolActions.PICKAXE_DIG, ItemTags.PICKAXES),
@@ -80,7 +80,7 @@ public final class TcItemRegistry {
         ArmorItem.Type.BOOTS,      TinkerTags.Items.BOOTS
     );
 
-    /** Per–ranged-type tag. */
+    /** Per-ranged-type tag. */
     private static final Map<String, TagKey<Item>> RANGED_TAGS = Map.of(
         "bow",      TinkerTags.Items.LONGBOWS,
         "crossbow", TinkerTags.Items.CROSSBOWS
@@ -111,7 +111,7 @@ public final class TcItemRegistry {
         return TOOL_CACHE.computeIfAbsent(actionName, k -> {
             ToolType type = TOOL_TYPES.get(actionName);
             if (type == null) return List.of();
-            // Scan the umbrella (addon tools tag into it); bare ItemStack ⇒ definition-level actions only.
+            // Scan the umbrella (addon tools tag into it); bare ItemStack => definition-level actions only.
             return collect(TinkerTags.Items.MODIFIABLE, actionName, item -> type.matches(new ItemStack(item)));
         });
     }

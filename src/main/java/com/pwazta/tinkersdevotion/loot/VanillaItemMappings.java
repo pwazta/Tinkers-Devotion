@@ -29,10 +29,10 @@ public class VanillaItemMappings {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // ── Sealed interface for strategy dispatch ─────────────────────────
+    // -- Sealed interface for strategy dispatch -------------------------
     public sealed interface ReplacementInfo permits ToolInfo, ArmorInfo, RangedInfo, ShieldInfo, FishingRodInfo, FlintAndSteelInfo {}
 
-    // ── Record types ─────────────────────────────────────────────────────
+    // -- Record types -----------------------------------------------------
     public record ToolInfo(String tier, String toolType) implements ReplacementInfo {}
     public record ArmorInfo(List<String> sets, String slot, int minTier, int maxTier) implements ReplacementInfo {}
     /** Per-part canonical material IDs in tool definition stat type order (e.g., limb, limb, grip, bowstring). Tiers derived via IMaterial.getTier(). */
@@ -44,7 +44,7 @@ public class VanillaItemMappings {
     /** Flint-and-steel info - material-less 1:1 swap. {@code tcItemIds} are the registry IDs of eligible TC fire-starters (only {@code tconstruct:flint_and_brick} in core TC). */
     public record FlintAndSteelInfo(String flintAndSteelType, List<String> tcItemIds) implements ReplacementInfo {}
 
-    // ── Type/slot arrays ──────────────────────────────────────────────────
+    // -- Type/slot arrays --------------------------------------------------
 
     public static final String[] TOOL_TYPES = {"sword", "pickaxe", "axe", "shovel", "hoe"};
 
@@ -58,7 +58,7 @@ public class VanillaItemMappings {
 
     public static final String[] FLINT_AND_STEEL_TYPES = {"flint_and_steel"};
 
-    // ── String-keyed map (populated in static init) ────────────────────
+    // -- String-keyed map (populated in static init) --------------------
 
     private static final Map<String, ReplacementInfo> REPLACEMENTS_BY_ID = new HashMap<>();
 
@@ -95,7 +95,7 @@ public class VanillaItemMappings {
         REPLACEMENTS_BY_ID.put("minecraft:flint_and_steel", new FlintAndSteelInfo("flint_and_steel", List.of("tconstruct:flint_and_brick")));
     }
 
-    // ── Published maps (built-ins ∪ player aliases) ──────────────────────
+    // -- Published maps (built-ins + player aliases) ----------------------
 
     /** Immutable snapshots: readers see either the old map or the new one, never a partial state. */
     private static volatile Map<String, ReplacementInfo> byId = Map.copyOf(REPLACEMENTS_BY_ID);
@@ -160,14 +160,14 @@ public class VanillaItemMappings {
         }
     }
 
-    // ── Loot lookup (Item-keyed, O(1)) ───────────────────────────────────
+    // -- Loot lookup (Item-keyed, O(1)) -----------------------------------
 
     /** Unified lookup for strategy dispatch. Returns null if not a mapped item. */
     public static @Nullable ReplacementInfo getReplacementInfo(Item item) {
         return itemMap().get(item);
     }
 
-    // ── Recipe gen lookup (String-keyed, O(1)) ───────────────────────────
+    // -- Recipe gen lookup (String-keyed, O(1)) ---------------------------
 
     /** Unified string-keyed lookup for recipe generation. */
     public static @Nullable ReplacementInfo getReplacementInfoById(String registryId) {
@@ -186,7 +186,7 @@ public class VanillaItemMappings {
         return ids;
     }
 
-    // ── ArmorItem.Type resolution ────────────────────────────────────────
+    // -- ArmorItem.Type resolution ----------------------------------------
 
     /** Maps armor slot name to ArmorItem.Type. */
     public static @Nullable ArmorItem.Type getArmorType(String slot) {

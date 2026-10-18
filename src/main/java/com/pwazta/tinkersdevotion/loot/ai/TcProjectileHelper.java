@@ -40,7 +40,7 @@ public final class TcProjectileHelper {
      * @param tool    the TC launcher ToolStack (bow or crossbow)
      * @param shooter the mob firing the arrow
      * @param arrow   the arrow entity to modify (vanilla or TC - works on any AbstractArrow)
-     * @param charge  charge level from {@code GeneralInteractionModifierHook.getToolCharge()} (0.0–1.0)
+     * @param charge  charge level from {@code GeneralInteractionModifierHook.getToolCharge()} (0.0-1.0)
      */
     public static void applyLauncherStats(ToolStack tool, LivingEntity shooter, AbstractArrow arrow, float charge) {
         // Damage: zero out vanilla base (2.0), replace with TC PROJECTILE_DAMAGE
