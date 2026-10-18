@@ -32,8 +32,6 @@ The 4 systems above trigger on vanilla items & DON'T TOUCH MODDED ITEMS BY DEFAU
 
 ---
 
-
-
 ## Nerdy Stuff
 
 > Skip to [Configuration](#configuration) if you just want to play.
@@ -61,17 +59,18 @@ We pick a TC tool matching the vanilla item's category (sword / pickaxe type, et
 
 The full canonical mappings:
 
-
 | Vanilla tier     | Tool canonical         | Armor canonical        |
 | ---------------- | ---------------------- | ---------------------- |
 | wooden           | `tconstruct:wood`      | -                      |
 | stone            | `tconstruct:rock`      | -                      |
 | leather          | -                      | `tconstruct:copper`    |
+| copper           | `tconstruct:copper`    | `tconstruct:copper`    |
 | iron / chainmail | `tconstruct:iron`      | `tconstruct:iron`      |
 | golden           | `tconstruct:rose_gold` | `tconstruct:gold`      |
 | diamond          | `tconstruct:cobalt`    | `tconstruct:cobalt`    |
 | netherite        | `tconstruct:hepatizon` | `tconstruct:hepatizon` |
 
+Copper has no TC tool-tier of its own, so it keeps `tconstruct:copper` as canonical, and is matched as iron (i.e copper-replacements will have ~80% copper show up, while the rest is iron-tier).
 
 **Enchantments → TC modifiers**
 
@@ -95,14 +94,11 @@ A skip list in the config keeps unwanted modifiers out (defaults include `nether
 
 ---
 
-
-
 ## Configuration
 
 Drop the jar in your mods folder and load a world.
 
 The defaults are quite sensible but if you want to tune, four files appear under `config/` after first launch:
-
 
 | File                                      | Format | What it controls                                                                                                                                                                 |
 | ----------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -110,9 +106,6 @@ The defaults are quite sensible but if you want to tune, four files appear under
 | `tinkersdevotion/tool_exclusions.json`    | JSON   | Blacklist specific TC tools per slot or action. Stops dagger from substituting for cleaver in recipes, stops slimesuit from rolling as armor loot, etc. Defaults pre-populated.  |
 | `tinkersdevotion/modifier_skip_list.json` | JSON   | TC modifier IDs that should never appear in the random enchantment pool. Defaults pre-populated.                                                                                 |
 | `tinkersdevotion/item_aliases.json`       | JSON   | Treat a modded item as a vanilla one (Refer to Feature #5).                                                                                                                      |
-
-
-
 
 ### Commands
 
@@ -122,8 +115,6 @@ The defaults are quite sensible but if you want to tune, four files appear under
 The recipe datapack auto-generates on first world load, so the command is only needed if you change your mod list.
 
 ---
-
-
 
 ## Issues & Feedback
 
@@ -135,8 +126,6 @@ Leave a comment or hop in the Discord to chat or ask a question. If you've found
 - FAQ COMING SOON.
 
 ---
-
-
 
 ## Requirements & Compatibility
 
@@ -150,8 +139,6 @@ Tested with almost all tinker's addons (at time of release here)! Friendly to an
 **Modded items** (if you are interested in replacing tools from other mods like epic-fight, simply-swords etc): No modded items are replaced by default, but you can add a simple `mod:mytool, minecraft:vanillaItem` to replace them (see Feature #5)! Built to be super friendly to everyone :) Please lmk if any issues with this!
 
 ---
-
-
 
 ## Credits & License
 
