@@ -50,7 +50,7 @@ public class ModifierSkipListConfig {
         "tconstruct:shulking",
         "tconstruct:flamewake",
         "tconstruct:enderporting",
-        // Addon modifiers (ignored if mod absent — ModifierId won't resolve)
+        // Addon modifiers (ignored if mod absent - ModifierId won't resolve)
         "tinkerslevellingaddon:improvable",
         "tcintegrations:flamed",
         "tcintegrations:iced",
@@ -65,7 +65,7 @@ public class ModifierSkipListConfig {
 
     /**
      * Sets up config path and loads existing config, or creates defaults.
-     * Called from commonSetup — no registry dependency.
+     * Called from commonSetup - no registry dependency.
      */
     public static void initialize(File configDir) {
         if (initialized) return;
@@ -79,7 +79,7 @@ public class ModifierSkipListConfig {
             LOGGER.info("Loading modifier skip list from: {}", configFile.getAbsolutePath());
             loadConfig();
         } else {
-            LOGGER.info("No modifier skip list config found — creating defaults");
+            LOGGER.info("No modifier skip list config found - creating defaults");
             writeDefaults();
             loadConfig();
         }

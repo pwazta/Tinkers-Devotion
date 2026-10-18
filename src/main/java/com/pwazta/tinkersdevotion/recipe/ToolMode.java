@@ -40,7 +40,7 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
         if (materialsList.isEmpty()) return false;
 
-        // Normalize once — cache values are lowercase, recipe JSON may not be.
+        // Normalize once - cache values are lowercase, recipe JSON may not be.
         String requiredTier = tier.toLowerCase(Locale.ROOT);
 
         // HEAD material (index 0) MUST match the required tier (live lookup, no config)

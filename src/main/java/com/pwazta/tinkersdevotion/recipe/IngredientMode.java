@@ -92,9 +92,9 @@ public sealed interface IngredientMode permits ToolMode, ArmorMode, RangedMode, 
      *   <li><b>Size == 1 (single material):</b> routed to {@link ToolBuildHandler#createSingleMaterial},
      *       which performs per-slot {@code canUseMaterial} validation and substitutes a sensible default
      *       per slot where the material is incompatible. Use this for items where you want one material
-     *       intelligently slotted (e.g. armor plating — applies to plating slot, defaults maille/etc).</li>
+     *       intelligently slotted (e.g. armor plating - applies to plating slot, defaults maille/etc).</li>
      *   <li><b>Size &gt; 1 (per-part list):</b> built via {@link ToolBuildHandler#buildItemFromMaterials}
-     *       with the exact material list (no per-slot validation — caller asserts each slot accepts its
+     *       with the exact material list (no per-slot validation - caller asserts each slot accepts its
      *       material). On empty result, falls back to {@code createSingleMaterial} with the first material,
      *       handling addon items with unexpected part counts.</li>
      * </ul>

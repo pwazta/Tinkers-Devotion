@@ -21,7 +21,7 @@ import java.util.*;
  * Prevents cheap multi-tools (e.g., dagger) from substituting for expensive tools (e.g., cleaver).
  *
  * <p>Ancient (loot-only) tools are filtered structurally via {@code TinkerTags.Items.ANCIENT_TOOLS},
- * not listed here — addons inherit the exclusion by populating the tag.
+ * not listed here - addons inherit the exclusion by populating the tag.
  *
  * Config file: config/tinkersdevotion/tool_exclusions.json
  * Format: { "action_name": ["modid:tool_id", ...], ... }
@@ -40,7 +40,7 @@ public class ToolExclusionConfig {
 
     /**
      * Sets up config path and loads existing config, or creates defaults.
-     * Called from commonSetup — no registry dependency.
+     * Called from commonSetup - no registry dependency.
      */
     public static void initialize(File configDir) {
         if (initialized) return;
@@ -54,7 +54,7 @@ public class ToolExclusionConfig {
             LOGGER.info("Loading tool exclusions from: {}", configFile.getAbsolutePath());
             loadConfig();
         } else {
-            LOGGER.info("No tool exclusions config found — creating defaults");
+            LOGGER.info("No tool exclusions config found - creating defaults");
             createDefaults();
             saveConfig();
         }
@@ -67,7 +67,7 @@ public class ToolExclusionConfig {
         "tconstruct:dagger"
     );
 
-    /** blowpipe: defensive — JSON tool with 0 material parts; mistagging into ranged/crossbows would silently no-op replacement. */
+    /** blowpipe: defensive - JSON tool with 0 material parts; mistagging into ranged/crossbows would silently no-op replacement. */
     private static final List<String> DEFAULT_EXCLUDED_RANGED = List.of(
         "tinkers_things:blowpipe"
     );

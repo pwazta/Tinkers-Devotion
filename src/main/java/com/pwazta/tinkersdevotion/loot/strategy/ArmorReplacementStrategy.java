@@ -79,7 +79,7 @@ public final class ArmorReplacementStrategy implements ReplacementStrategy {
                     if (inPool) return canonicalVariant;
                 }
             }
-            // canonical missing/invalid — fall through to random
+            // canonical missing/invalid - fall through to random
         }
 
         IMaterial selected = pool.get(random.nextInt(pool.size()));

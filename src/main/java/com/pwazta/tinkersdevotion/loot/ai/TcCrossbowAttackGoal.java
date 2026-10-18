@@ -26,7 +26,7 @@ import slimeknights.tconstruct.library.tools.nbt.ToolStack;
  *   <li>Charge duration: reads from TC persistent data ({@code tconstruct:drawtime}) instead of
  *       {@code CrossbowItem.getChargeDuration()}</li>
  *   <li>Charged state: checks {@code tconstruct:crossbow_ammo} presence instead of vanilla {@code "Charged"} tag</li>
- *   <li>{@code startDrawtime()} called when entering CHARGING state — required because mobs don't
+ *   <li>{@code startDrawtime()} called when entering CHARGING state - required because mobs don't
  *       go through {@code Item.use()}, so drawtime is never initialized otherwise</li>
  *   <li>{@code stop()}: clears both {@code tconstruct:crossbow_ammo} and {@code tconstruct:drawback_ammo}
  *       from persistent data on goal interruption</li>
@@ -83,7 +83,7 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
             this.mob.stopUsingItem();
             this.mob.setChargingCrossbow(false);
         }
-        // Unconditionally clear — covers states where isUsingItem() is false but ammo is loaded.
+        // Unconditionally clear - covers states where isUsingItem() is false but ammo is loaded.
         // Stale TC ammo causes releaseUsing() to skip reload on next cycle.
         ItemStack weapon = this.mob.getItemInHand(
             ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isCrossbow));
@@ -126,7 +126,7 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
             if (!shouldMove) {
                 InteractionHand hand = ProjectileUtil.getWeaponHoldingHand(this.mob, TcRangedItems::isCrossbow);
                 this.mob.startUsingItem(hand);
-                // Mobs bypass Item.use() — init drawtime manually
+                // Mobs bypass Item.use() - init drawtime manually
                 initDrawtimeIfTcCrossbow(hand);
                 this.crossbowState = CrossbowState.CHARGING;
                 this.mob.setChargingCrossbow(true);
@@ -160,7 +160,7 @@ public class TcCrossbowAttackGoal<T extends Monster & RangedAttackMob & Crossbow
                     ModifiableCrossbowItem.fireCrossbow(tool, this.mob, false, fireHand, ammoTag);
                 }
             } else {
-                // Vanilla crossbow — use vanilla firing path
+                // Vanilla crossbow - use vanilla firing path
                 this.mob.performRangedAttack(target, 1.0F);
                 clearChargedState(weapon);
             }

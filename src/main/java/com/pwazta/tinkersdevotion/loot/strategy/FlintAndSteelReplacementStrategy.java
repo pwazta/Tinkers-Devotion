@@ -18,7 +18,7 @@ import java.util.List;
 /**
  * Strategy for replacing vanilla flint and steel with TC flint and brick.
  *
- * <p>TC {@code flint_and_brick} has no {@code MaterialStatsModule} — its stats come from
+ * <p>TC {@code flint_and_brick} has no {@code MaterialStatsModule} - its stats come from
  * {@code SetStatsModule} (fixed durability) and built-in trait modifiers (firestarter,
  * fiery, scorching) declared in the tool definition. There are no parts to select
  * materials for, so this strategy overrides {@link #buildReplacement} to skip the

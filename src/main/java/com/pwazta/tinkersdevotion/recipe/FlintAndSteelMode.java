@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Flint-and-steel ingredient mode — matches by registry-id membership in {@code tcItemIds}.
+ * Flint-and-steel ingredient mode - matches by registry-id membership in {@code tcItemIds}.
  * No per-part tier check (the TC items in this category have no material composition).
  */
 public record FlintAndSteelMode(String flintAndSteelType, List<String> tcItemIds) implements IngredientMode {

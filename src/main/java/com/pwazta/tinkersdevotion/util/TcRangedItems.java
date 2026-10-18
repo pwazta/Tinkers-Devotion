@@ -7,7 +7,7 @@ import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
 
 /**
- * Shared predicates for identifying ranged weapons — both vanilla and TC variants.
+ * Shared predicates for identifying ranged weapons - both vanilla and TC variants.
  *
  * <p>Used by AI goals ({@code TcBowAttackGoal}, {@code TcCrossbowAttackGoal}) and client-side
  * animation mixins ({@code HumanoidModelMixin}, {@code SkeletonModelMixin}, etc.) to avoid

@@ -35,9 +35,9 @@ import java.util.stream.Collectors;
  * loot/mob equipment items with TC equivalents. The conversion uses a three-layer
  * weighted selection algorithm:
  * <ol>
- *   <li>Compatibility filter — only modifiers whose recipe accepts the tool type</li>
- *   <li>Specificity weighting — specialist modifiers (fewer category overlaps) weighted higher</li>
- *   <li>Level-up preference — configurable chance (default 65%) to level up an existing modifier</li>
+ *   <li>Compatibility filter - only modifiers whose recipe accepts the tool type</li>
+ *   <li>Specificity weighting - specialist modifiers (fewer category overlaps) weighted higher</li>
+ *   <li>Level-up preference - configurable chance (default 65%) to level up an existing modifier</li>
  * </ol>
  *
  * Modifier pool is lazily built from TC tinker station recipes on first use, cached
@@ -117,7 +117,7 @@ public class EnchantmentConverter {
         int freeUpgrades = baseFreeUpgrades + bonusNeeded;
 
         // 4. Get compatible modifier pool (cached globally, filtered per tool).
-        //    createStack() here is lightweight — item identity is all that matters for tag matching.
+        //    createStack() here is lightweight - item identity is all that matters for tag matching.
         ItemStack representative = toolStack.createStack();
         List<ModifierPoolEntry> pool = getCompatiblePool(representative);
         if (pool.isEmpty()) return;
@@ -188,7 +188,7 @@ public class EnchantmentConverter {
         }
         toolStack.setUpgrades(upgrades); // triggers single rebuildStats
 
-        // 8. Deduct slots (bonus modifiers are slotless — no deduction for them).
+        // 8. Deduct slots (bonus modifiers are slotless - no deduction for them).
         var persistentData = toolStack.getPersistentData();
         if (upgradesUsed > 0) persistentData.addSlots(SlotType.UPGRADE, -upgradesUsed);
         if (abilityPicked)    persistentData.addSlots(SlotType.ABILITY, -1);
@@ -242,7 +242,7 @@ public class EnchantmentConverter {
     private static Map<ModifierId, ModifierPoolEntry> buildPool() {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) {
-            LOGGER.debug("Server not available — modifier pool not built");
+            LOGGER.debug("Server not available - modifier pool not built");
             return Map.of();
         }
 
@@ -332,7 +332,7 @@ public class EnchantmentConverter {
 
     /**
      * Builds item sets for each tool category tag in a single registry pass.
-     * Called once per pool build — category sets are used to compute weights, then GC'd.
+     * Called once per pool build - category sets are used to compute weights, then GC'd.
      */
     private static Map<TagKey<Item>, Set<Item>> buildCategorySets() {
         Map<TagKey<Item>, Set<Item>> result = new HashMap<>();

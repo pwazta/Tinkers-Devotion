@@ -35,8 +35,8 @@ import java.util.function.Predicate;
  * <ul>
  *   <li>Tools: iterate {@link TinkerTags.Items#MODIFIABLE}, matched by Forge {@link ToolAction} or
  *       vanilla-tag membership (see {@link ToolType}). The action arm catches addon tools, which tag
- *       only into TC tags — not the vanilla {@code minecraft:<type>} tags TC populates for its own.</li>
- *   <li>Ranged: {@link TinkerTags.Items#LONGBOWS}/{@code CROSSBOWS} — also catches addon launchers
+ *       only into TC tags - not the vanilla {@code minecraft:<type>} tags TC populates for its own.</li>
+ *   <li>Ranged: {@link TinkerTags.Items#LONGBOWS}/{@code CROSSBOWS} - also catches addon launchers
  *       that don't extend {@code ModifiableBowItem}/{@code ModifiableCrossbowItem} directly
  *       (e.g. Tinkers-Thinking's repeating crossbow).</li>
  *   <li>Shields: {@link TinkerTags.Items#SHIELDS}.</li>
@@ -53,7 +53,7 @@ public final class TcItemRegistry {
     /**
      * Detection signal for a vanilla tool type. An item matches if it can perform the type's Forge
      * {@link ToolAction} (addon tools declare this in their definition) or is in the vanilla item tag.
-     * The tag arm backfills TC tools whose type lives in the tag, not an action — e.g. the scythe, in
+     * The tag arm backfills TC tools whose type lives in the tag, not an action - e.g. the scythe, in
      * {@code minecraft:hoes} but with no {@code HOE_DIG} ({@code tilling} grants {@code HOE_TILL}, which
      * we don't key on as it's a player-applied modifier).
      */
@@ -157,7 +157,7 @@ public final class TcItemRegistry {
     /**
      * Returns all TC shields, excluding items in {@link ToolExclusionConfig}. Cached per type.
      *
-     * <p>The {@code !ModifiableArmorItem} guard is defensive — {@link TinkerTags.Items#SHIELDS}
+     * <p>The {@code !ModifiableArmorItem} guard is defensive - {@link TinkerTags.Items#SHIELDS}
      * shouldn't contain armor items, but laminar armor has {@code shield_core} as a sub-part stat
      * type and could conceivably leak in via addon mistagging.
      */
@@ -172,7 +172,7 @@ public final class TcItemRegistry {
     /**
      * Returns all TC fishing rods, excluding items in {@link ToolExclusionConfig}. Cached per type.
      *
-     * <p>Uses the Forge convention tag {@link Tags.Items#TOOLS_FISHING_RODS} — equivalent set to
+     * <p>Uses the Forge convention tag {@link Tags.Items#TOOLS_FISHING_RODS} - equivalent set to
      * {@link TinkerTags.Items#FISHING_RODS} since TC populates both.
      */
     public static List<IModifiable> getEligibleFishingRods(String fishingRodType) {

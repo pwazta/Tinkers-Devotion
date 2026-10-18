@@ -21,6 +21,6 @@ public class TCCraftingStationTransferHandler extends AbstractTinkerTransferHand
 
     @Override public Class<CraftingStationContainerMenu> getContainerClass() { return CraftingStationContainerMenu.class; }
 
-    // JEI matches via getContainerClass() — avoids hard dependency on TC's registry field names
+    // JEI matches via getContainerClass() - avoids hard dependency on TC's registry field names
     @Override public Optional<MenuType<CraftingStationContainerMenu>> getMenuType() { return Optional.empty(); }
 }

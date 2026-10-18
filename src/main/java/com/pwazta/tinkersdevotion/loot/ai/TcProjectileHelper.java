@@ -30,7 +30,7 @@ public final class TcProjectileHelper {
     /**
      * Applies TC tool stats and modifier hooks to an arrow entity.
      *
-     * <p>Formula (from decompiled TC source — identical in releaseUsing and fireCrossbow):
+     * <p>Formula (from decompiled TC source - identical in releaseUsing and fireCrossbow):
      * <pre>
      * baseDamage = (arrow.getBaseDamage() - 2.0) + tool.getStats().get(PROJECTILE_DAMAGE)
      * modifiedDamage = ConditionalStatModifierHook.getModifiedStat(tool, shooter, PROJECTILE_DAMAGE, baseDamage)
@@ -39,7 +39,7 @@ public final class TcProjectileHelper {
      *
      * @param tool    the TC launcher ToolStack (bow or crossbow)
      * @param shooter the mob firing the arrow
-     * @param arrow   the arrow entity to modify (vanilla or TC — works on any AbstractArrow)
+     * @param arrow   the arrow entity to modify (vanilla or TC - works on any AbstractArrow)
      * @param charge  charge level from {@code GeneralInteractionModifierHook.getToolCharge()} (0.0–1.0)
      */
     public static void applyLauncherStats(ToolStack tool, LivingEntity shooter, AbstractArrow arrow, float charge) {

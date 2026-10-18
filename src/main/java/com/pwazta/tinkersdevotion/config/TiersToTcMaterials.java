@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Used by loot replacement (material selection), recipe matching (tier validation), and JEI display (canonical lookup).
  *
  * <p><b>Tools</b>: cache rebuilt on {@code MaterialsLoadedEvent} via {@link VanillaTier} lookup.
- * Immutable snapshots swapped atomically via volatile write — readers never see partial state.
+ * Immutable snapshots swapped atomically via volatile write - readers never see partial state.
  *
  * <p><b>Armor</b>: lazy cache per tier range via {@link IMaterial#getTier()}, cleared on reload.
  */
@@ -54,7 +54,7 @@ public class TiersToTcMaterials {
     /** tier name → immutable set of material ids. Immutable snapshot; replaced via volatile write. */
     private static volatile Map<String, Set<String>> toolMaterialsByTier = Map.of();
 
-    /** Materials dropped during last rebuild because their vanilla Tier isn't in {@link VanillaTier}. Diagnostic feedback only — these are NOT user exclusions. */
+    /** Materials dropped during last rebuild because their vanilla Tier isn't in {@link VanillaTier}. Diagnostic feedback only - these are NOT user exclusions. */
     private static volatile List<String> unmappedToolMaterials = List.of();
 
     // ── Armor plating cache (lazy per tier range) ─────────────────────
@@ -65,7 +65,7 @@ public class TiersToTcMaterials {
 
     /**
      * Rebuilds tool tier caches from the live TC registry. Called from {@code MaterialsLoadedEvent}.
-     * Builds new maps locally, then publishes via volatile reference assignment — readers see
+     * Builds new maps locally, then publishes via volatile reference assignment - readers see
      * either the old snapshot or the new one, never an intermediate state.
      */
     public static void rebuildToolCaches() {
@@ -128,7 +128,7 @@ public class TiersToTcMaterials {
 
     /**
      * Materials dropped from the last tool cache rebuild because their vanilla Tier is unknown or
-     * not in {@link VanillaTier}. NOT user exclusions — these are materials the mod literally cannot bucket.
+     * not in {@link VanillaTier}. NOT user exclusions - these are materials the mod literally cannot bucket.
      * Surfaced via {@code /tinkersdevotion generate} as a diagnostic hint for addon-pack authors.
      */
     public static List<String> getUnmappedToolMaterials() {
@@ -150,7 +150,7 @@ public class TiersToTcMaterials {
 
     // ── Armor API ─────────────────────────────────────────────────────
 
-    /** Returns curated canonical armor material id for a tier range. No validation — call-site handles missing. */
+    /** Returns curated canonical armor material id for a tier range. No validation - call-site handles missing. */
     public static @Nullable String getCanonicalArmorMaterial(int minTier, int maxTier) {
         return CANONICAL_ARMOR_BY_TIER.get(minTier + "-" + maxTier);
     }

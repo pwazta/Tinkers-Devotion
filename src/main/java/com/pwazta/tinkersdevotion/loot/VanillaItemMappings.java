@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Maps vanilla items to their TC replacement info — which items get replaced and how.
+ * Maps vanilla items to their TC replacement info - which items get replaced and how.
  * Used by loot replacement (GLM, mob spawn), recipe generation, and FalseCondition overrides.
  *
  * <p>String-keyed map for recipe generation (available at any time).
@@ -37,11 +37,11 @@ public class VanillaItemMappings {
     public record ArmorInfo(List<String> sets, String slot, int minTier, int maxTier) implements ReplacementInfo {}
     /** Per-part canonical material IDs in tool definition stat type order (e.g., limb, limb, grip, bowstring). Tiers derived via IMaterial.getTier(). */
     public record RangedInfo(String rangedType, List<String> canonicalMaterials) implements ReplacementInfo {}
-    /** Shield info — same per-part canonical pattern as ranged. Detected via shield_core stat type, not instanceof. */
+    /** Shield info - same per-part canonical pattern as ranged. Detected via shield_core stat type, not instanceof. */
     public record ShieldInfo(String shieldType, List<String> canonicalMaterials) implements ReplacementInfo {}
-    /** Fishing rod info — same per-part canonical pattern. Detected via ToolActions.FISHING_ROD_CAST (action granted by the `fishing` trait, not the definition). */
+    /** Fishing rod info - same per-part canonical pattern. Detected via ToolActions.FISHING_ROD_CAST (action granted by the `fishing` trait, not the definition). */
     public record FishingRodInfo(String fishingRodType, List<String> canonicalMaterials) implements ReplacementInfo {}
-    /** Flint-and-steel info — material-less 1:1 swap. {@code tcItemIds} are the registry IDs of eligible TC fire-starters (only {@code tconstruct:flint_and_brick} in core TC). */
+    /** Flint-and-steel info - material-less 1:1 swap. {@code tcItemIds} are the registry IDs of eligible TC fire-starters (only {@code tconstruct:flint_and_brick} in core TC). */
     public record FlintAndSteelInfo(String flintAndSteelType, List<String> tcItemIds) implements ReplacementInfo {}
 
     // ── Type/slot arrays ──────────────────────────────────────────────────
@@ -70,8 +70,6 @@ public class VanillaItemMappings {
         }
         // Armor: mapped by allowed TC sets (full namespace) + IMaterial.getTier() range.
         // Multiple sets per tier allow addon armor (TinkersThings laminar/makeshift) to appear in loot.
-        // TODO (P2): TC plating defense at tier N < vanilla tier N because TC assumes diamond modifier.
-        // Replaced armor may be weaker than vanilla. See PLANNING-armor-rework.md for options.
         for (String slot : ARMOR_SLOTS) {
             REPLACEMENTS_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:makeshift"), slot, 0, 1));
             REPLACEMENTS_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:laminar"), slot, 2, 2));
@@ -81,16 +79,16 @@ public class VanillaItemMappings {
             REPLACEMENTS_BY_ID.put("minecraft:netherite_" + slot,  new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 4, 4));
         }
 
-        // Ranged weapons — canonical materials per part in TC tool definition stat type order
+        // Ranged weapons - canonical materials per part in TC tool definition stat type order
         // Bow: 4 parts (limb, limb, grip, bowstring)
         REPLACEMENTS_BY_ID.put("minecraft:bow", new RangedInfo("bow", List.of("tconstruct:wood", "tconstruct:wood", "tconstruct:wood", "tconstruct:string")));
-        // Crossbow: 3 parts (limb, grip, bowstring) — iron grip matches vanilla iron ingot ingredient
+        // Crossbow: 3 parts (limb, grip, bowstring) - iron grip matches vanilla iron ingot ingredient
         REPLACEMENTS_BY_ID.put("minecraft:crossbow", new RangedInfo("crossbow", List.of("tconstruct:wood", "tconstruct:iron", "tconstruct:string")));
 
-        // Shield: 2 parts (shield_core, cuirass/plating_shield) — wood planks + iron ingot
+        // Shield: 2 parts (shield_core, cuirass/plating_shield) - wood planks + iron ingot
         REPLACEMENTS_BY_ID.put("minecraft:shield", new ShieldInfo("shield", List.of("tconstruct:wood", "tconstruct:iron")));
 
-        // Fishing rod: 3 parts (limb, bowstring, arrow_head) — wood limb + string + flint hook
+        // Fishing rod: 3 parts (limb, bowstring, arrow_head) - wood limb + string + flint hook
         REPLACEMENTS_BY_ID.put("minecraft:fishing_rod", new FishingRodInfo("fishing_rod", List.of("tconstruct:wood", "tconstruct:string", "tconstruct:flint")));
 
         // Flint and steel: material-less 1:1 swap to flint_and_brick. No TC sub-tag exists for this category, so the TC item list is hardcoded.

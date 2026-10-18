@@ -17,7 +17,7 @@ import slimeknights.tconstruct.library.tools.item.ranged.ModifiableCrossbowItem;
  * Detects TC bows/crossbows, removes incompatible vanilla goals, and attaches TC-aware replacements.
  *
  * <p>Idempotent: checks for existing TC goal before adding. Safe to call on every EntityJoinLevelEvent.
- * Handles chunk reload: goals are lost on unload, but mob still holds TC weapon — re-attaches automatically.
+ * Handles chunk reload: goals are lost on unload, but mob still holds TC weapon - re-attaches automatically.
  *
  * <p>Performance: for mobs without TC ranged weapons (99%), cost is 2 getItemInHand() calls + 4 instanceof checks.
  */

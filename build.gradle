@@ -86,7 +86,7 @@ minecraft {
             // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
             property 'forge.logging.console.level', 'debug'
 
-            // Mixin support — load config via args (not [[mixins]] in mods.toml) to avoid JPMS split-package
+            // Mixin support - load config via args (not [[mixins]] in mods.toml) to avoid JPMS split-package
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             args '-mixin.config=tinkersdevotion.mixins.json'
@@ -165,6 +165,13 @@ dependencies {
     // JEI for recipe viewing
     implementation fg.deobf("curse.maven:jei-238222:7391695")
 
+    // ── DEV-ONLY test addons - exercise addon-tool compat in dev runs only. ──
+    // runtimeOnly (not compiled against) + Forge bundles no deps, so these never ship.
+    // jsonthings is a mandatory dependency of tinkers-things-json. Remove this block when done testing.
+    runtimeOnly fg.deobf("curse.maven:json-things-541617:7949740")
+    runtimeOnly fg.deobf("curse.maven:tinkers-things-json-811436:7375264")
+    runtimeOnly fg.deobf("curse.maven:tinkers-thinking-850772:8067373")
+
     // Mixin annotation processor
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
@@ -207,7 +214,7 @@ tasks.named('processResources', ProcessResources).configure {
 // (logs "Contributing refmap (mixin.refmap.json)" during the jar task). The mixins.json
 // `refmap` field points at that exact filename so production-side SRG remapping resolves.
 tasks.named('jar', Jar).configure {
-    // Dev-only test recipes — kept on disk for `runClient`/`runServer` (which use the resources dir,
+    // Dev-only test recipes - kept on disk for `runClient`/`runServer` (which use the resources dir,
     // not the jar) but stripped from the released artifact.
     exclude 'data/tinkersdevotion/recipes/test_*_recipe.json'
 

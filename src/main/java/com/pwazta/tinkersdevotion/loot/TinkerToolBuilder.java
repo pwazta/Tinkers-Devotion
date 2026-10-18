@@ -38,7 +38,7 @@ import slimeknights.tconstruct.library.tools.nbt.ToolStack;
 /**
  * Orchestrator for building TC replacements (tools, armor, ranged, shields, fishing rods,
  * flint and steel). Picks an eligible TC item via the strategy and delegates building to
- * {@link ReplacementStrategy#buildReplacement} — material-based strategies share the pipeline
+ * {@link ReplacementStrategy#buildReplacement} - material-based strategies share the pipeline
  * exposed via {@link #materialBasedBuild}; material-less strategies override directly.
  *
  * <p>Shared by VanillaLootReplacer (GLM) and MobEquipmentReplacer (spawn event).
@@ -70,7 +70,7 @@ public class TinkerToolBuilder {
 
     /**
      * Clears lazy caches that are safe to rebuild on demand.
-     * Tool tier state is intentionally NOT cleared here — it's owned by
+     * Tool tier state is intentionally NOT cleared here - it's owned by
      * {@link TiersToTcMaterials#rebuildToolCaches} which only fires on MaterialsLoadedEvent.
      */
     public static void clearCaches() {
@@ -115,7 +115,7 @@ public class TinkerToolBuilder {
      * Material-based build pipeline used by {@link ReplacementStrategy#buildReplacement}'s
      * default implementation: resolves stat types, calls {@link ReplacementStrategy#selectMaterials},
      * and assembles the tool. Bails (with a diagnostic warn) if the definition has no
-     * material stats — that case is reserved for material-less strategies which override
+     * material stats - that case is reserved for material-less strategies which override
      * {@code buildReplacement} directly.
      */
     public static @Nullable ItemStack materialBasedBuild(

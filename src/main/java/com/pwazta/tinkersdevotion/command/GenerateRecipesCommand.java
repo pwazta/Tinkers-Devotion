@@ -109,7 +109,7 @@ public class GenerateRecipesCommand {
             GenerationResult result = new GenerationResult();
 
             // Step 1: Capture tool materials dropped from the last cache rebuild because their
-            // vanilla Tier is unmappable. Diagnostic feedback for addon-pack authors — not user
+            // vanilla Tier is unmappable. Diagnostic feedback for addon-pack authors - not user
             // exclusions. The cache itself is rebuilt on MaterialsLoadedEvent, not here.
             result.unmappedToolMaterials = TiersToTcMaterials.getUnmappedToolMaterials();
 
@@ -140,7 +140,7 @@ public class GenerateRecipesCommand {
         source.sendSuccess(() -> Component.literal("Resetting all configs to defaults..."), true);
 
         // Reset tool exclusions and modifier skip list to defaults.
-        // Tool tier state lives in the TC registry — no config file to delete.
+        // Tool tier state lives in the TC registry - no config file to delete.
         ToolExclusionConfig.resetToDefaults();
         ModifierSkipListConfig.resetToDefaults();
         ItemAliasConfig.resetToDefaults();
@@ -304,7 +304,7 @@ public class GenerateRecipesCommand {
         if (recipe instanceof SmithingTransformRecipe t) {
             return List.of(t.template, t.base, t.addition);
         }
-        // SmithingTrimRecipe intentionally skipped — base is always the `minecraft:trimmable_armor` tag,
+        // SmithingTrimRecipe intentionally skipped - base is always the `minecraft:trimmable_armor` tag,
         // which the tag-safety guard below would reject anyway. TC armor is not in that tag.
         return null;
     }

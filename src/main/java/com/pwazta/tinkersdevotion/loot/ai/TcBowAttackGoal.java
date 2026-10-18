@@ -27,10 +27,10 @@ import slimeknights.tconstruct.library.tools.nbt.ToolStack;
  * TC-aware bow attack goal for mobs. Copy of vanilla {@code RangedBowAttackGoal} with targeted changes:
  * <ul>
  *   <li>{@code instanceof} checks expanded to include {@link ModifiableBowItem}</li>
- *   <li>{@code startDrawtime()} called when mob begins drawing — required because mobs don't
+ *   <li>{@code startDrawtime()} called when mob begins drawing - required because mobs don't
  *       go through {@code Item.use()}, so drawtime persistent data is never set otherwise</li>
  *   <li>TC bows fire arrows with TC stats applied (damage, velocity, modifier hooks) via
- *       {@link TcProjectileHelper} — mirrors TC's internal {@code releaseUsing()} formula</li>
+ *       {@link TcProjectileHelper} - mirrors TC's internal {@code releaseUsing()} formula</li>
  * </ul>
  *
  * <p>TC's {@code releaseUsing()} requires ammo items which mobs don't carry, so we create

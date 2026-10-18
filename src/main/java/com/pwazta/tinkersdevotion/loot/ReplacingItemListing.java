@@ -11,7 +11,7 @@ import slimeknights.tconstruct.library.materials.MaterialRegistry;
 
 /**
  * Wraps an {@link VillagerTrades.ItemListing} and routes its produced {@link MerchantOffer}'s
- * result through {@link TinkerToolBuilder#tryReplace}. Cost stacks intentionally untouched —
+ * result through {@link TinkerToolBuilder#tryReplace}. Cost stacks intentionally untouched -
  * see CONTEXT.md "Villager trade input limitation".
  *
  * <p>Round-trips through {@link CompoundTag} rather than constructor-copying because

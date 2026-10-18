@@ -55,7 +55,7 @@ public class DatapackHelper {
      * recipes pack and Mantle's {@code SlimeKnightsGenerated}), unions them into the selected
      * list (excluding any in the world's disabled list), and triggers a server resource reload.
      *
-     * <p>Mirrors vanilla {@code ReloadCommand.discoverNewPacks} — necessary because
+     * <p>Mirrors vanilla {@code ReloadCommand.discoverNewPacks} - necessary because
      * {@link MinecraftServer#reloadResources(Collection)} only reloads packs already in the
      * selected list and won't auto-enable packs added to {@code world/datapacks/} mid-session
      * or post-world-creation.
@@ -158,7 +158,7 @@ public class DatapackHelper {
     /**
      * Inputs: mod set (modid:version, sorted), tool_exclusions.json + item_aliases.json bytes, and the value of
      * {@code Config.disableVanillaCrafting}. The toggle is hashed by value because Forge rewrites
-     * the TOML on load for normalization — byte-hashing would flap. Other TOML fields are
+     * the TOML on load for normalization - byte-hashing would flap. Other TOML fields are
      * runtime-only and don't feed the generated JSON.
      */
     public static String computeHash(MinecraftServer server) {
@@ -186,7 +186,7 @@ public class DatapackHelper {
     /**
      * Deletes recipe-disabling stubs Mantle wrote into the {@code SlimeKnightsGenerated} datapack
      * so vanilla recipes reload from base on the next datapack reload. Scoped to
-     * {@code data/<ns>/recipes/...} — {@code RemoveDataCommand} outputs (structure_set,
+     * {@code data/<ns>/recipes/...} - {@code RemoveDataCommand} outputs (structure_set,
      * biome_modifier) live elsewhere and are preserved.
      *
      * <p>Path resolution mirrors Mantle's {@code GeneratePackHelper.getDatapackPath}: global

@@ -15,7 +15,7 @@ import java.util.List;
  * Strategy for building a TC replacement of a vanilla item category.
  *
  * <p>Material-based strategies (tools, armor, ranged, shield, fishing rod) override
- * {@link #selectMaterials} only — the default {@link #buildReplacement} runs the shared
+ * {@link #selectMaterials} only - the default {@link #buildReplacement} runs the shared
  * material pipeline for them.
  *
  * <p>Material-less strategies (TC tools defined without a {@code MaterialStatsModule},

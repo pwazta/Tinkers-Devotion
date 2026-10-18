@@ -64,9 +64,9 @@ The full canonical mappings:
 
 | Vanilla tier     | Tool canonical         | Armor canonical        |
 | ---------------- | ---------------------- | ---------------------- |
-| wooden           | `tconstruct:wood`      | —                      |
-| stone            | `tconstruct:rock`      | —                      |
-| leather          | —                      | `tconstruct:copper`    |
+| wooden           | `tconstruct:wood`      | -                      |
+| stone            | `tconstruct:rock`      | -                      |
+| leather          | -                      | `tconstruct:copper`    |
 | iron / chainmail | `tconstruct:iron`      | `tconstruct:iron`      |
 | golden           | `tconstruct:rose_gold` | `tconstruct:gold`      |
 | diamond          | `tconstruct:cobalt`    | `tconstruct:cobalt`    |

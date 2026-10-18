@@ -37,7 +37,7 @@ public class TinkerMaterialIngredient extends AbstractIngredient {
         this.mode = mode;
     }
 
-    // ── test() — main matching logic ─────────────────────────────────────
+    // ── test() - main matching logic ─────────────────────────────────────
 
     @Override
     public boolean test(@Nullable ItemStack stack) {

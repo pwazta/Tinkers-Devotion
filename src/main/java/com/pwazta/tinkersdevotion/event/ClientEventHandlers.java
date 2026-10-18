@@ -85,7 +85,7 @@ public class ClientEventHandlers {
                         .withStyle(ChatFormatting.GOLD));
             }
         } else if (isFlintAndSteel) {
-            // Flint and steel: tierless static line — TC flint_and_brick has no material composition.
+            // Flint and steel: tierless static line - TC flint_and_brick has no material composition.
             event.getToolTip().add(Component.translatable(
                     "tooltip.tinkersdevotion.required_flint_and_steel")
                     .withStyle(ChatFormatting.GOLD));
