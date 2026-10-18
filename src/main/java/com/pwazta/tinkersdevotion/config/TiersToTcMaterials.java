@@ -40,6 +40,7 @@ public class TiersToTcMaterials {
     /** Canonical armor material per tier range. Unified across all armor sets. Key format: "minTier-maxTier". */
     private static final Map<String, String> CANONICAL_ARMOR_BY_TIER = Map.of(
         "0-1", "tconstruct:copper",
+        "1-1", "tconstruct:copper",
         "1-2", "tconstruct:gold",
         "2-2", "tconstruct:iron",
         "3-3", "tconstruct:cobalt",
@@ -122,8 +123,14 @@ public class TiersToTcMaterials {
 
     /** Returns all material ids mapped to the given tier name. Empty set if tier unknown or cache not yet built. */
     public static Set<String> getToolMaterialsForTier(String tier) {
-        Set<String> materials = toolMaterialsByTier.get(tier.toLowerCase(Locale.ROOT));
+        Set<String> materials = toolMaterialsByTier.get(poolTierName(tier));
         return materials != null ? materials : Set.of();
+    }
+
+    /** Resolves a tier name to the tier whose material pool and recipe tier it uses (copper -> iron; others unchanged). */
+    public static String poolTierName(String tier) {
+        VanillaTier vt = VanillaTier.fromItemPrefix(tier.toLowerCase(Locale.ROOT));
+        return vt != null ? vt.poolTier() : tier.toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -140,10 +147,9 @@ public class TiersToTcMaterials {
      * Falls back to the first material in the tier pool if the curated canonical is absent.
      */
     public static @Nullable String getCanonicalToolMaterial(String tier) {
-        String tierKey = tier.toLowerCase(Locale.ROOT);
-        VanillaTier vt = VanillaTier.fromItemPrefix(tierKey);
+        VanillaTier vt = VanillaTier.fromItemPrefix(tier.toLowerCase(Locale.ROOT));
         String canonical = vt != null ? vt.canonicalToolMaterial() : null;
-        Set<String> pool = toolMaterialsByTier.get(tierKey);
+        Set<String> pool = toolMaterialsByTier.get(poolTierName(tier));
         if (canonical != null && pool != null && pool.contains(canonical)) return canonical;
         return (pool != null && !pool.isEmpty()) ? pool.iterator().next() : null;
     }

@@ -19,7 +19,6 @@ import slimeknights.tconstruct.library.tools.item.IModifiable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public record ToolMode(String tier, String toolType) implements IngredientMode {
 
@@ -40,8 +39,8 @@ public record ToolMode(String tier, String toolType) implements IngredientMode {
         ListTag materialsList = nbt.getList("tic_materials", Tag.TAG_STRING);
         if (materialsList.isEmpty()) return false;
 
-        // Normalize once - cache values are lowercase, recipe JSON may not be.
-        String requiredTier = tier.toLowerCase(Locale.ROOT);
+        // Resolve to the pool tier (copper -> iron); lowercases too. Cache values are lowercase, recipe JSON may not be.
+        String requiredTier = TiersToTcMaterials.poolTierName(tier);
 
         // HEAD material (index 0) MUST match the required tier (live lookup, no config)
         if (!requiredTier.equals(TiersToTcMaterials.getToolTierName(materialsList.getString(0)))) return false;

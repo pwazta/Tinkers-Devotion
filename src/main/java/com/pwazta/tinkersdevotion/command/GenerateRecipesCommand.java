@@ -266,6 +266,13 @@ public class GenerateRecipesCommand {
                 count += dispatch(server, source, "result " + recipeType + " " + id);
             }
         }
+        // VB-conditional vanilla items (copper) can't ride the tag presets (a missing id drops the whole tag), so dispatch per-id when present.
+        for (String id : VanillaItemMappings.CONDITIONAL_BUILTIN_IDS) {
+            if (!ForgeRegistries.ITEMS.containsKey(new ResourceLocation(id))) continue;
+            for (String recipeType : ALIAS_REMOVAL_TYPES) {
+                count += dispatch(server, source, "result " + recipeType + " " + id);
+            }
+        }
         return count;
     }
 
@@ -284,7 +291,10 @@ public class GenerateRecipesCommand {
         for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(DISABLED_VANILLA_CRAFTING)) {
             covered.add(BuiltInRegistries.ITEM.getKey(holder.value()).toString());
         }
-        List<String> uncovered = VanillaItemMappings.replacedItemIds().stream().filter(id -> !covered.contains(id)).sorted().toList();
+        List<String> uncovered = VanillaItemMappings.replacedItemIds().stream()
+            .filter(id -> !covered.contains(id))
+            .filter(id -> !VanillaItemMappings.CONDITIONAL_BUILTIN_IDS.contains(id))
+            .sorted().toList();
         if (!uncovered.isEmpty()) {
             LOGGER.error("Replaced items missing from #{}, so their recipes stay craftable: {}", DISABLED_VANILLA_CRAFTING.location(), uncovered);
         }

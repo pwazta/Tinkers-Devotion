@@ -14,16 +14,24 @@ public enum VanillaTier {
     IRON     ("iron",      "iron",      "tconstruct:iron"),
     GOLD     ("golden",    "gold",      "tconstruct:rose_gold"),
     DIAMOND  ("diamond",   "diamond",   "tconstruct:cobalt"),
-    NETHERITE("netherite", "netherite",  "tconstruct:hepatizon");
+    NETHERITE("netherite", "netherite", "tconstruct:hepatizon"),
+    // Copper has no TC tool-tier (tconstruct:copper's head is iron-tier), so draws mat pool from iron while keeping copper canonical head.
+    COPPER   ("copper",    "copper",    "tconstruct:copper",   "iron");
 
     private final String itemPrefix;
     private final String tcTierPath;
     private final String canonicalToolMaterial;
+    private final String poolTier;
 
     VanillaTier(String itemPrefix, String tcTierPath, String canonicalToolMaterial) {
+        this(itemPrefix, tcTierPath, canonicalToolMaterial, itemPrefix);
+    }
+
+    VanillaTier(String itemPrefix, String tcTierPath, String canonicalToolMaterial, String poolTier) {
         this.itemPrefix = itemPrefix;
         this.tcTierPath = tcTierPath;
         this.canonicalToolMaterial = canonicalToolMaterial;
+        this.poolTier = poolTier;
     }
 
     /** Vanilla item ID prefix (e.g. "golden" for golden_pickaxe, "iron" for iron_chestplate). */
@@ -34,6 +42,9 @@ public enum VanillaTier {
 
     /** Canonical TC tool material ID for loot weighting (80% selection) and JEI display (e.g. "tconstruct:rose_gold"). */
     public String canonicalToolMaterial() { return canonicalToolMaterial; }
+
+    /** Tier name whose TC material pool this tier draws from; defaults to itself. Copper borrows iron. */
+    public String poolTier() { return poolTier; }
 
     /**
      * Lookup by vanilla Tier ResourceLocation (e.g. minecraft:gold -> GOLD).

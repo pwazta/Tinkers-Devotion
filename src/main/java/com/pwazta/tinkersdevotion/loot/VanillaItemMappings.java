@@ -58,6 +58,17 @@ public class VanillaItemMappings {
 
     public static final String[] FLINT_AND_STEEL_TYPES = {"flint_and_steel"};
 
+    /** Built-in vanilla-namespaced ids present only with an addon (VB copper), so they ride per-id recipe dispatch instead of the static disable tag. */
+    public static final Set<String> CONDITIONAL_BUILTIN_IDS = buildConditionalIds();
+
+    private static Set<String> buildConditionalIds() {
+        Set<String> ids = new HashSet<>();
+        String copper = VanillaTier.COPPER.itemPrefix();
+        for (String tool : TOOL_TYPES) ids.add("minecraft:" + copper + "_" + tool);
+        for (String slot : ARMOR_SLOTS) ids.add("minecraft:" + copper + "_" + slot);
+        return Set.copyOf(ids);
+    }
+
     // -- String-keyed map (populated in static init) --------------------
 
     private static final Map<String, ReplacementInfo> REPLACEMENTS_BY_ID = new HashMap<>();
@@ -72,6 +83,7 @@ public class VanillaItemMappings {
         // Multiple sets per tier allow addon armor (TinkersThings laminar/makeshift) to appear in loot.
         for (String slot : ARMOR_SLOTS) {
             REPLACEMENTS_BY_ID.put("minecraft:leather_" + slot,    new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:makeshift"), slot, 0, 1));
+            REPLACEMENTS_BY_ID.put("minecraft:copper_" + slot,     new ArmorInfo(List.of("tconstruct:travelers", "tconstruct:plate"), slot, 1, 1));
             REPLACEMENTS_BY_ID.put("minecraft:chainmail_" + slot,  new ArmorInfo(List.of("tconstruct:travelers", "tinkers_things:laminar"), slot, 2, 2));
             REPLACEMENTS_BY_ID.put("minecraft:golden_" + slot,     new ArmorInfo(List.of("tconstruct:travelers", "tconstruct:plate", "tinkers_things:laminar"), slot, 1, 2));
             REPLACEMENTS_BY_ID.put("minecraft:iron_" + slot,       new ArmorInfo(List.of("tconstruct:plate", "tinkers_things:laminar"), slot, 2, 2));
@@ -152,7 +164,9 @@ public class VanillaItemMappings {
             if (map != null) return map;
             map = new HashMap<>();
             for (Map.Entry<String, ReplacementInfo> entry : byId.entrySet()) {
-                map.put(ForgeRegistries.ITEMS.getValue(new ResourceLocation(entry.getKey())), entry.getValue());
+                ResourceLocation id = new ResourceLocation(entry.getKey());
+                if (!ForgeRegistries.ITEMS.containsKey(id)) continue; // conditional ids (VB copper) absent -> inert
+                map.put(ForgeRegistries.ITEMS.getValue(id), entry.getValue());
             }
             map = Map.copyOf(map);
             byItem = map;
