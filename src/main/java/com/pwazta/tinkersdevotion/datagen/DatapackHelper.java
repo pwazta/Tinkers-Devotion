@@ -156,8 +156,8 @@ public class DatapackHelper {
     }
 
     /**
-     * Inputs: mod set (modid:version, sorted), tool_exclusions.json + item_aliases.json bytes, and the value of
-     * {@code Config.disableVanillaCrafting}. The toggle is hashed by value because Forge rewrites
+     * Inputs: mod set (modid:version, sorted), tool_exclusions.json + item_aliases.json bytes, and the values of
+     * {@code Config.disableVanillaCrafting} and {@code Config.exclusiveRecipeReplacement}. Toggles are hashed by value because Forge rewrites
      * the TOML on load for normalization - byte-hashing would flap. Other TOML fields are
      * runtime-only and don't feed the generated JSON.
      */
@@ -173,6 +173,8 @@ public class DatapackHelper {
         parts.add(readConfigBytes(ItemAliasConfig.getConfigFile()));
         parts.add("--toml-disable-vanilla--");
         parts.add(String.valueOf(Config.disableVanillaCrafting));
+        parts.add("--toml-exclusive-replacement--");
+        parts.add(String.valueOf(Config.exclusiveRecipeReplacement));
 
         try {
             MessageDigest sha = MessageDigest.getInstance("SHA-256");

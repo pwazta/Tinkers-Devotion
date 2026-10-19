@@ -16,6 +16,13 @@ public class Config {
                      "!! TAKES EFFECT ON FULL GAME RESTART ONLY !!")
             .define("disableVanillaCrafting", true);
 
+    private static final ForgeConfigSpec.BooleanValue EXCLUSIVE_RECIPE_REPLACEMENT = BUILDER
+            .comment("When disabling vanilla crafting, also remove the original recipes that take vanilla tools as inputs,",
+                     "so only the TC equivalent is accepted, not both. Requires disableVanillaCrafting.",
+                     "",
+                     "!! TAKES EFFECT ON FULL GAME RESTART ONLY !!")
+            .define("exclusiveRecipeReplacement", true);
+
     private static final ForgeConfigSpec.DoubleValue PARTS_MATCH_THRESHOLD = BUILDER
             .comment("Required match ratio for tool part materials (head ALWAYS must match the tier).",
                      "0.0 = head only (default). 0.5 = at least 50% of parts must match. 1.0 = every part must match.")
@@ -62,6 +69,7 @@ public class Config {
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     public static boolean disableVanillaCrafting;
+    public static boolean exclusiveRecipeReplacement;
     public static double partsMatchThreshold;
     public static boolean replaceLootTableItems;
     public static boolean replaceMobEquipment;
@@ -75,6 +83,7 @@ public class Config {
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         disableVanillaCrafting = DISABLE_VANILLA_CRAFTING.get();
+        exclusiveRecipeReplacement = EXCLUSIVE_RECIPE_REPLACEMENT.get();
         partsMatchThreshold = PARTS_MATCH_THRESHOLD.get();
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();

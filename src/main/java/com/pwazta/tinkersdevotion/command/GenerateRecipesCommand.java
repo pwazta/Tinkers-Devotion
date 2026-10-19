@@ -90,6 +90,7 @@ public class GenerateRecipesCommand {
         int staleRecipesCleaned = 0;
         List<String> unmappedToolMaterials = List.of();
         final List<String> errors = new ArrayList<>();
+        final Set<ResourceLocation> replacedRecipeIds = new HashSet<>();
     }
 
     /** Pre-built replacement JSON for a slot containing at least one tracked vanilla item entry. */
@@ -204,6 +205,7 @@ public class GenerateRecipesCommand {
                     Path written = DatapackHelper.saveRecipeJson(
                         replacementRecipe, dataPath, recipeId.getNamespace(), recipeName);
                     writtenFiles.add(written);
+                    result.replacedRecipeIds.add(recipeId);
                     result.recipesGenerated++;
                 }
             } catch (Exception e) {
@@ -242,7 +244,7 @@ public class GenerateRecipesCommand {
         Set<Path> writtenFiles = doGenerate(server, result);
         result.staleRecipesCleaned = cleanStaleRecipes(existingFiles, writtenFiles);
 
-        if (Config.disableVanillaCrafting) result.vanillaRecipesRemoved = disableVanillaRecipes(server);
+        if (Config.disableVanillaCrafting) result.vanillaRecipesRemoved = disableVanillaRecipes(server, result);
 
         DatapackHelper.discoverAndReload(server).join();
         DatapackHelper.markGenerated(server);
@@ -253,7 +255,7 @@ public class GenerateRecipesCommand {
      * to item IDs rather than the vanilla tool/armor tags TC's own preset uses, because those tags carry
      * modded gear too, whose recipes are none of our business.
      */
-    private static int disableVanillaRecipes(MinecraftServer server) {
+    private static int disableVanillaRecipes(MinecraftServer server, GenerationResult result) {
         warnUncoveredReplacements();
         CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
         int count = 0;
@@ -271,6 +273,12 @@ public class GenerateRecipesCommand {
             if (!ForgeRegistries.ITEMS.containsKey(new ResourceLocation(id))) continue;
             for (String recipeType : ALIAS_REMOVAL_TYPES) {
                 count += dispatch(server, source, "result " + recipeType + " " + id);
+            }
+        }
+        // Exclusive mode: remove original input-recipes we replaced, so only the new TC-version is accepted.
+        if (Config.exclusiveRecipeReplacement) {
+            for (ResourceLocation id : result.replacedRecipeIds) {
+                count += dispatch(server, source, "id " + id);
             }
         }
         return count;
