@@ -8,10 +8,11 @@
     "1.0.4": "disableVanillaCrafting toggle now correctly applies after a full game restart: previously, flipping it back to false could leave vanilla crafting stuck disabled. Note: toggle changes ONLY take effect on full Minecraft restart.",
     "1.0.5": "Addon TC tools (Tinkers' Thinking, JSON Things) now qualify as vanilla replacements via Forge tool-action detection. Ancient (loot-only) tools, including addon-added ones, are auto-excluded by tag. New modifier skip-list defaults: enderporting, ticex:celestial (creative flight), ticex:endestshot.",
     "1.1.0": "SUPPORT TO REPLACE MODDED ITEMS!! New item_aliases.json: point any modded item at a vanilla one and it gets replaced everywhere that vanilla item would be, across loot, mobs, trades and recipes, with its own recipe disabled too. Fixed certain modded recipes being mistakenly cleared during disabling phase (now hard-scoped to only items we replace). Animation fixes: TC bows show arrow while charging, drowned raise tridents, piglins hold TC crossbows properly.",
-    "1.2.0": "Copper-tier tools and armor are now replaced with TC equivalents across everything - treated as iron tier but holding canonical copper head/plating (i.e replacements should be ~80% copper). Does nothing if no copper-adding mod is installed e.g Vanilla-Backport."
+    "1.2.0": "Copper-tier tools and armor are now replaced with TC equivalents across everything - treated as iron tier but holding canonical copper head/plating (i.e replacements should be ~80% copper). Does nothing if no copper-adding mod is installed e.g Vanilla-Backport.",
+    "1.3.0": "BUGFIX: New exclusiveRecipeReplacement option (default on): modded recipes using vanilla-tool inputs now accept ONLY their TC equivalent (previously kept the original recipe too)--> now original recipe removed. Needs disableVanillaCrafting"
   },
   "promos": {
-    "1.20.1-recommended": "1.2.0",
-    "1.20.1-latest": "1.2.0"
+    "1.20.1-recommended": "1.3.0",
+    "1.20.1-latest": "1.3.0"
   }
 }
