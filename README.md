@@ -2,7 +2,7 @@
 
 > Tinkers' Devotion: true tinkers integration and immersion! Vanilla tools, weapons and armor all replaced by their TC counterparts in recipes, loot, mob equipment, and villager trades. There are no bounds to your tinkering, and the world should reflect that!
 
-This mod is designed to be extensible, so the replacements system should work automatically with most mods! Most replacement systems can be toggled, scoped per item type, or blacklisted per mod. See [Configuration](#configuration) further down.
+This mod is designed to be extensible, so the replacements system should work automatically with most mods! Most replacement systems can be toggled, scoped per item type, or blacklisted per mod. See Configuration further down.
 
 ---
 
@@ -10,7 +10,7 @@ This mod is designed to be extensible, so the replacements system should work au
 
 ### 1. Mob Equipment
 
-Mobs spawning with vanilla tools or armor spawn with the TC equivalent instead, rolled fresh per mob with materials biased toward the same tier. This affects armour, melee and ranged weapons.
+Mobs spawning with vanilla tools / armor spawn with the TC equivalent instead, rolled fresh per mob with materials biased toward the same tier. This affects armour, melee & ranged weapons. Some mods equip their mobs just AFTER spawn (e.g. Guard Villagers); use `replaceDeferredSpawnEquipment` to catch those too (default off).
 
 ### 2. Loot Tables
 
@@ -34,7 +34,7 @@ The 4 systems above trigger on vanilla items & DON'T TOUCH MODDED ITEMS BY DEFAU
 
 ## Nerdy Stuff
 
-> Skip to [Configuration](#configuration) if you just want to play.
+> Skip to the Configuration section below if you just want to play.
 
 **The general flow**
 
@@ -72,13 +72,13 @@ The full canonical mappings:
 
 Copper has no TC tool-tier of its own, so it keeps `tconstruct:copper` as canonical, and is matched as iron (i.e copper-replacements will have ~80% copper show up, while the rest is iron-tier).
 
-**Enchantments → TC modifiers**
+**Enchantments -> TC modifiers**
 
 Pre-enchanted vanilla items get their enchantments converted to TC modifiers.
 
-1. **Budget:** sum vanilla enchantment levels, take `ceil(sqrt(totalLevels × 4))`, cap at 7. Sharpness V Unbreaking III Mending I gets a budget of about 6.
+1. **Budget:** sum vanilla enchantment levels, take `ceil(sqrt(totalLevels x 4))`, cap at 7. Sharpness V Unbreaking III Mending I gets a budget of about 6.
 2. **Modifier pool:** built from your installed TC recipes, so addon modifiers are auto-included. Modifiers with unmet prerequisites are filtered.
-3. **Specialty weighting:** specialist modifiers (apply specifically to one "type" of tool, e.g: sharp) are ~8× more likely than universals. Tunable.
+3. **Specialty weighting:** specialist modifiers (apply specifically to one "type" of tool, e.g: sharp) are ~8x more likely than universals. Tunable.
 4. **Spending the budget:** at each step, either level up an existing modifier (default 65% chance) or pick a new one. Bonus-slot modifiers added if budget overflows.
 
 A skip list in the config keeps unwanted modifiers out (defaults include `netherite`, `creative_slot`, `draconic`, etc.).
@@ -89,7 +89,7 @@ A skip list in the config keeps unwanted modifiers out (defaults include `nether
 - **Addon materials:** read live from `MaterialRegistry`. New material drops in, it's eligible. Custom-tier materials work for armor and ranged; tools need a vanilla-tier mapping.
 - **Modded recipes:** caught by the same scan as vanilla. Datapack recipes should be automatically handled.
 - **Modded loot, mob equipment, villager professions:** all hit the same hooks as vanilla. No allowlist.
-- **JEI:** integrated. Replacement ingredient cycles through valid TC tools per slot. Recipe transfer works on the vanilla 3×3, player inventory grid, TC crafting station, and any container declared in the user-extensible config.
+- **JEI:** integrated. Replacement ingredient cycles through valid TC tools per slot. Recipe transfer works on the vanilla 3x3, player inventory grid, TC crafting station, and any container declared in the user-extensible config.
   - NOTE: Other crafting interfaces may need special handling which I haven't specifically accounted for! Please let me know if there are any issues.
 
 ---
@@ -120,9 +120,9 @@ The recipe datapack auto-generates on first world load, so the command is only n
 
 Leave a comment or hop in the Discord to chat or ask a question. If you've found a bug or have a specific request, flag it on the [GitHub issue tracker](https://github.com/pwazta/Tinkers-Devotion/issues).
 
-![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?logo=discord&logoColor=white&style=flat-square)
+[![Discord](https://img.shields.io/badge/Discord-Join_the_server-5865F2?logo=discord&logoColor=white&style=flat-square)](https://discord.gg/qrBcucsTtY)
 
-- I am just one guy!! 
+- I am just one guy but im doing my best !!
 - FAQ COMING SOON.
 
 ---
@@ -150,4 +150,4 @@ Tested with almost all tinker's addons (at time of release here)! Friendly to an
 - Free for personal use.
 - Not allowed: modification, forks, re-uploads, or porting without written permission.
 
-Full terms in [LICENSE.md](LICENSE.md). For permission requests, open a [GitHub issue](https://github.com/pwazta/Tinkers-Devotion/issues).
+Full terms in [LICENSE.md](https://github.com/pwazta/Tinkers-Devotion/blob/main/LICENSE.md). For permission requests, open a [GitHub issue](https://github.com/pwazta/Tinkers-Devotion/issues).
