@@ -9,9 +9,11 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.items.IItemHandlerModifiable;
 import slimeknights.tconstruct.library.materials.MaterialRegistry;
 
 /**
@@ -44,7 +46,7 @@ public class MobEquipmentReplacer {
             if (current.isEmpty()) continue;
 
             ItemStack replacement = TinkerToolBuilder.tryReplace(current, random);
-            if (replacement != null) mob.setItemSlot(slot, replacement);
+            if (replacement != null) setEquipment(mob, slot, replacement);
         }
 
         if (Config.replaceMobRangedAI)
@@ -66,7 +68,22 @@ public class MobEquipmentReplacer {
         ItemStack replacement = TinkerToolBuilder.tryReplace(current, mob.getRandom());
         if (replacement == null) return;
 
-        mob.setItemSlot(event.getSlot(), replacement);
+        setEquipment(mob, event.getSlot(), replacement);
         if (Config.replaceMobRangedAI) RangedGoalHelper.ensureGoalsForRangedWeapons(mob);
+    }
+
+    // Helper: set a mob's equipment slot. Some mobs (e.g. Guard Villagers armor) read the slot from
+    // their own inventory and ignore setItemSlot, so fall back to the ITEM_HANDLER cap.
+    private static void setEquipment(Mob mob, EquipmentSlot slot, ItemStack replacement) {
+        ItemStack old = mob.getItemBySlot(slot);
+        mob.setItemSlot(slot, replacement);
+        if (mob.getItemBySlot(slot) == replacement) return;
+
+        mob.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
+            if (!(handler instanceof IItemHandlerModifiable inv)) return;
+            for (int i = 0; i < inv.getSlots(); i++) {
+                if (inv.getStackInSlot(i) == old) { inv.setStackInSlot(i, replacement); return; }
+            }
+        });
     }
 }
