@@ -94,9 +94,9 @@ public class DatapackHelper {
      */
     public static Path saveRecipeJson(JsonObject recipe, Path dataPath, String namespace, String recipeName) throws IOException {
         Path recipesDir = dataPath.resolve(namespace).resolve("recipes");
-        Files.createDirectories(recipesDir);
-
         Path recipeFile = recipesDir.resolve(recipeName + ".json");
+        // recipeName may carry subfolders (nested recipe ids) - create the file's actual parent
+        Files.createDirectories(recipeFile.getParent());
         Files.writeString(recipeFile, GSON.toJson(recipe));
         return recipeFile;
     }
