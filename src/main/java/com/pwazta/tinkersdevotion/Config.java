@@ -61,6 +61,12 @@ public class Config {
                      "Toggle independently from replaceMobEquipment for debugging.")
             .define("replaceMobRangedAI", true);
 
+    private static final ForgeConfigSpec.BooleanValue REPLACE_DEFERRED_SPAWN_EQUIPMENT = BUILDER
+            .comment("Replace vanilla gear that other mods add to mobs a tick or two after spawn (e.g. Guard Villagers guards).",
+                     "REQUIRES replaceMobEquipment to also be enabled.",
+                     "Off by default: a modded mob's own ranged AI may not fire a swapped TC bow or crossbow.")
+            .define("replaceDeferredSpawnEquipment", false);
+
     private static final ForgeConfigSpec.BooleanValue REPLACE_VILLAGER_TRADES = BUILDER
             .comment("Replace vanilla tools/armor/ranged/shields/fishing rods/flint and steel in villager and wandering-trader trade outputs.",
                      "Each villager keeps its rolled trade across save/load. Trade INPUTS are not replaced.")
@@ -74,6 +80,7 @@ public class Config {
     public static boolean replaceLootTableItems;
     public static boolean replaceMobEquipment;
     public static boolean replaceMobRangedAI;
+    public static boolean replaceDeferredSpawnEquipment;
     public static boolean replaceVillagerTrades;
     public static double levelUpChance;
     public static double modifierWeightFalloff;
@@ -88,6 +95,7 @@ public class Config {
         replaceLootTableItems = REPLACE_LOOT_TABLE_ITEMS.get();
         replaceMobEquipment = REPLACE_MOB_EQUIPMENT.get();
         replaceMobRangedAI = REPLACE_MOB_RANGED_AI.get();
+        replaceDeferredSpawnEquipment = REPLACE_DEFERRED_SPAWN_EQUIPMENT.get();
         replaceVillagerTrades = REPLACE_VILLAGER_TRADES.get();
         levelUpChance = LEVEL_UP_CHANCE.get();
         modifierWeightFalloff = MODIFIER_WEIGHT_FALLOFF.get();
