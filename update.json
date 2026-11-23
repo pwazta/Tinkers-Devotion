@@ -10,10 +10,11 @@
     "1.1.0": "SUPPORT TO REPLACE MODDED ITEMS!! New item_aliases.json: point any modded item at a vanilla one and it gets replaced everywhere that vanilla item would be, across loot, mobs, trades and recipes, with its own recipe disabled too. Fixed certain modded recipes being mistakenly cleared during disabling phase (now hard-scoped to only items we replace). Animation fixes: TC bows show arrow while charging, drowned raise tridents, piglins hold TC crossbows properly.",
     "1.2.0": "Copper-tier tools and armor are now replaced with TC equivalents across everything - treated as iron tier but holding canonical copper head/plating (i.e replacements should be ~80% copper). Does nothing if no copper-adding mod is installed e.g Vanilla-Backport.",
     "1.3.0": "BUGFIX: New exclusiveRecipeReplacement option (default on): modded recipes using vanilla-tool inputs now accept ONLY their TC equivalent (previously kept the original recipe too)--> now original recipe removed. Needs disableVanillaCrafting",
-    "1.4.0": "new replaceDeferredSpawnEquipment (default off, needs replaceMobEquipment ON): replaces vanilla-stuff mods give mobs a tick AFTER spawn, e.g. Guard Villagers guards. Also fixes non-hostile some cases of ranged mobs just holding TC crossbows instead of firing them. BUGFIX: replacement recipes with subfolder ids (e.g. cataclysm smithing table) now save instead of getting skipped."
+    "1.4.0": "new replaceDeferredSpawnEquipment (default off, needs replaceMobEquipment ON): replaces vanilla-stuff mods give mobs a tick AFTER spawn, e.g. Guard Villagers guards. Also fixes non-hostile some cases of ranged mobs just holding TC crossbows instead of firing them. BUGFIX: replacement recipes with subfolder ids (e.g. cataclysm smithing table) now save instead of getting skipped.",
+    "1.4.1": "BUGFIX: Missed armour replacement for guard villagers (they use their own item handlers). Should work for other mods with their own item handlers too."
   },
   "promos": {
-    "1.20.1-recommended": "1.4.0",
-    "1.20.1-latest": "1.4.0"
+    "1.20.1-recommended": "1.4.1",
+    "1.20.1-latest": "1.4.1"
   }
 }
