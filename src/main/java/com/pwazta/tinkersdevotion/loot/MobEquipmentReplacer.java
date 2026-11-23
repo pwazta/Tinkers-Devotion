@@ -8,6 +8,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -19,9 +20,15 @@ import slimeknights.tconstruct.library.materials.MaterialRegistry;
  * EntityJoinLevelEvent fires after {@code Mob#finalizeSpawn()} populates equipment slots.
  * LOWEST priority so we run after other mods' equipment handlers on the same event.
  * Idempotent on re-fire: tryReplace only matches items we replace; TC items are skipped.
+ *
+ * LivingEquipmentChangeEvent catches gear other mods apply a tick or two after spawn
+ * (e.g. Guard Villagers), which EntityJoinLevelEvent is too early to see.
  */
 @Mod.EventBusSubscriber(modid = TinkersDevotion.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class MobEquipmentReplacer {
+
+    // Max age (ticks) for an equipment change to count as deferred spawn gear.
+    private static final int SPAWN_EQUIP_WINDOW_TICKS = 10;
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
@@ -42,5 +49,24 @@ public class MobEquipmentReplacer {
 
         if (Config.replaceMobRangedAI)
             RangedGoalHelper.ensureGoalsForRangedWeapons(mob);
+    }
+
+    // Some mods equip mobs a tick or two after spawn (e.g. Guard Villagers loot-table gear),
+    // after EntityJoinLevelEvent. Window excludes later item pickups.
+    @SubscribeEvent
+    public static void onLivingEquipmentChange(LivingEquipmentChangeEvent event) {
+        if (!Config.replaceMobEquipment || !Config.replaceDeferredSpawnEquipment) return;
+        if (!(event.getEntity() instanceof Mob mob)) return;
+        if (mob.tickCount > SPAWN_EQUIP_WINDOW_TICKS) return;
+        if (!MaterialRegistry.isFullyLoaded()) return;
+
+        ItemStack current = event.getTo();
+        if (current.isEmpty()) return;
+
+        ItemStack replacement = TinkerToolBuilder.tryReplace(current, mob.getRandom());
+        if (replacement == null) return;
+
+        mob.setItemSlot(event.getSlot(), replacement);
+        if (Config.replaceMobRangedAI) RangedGoalHelper.ensureGoalsForRangedWeapons(mob);
     }
 }
