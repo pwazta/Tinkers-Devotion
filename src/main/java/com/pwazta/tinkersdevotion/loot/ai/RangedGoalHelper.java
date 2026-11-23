@@ -6,7 +6,6 @@ import net.minecraft.world.entity.ai.goal.RangedBowAttackGoal;
 import net.minecraft.world.entity.ai.goal.RangedCrossbowAttackGoal;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.monster.CrossbowAttackMob;
-import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.item.ItemStack;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
@@ -46,10 +45,10 @@ public class RangedGoalHelper {
                 return;
             }
             if (held.getItem() instanceof ModifiableCrossbowItem) {
-                if (mob instanceof Monster && mob instanceof RangedAttackMob && mob instanceof CrossbowAttackMob
+                if (mob instanceof RangedAttackMob && mob instanceof CrossbowAttackMob
                         && !hasGoalOfType(mob, TcCrossbowAttackGoal.class)) {
                     removeGoalOfType(mob, RangedCrossbowAttackGoal.class);
-                    mob.goalSelector.addGoal(3, new TcCrossbowAttackGoal<>((Monster & RangedAttackMob & CrossbowAttackMob) mob, 1.0D, 8.0F));
+                    mob.goalSelector.addGoal(3, new TcCrossbowAttackGoal<>((Mob & RangedAttackMob & CrossbowAttackMob) mob, 1.0D, 8.0F));
                 }
                 return;
             }
